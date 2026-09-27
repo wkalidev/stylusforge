@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Editor from '@monaco-editor/react';
 
 const starterCode = [
   '#![cfg_attr(not(feature = "export-abi"), no_main)]',
@@ -22,31 +23,6 @@ const starterCode = [
   '    }',
   '    pub fn set_greeting(&mut self, greeting: String) {',
   '        // TODO: store the greeting',
-  '    }',
-  '}',
-].join('\n');
-
-const solutionCode = [
-  '#![cfg_attr(not(feature = "export-abi"), no_main)]',
-  'extern crate alloc;',
-  '',
-  'use stylus_sdk::prelude::*;',
-  'use alloc::string::String;',
-  '',
-  'sol_storage! {',
-  '    #[entrypoint]',
-  '    pub struct HelloWorld {',
-  '        String greeting;',
-  '    }',
-  '}',
-  '',
-  '#[public]',
-  'impl HelloWorld {',
-  '    pub fn get_greeting(&self) -> String {',
-  '        self.greeting.get_string()',
-  '    }',
-  '    pub fn set_greeting(&mut self, greeting: String) {',
-  '        self.greeting.set_str(&greeting);',
   '    }',
   '}',
 ].join('\n');
@@ -103,7 +79,7 @@ export function LessonLayout({ slug }: { slug: string }) {
         </div>
         <span className='text-yellow-400 font-bold'>100 XP</span>
       </div>
-      <div className='flex flex-1'>
+      <div className='flex flex-1 overflow-hidden'>
         <div className='w-1/2 overflow-y-auto p-8 border-r border-gray-800'>
           {explanation.split('\n').map((line, i) => {
             if (line.startsWith('## ')) return <h2 key={i} className='text-2xl font-bold mt-6 mb-4'>{line.slice(3)}</h2>;
@@ -113,12 +89,21 @@ export function LessonLayout({ slug }: { slug: string }) {
           })}
         </div>
         <div className='w-1/2 flex flex-col p-4 gap-4'>
-          <textarea
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className='flex-1 bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-lg border border-gray-700 resize-none focus:outline-none focus:border-purple-600'
-            spellCheck={false}
-          />
+          <div className='flex-1 rounded-lg overflow-hidden border border-gray-700'>
+            <Editor
+              height="100%"
+              language="rust"
+              theme="vs-dark"
+              value={code}
+              onChange={(val) => setCode(val ?? '')}
+              options={{
+                fontSize: 13,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+              }}
+            />
+          </div>
           {hints.length > 0 && (
             <div className='bg-yellow-900/30 border border-yellow-600 rounded p-4'>
               <p className='text-yellow-400 font-bold mb-2'>Hints</p>
