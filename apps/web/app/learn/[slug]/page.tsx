@@ -1,5 +1,6 @@
 import { LessonLayout } from '@/components/Lesson/LessonLayout';
 
-export default function LessonPage({ params }: { params: { slug: string } }) {
-  return <LessonLayout slug={params.slug} />;
+export default async function LessonPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  return <LessonLayout slug={slug} />;
 }
