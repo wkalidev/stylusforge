@@ -1,69 +1,70 @@
-import Image from "next/image";
+import Link from "next/link";
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-gray-950 text-white">
+      {/* Hero */}
+      <section className="flex flex-col items-center justify-center min-h-screen text-center px-4">
+        <div className="inline-flex items-center gap-2 bg-purple-900/30 border border-purple-600 px-4 py-2 rounded-full mb-8">
+          <span className="text-purple-400 text-sm">⚡ Powered by Arbitrum Stylus</span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+
+        <h1 className="text-6xl font-black mb-6 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+          StylusForge
+        </h1>
+
+        <p className="text-xl text-gray-400 max-w-2xl mb-12">
+          The first interactive IDE to learn Arbitrum Stylus smart contracts in Rust.
+          Write, deploy and certify on-chain.
+        </p>
+
+        <div className="flex gap-4">
+          <Link
+            href="/learn"
+            className="bg-purple-600 hover:bg-purple-700 px-8 py-4 rounded-xl font-bold text-lg transition"
+          >
+            Start learning →
+          </Link>
+          
+            href="https://github.com/wkalidev/stylusforge"
             target="_blank"
             rel="noopener noreferrer"
+            className="border border-gray-600 hover:border-gray-400 px-8 py-4 rounded-xl font-bold text-lg transition"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
+            GitHub
           </a>
         </div>
-      </main>
-    </div>
+      </section>
+
+      {/* Curriculum preview */}
+      <section className="max-w-4xl mx-auto py-20 px-4">
+        <h2 className="text-3xl font-bold mb-8">Curriculum</h2>
+        <div className="space-y-4">
+          {[
+            { id: 1, title: "Hello World Stylus", difficulty: "Beginner", xp: 100 },
+            { id: 2, title: "Storage & State", difficulty: "Beginner", xp: 150 },
+            { id: 3, title: "Events & Errors", difficulty: "Intermediate", xp: 200 },
+            { id: 4, title: "ERC-20 Token", difficulty: "Intermediate", xp: 300 },
+            { id: 5, title: "DeFi Interaction", difficulty: "Advanced", xp: 500 },
+          ].map((lesson) => (
+            <div
+              key={lesson.id}
+              className="flex items-center justify-between bg-gray-900 rounded-xl p-6 border border-gray-800 hover:border-purple-600 transition"
+            >
+              <div className="flex items-center gap-4">
+                <span className="text-3xl font-black text-gray-700">
+                  {String(lesson.id).padStart(2, "0")}
+                </span>
+                <div>
+                  <p className="font-bold">{lesson.title}</p>
+                  <p className="text-gray-400 text-sm">{lesson.difficulty}</p>
+                </div>
+              </div>
+              <span className="text-yellow-400 font-bold">⚡ {lesson.xp} XP</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
   );
 }
