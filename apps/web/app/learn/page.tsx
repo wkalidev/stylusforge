@@ -2,9 +2,9 @@ import Link from 'next/link';
 
 const lessons = [
   { id: 1, slug: 'hello-world', title: 'Hello World Stylus', difficulty: 'Beginner', xp: 100, available: true },
-  { id: 2, slug: 'storage-state', title: 'Storage and State', difficulty: 'Beginner', xp: 150, available: false },
-  { id: 3, slug: 'events-errors', title: 'Events and Errors', difficulty: 'Intermediate', xp: 200, available: false },
-  { id: 4, slug: 'erc20-token', title: 'ERC-20 Token', difficulty: 'Intermediate', xp: 300, available: false },
+  { id: 2, slug: 'storage-state', title: 'Storage and State', difficulty: 'Beginner', xp: 150, available: true },
+  { id: 3, slug: 'events-errors', title: 'Events and Errors', difficulty: 'Intermediate', xp: 200, available: true },
+  { id: 4, slug: 'erc20-token', title: 'ERC-20 Token', difficulty: 'Intermediate', xp: 300, available: true },
   { id: 5, slug: 'defi-interaction', title: 'DeFi Interaction', difficulty: 'Advanced', xp: 500, available: false },
 ];
 
