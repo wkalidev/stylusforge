@@ -76,8 +76,22 @@ export function LessonLayout({ slug }: { slug: string }) {
 
   const checkCode = () => {
     const h: string[] = [];
-    if (h.length === 0) { setCompleted(true); setHints([]); }
-    else setHints(h);
+    if (!code.includes('String greeting')) {
+      h.push('Add a String field called greeting in sol_storage!');
+    }
+    if (!code.includes('get_string()')) {
+      h.push('Use self.greeting.get_string() in get_greeting');
+    }
+    if (!code.includes('set_str')) {
+      h.push('Use self.greeting.set_str(&greeting) in set_greeting');
+    }
+    if (h.length === 0) {
+      setCompleted(true);
+      setHints([]);
+    } else {
+      setCompleted(false);
+      setHints(h);
+    }
   };
 
   return (
