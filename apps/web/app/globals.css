@@ -181,3 +181,59 @@ body::before {
     display: none;
   }
 }
+
+/*
+ * A lesson unlocking: a ring bursts from its knot and its card glows once. Opacity and transform
+ * only; nothing plays with reduced motion (the card still shows "Just unlocked").
+ */
+@keyframes unlock-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes unlock-glow {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes unlock-rise {
+  from {
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .forge-unlock-ring {
+    animation: unlock-ring 1.2s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  }
+
+  .forge-unlock-card {
+    animation: unlock-rise 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  }
+
+  .forge-unlock-card::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: 0 0 36px 4px color-mix(in oklab, var(--color-molten-500) 55%, transparent);
+    animation: unlock-glow 1.4s ease-out both;
+  }
+}

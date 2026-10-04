@@ -6,6 +6,7 @@ import { MODULES } from '@/lib/curriculum/modules';
 import { forgePath, type Heat, type PathZone, type RowHeat } from '@/lib/progress/forgePath';
 import { useCompletedLessons } from '@/lib/progress/progress';
 import { skillTree, type SkillNode } from '@/lib/progress/skillTree';
+import { useUnlockingLessons } from '@/lib/progress/unlocks';
 import { useClaimedLessons } from '@/lib/useClaimedLessons';
 import { LessonCard, statusText, type CertificateState } from './LessonCard';
 
@@ -19,7 +20,7 @@ function LockIcon() {
 }
 
 /** The node on the spine: molten when passed, a live amber ring when next, cold steel when locked. */
-function Knot({ node }: { node: SkillNode }) {
+function Knot({ node, unlocking }: { node: SkillNode; unlocking: boolean }) {
   const base =
     'absolute top-1/2 left-6 z-10 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-display text-2xl font-extrabold';
   if (node.state === 'completed') {
@@ -36,6 +37,7 @@ function Knot({ node }: { node: SkillNode }) {
     return (
       <span aria-hidden='true' className={`${base} border-2 border-amber-300 bg-steel-900 text-amber-300`}>
         <span className='absolute inset-0 rounded-full border-2 border-amber-300 motion-safe:animate-ping motion-safe:[animation-duration:2.4s]' />
+        {unlocking && <span className='forge-unlock-ring absolute inset-0 rounded-full border-2 border-molten-400' />}
         {node.lesson.id}
       </span>
     );
@@ -145,7 +147,9 @@ function ZoneHeader({ zone }: { zone: PathZone }) {
 export function SkillTree() {
   const passed = useCompletedLessons();
   const onChain = useClaimedLessons();
-  const zones = forgePath(MODULES, skillTree(LESSONS, passed));
+  const nodes = skillTree(LESSONS, passed);
+  const zones = forgePath(MODULES, nodes);
+  const unlocking = useUnlockingLessons(nodes);
 
   // Embers only drift while the path is on screen.
   const path = useRef<HTMLDivElement>(null);
@@ -175,9 +179,9 @@ export function SkillTree() {
             {zone.nodes.map(({ node, ...heat }) => (
               <li key={node.lesson.id} className='relative py-3 pl-16'>
                 <Spine heat={heat} />
-                <Knot node={node} />
+                <Knot node={node} unlocking={unlocking.includes(node.lesson.id)} />
                 <span className='sr-only'>{`Lesson ${node.lesson.id}: ${statusText(node)}.`}</span>
-                <LessonCard node={node} certificate={certificate(node)} />
+                <LessonCard node={node} certificate={certificate(node)} unlocking={unlocking.includes(node.lesson.id)} />
               </li>
             ))}
           </ol>

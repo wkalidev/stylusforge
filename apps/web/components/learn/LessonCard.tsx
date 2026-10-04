@@ -107,7 +107,16 @@ function LockedCard({
 }
 
 /** A lesson on the path: what you build, how long it takes and where you stand. */
-export function LessonCard({ node, certificate = null }: { node: SkillNode; certificate?: CertificateState }) {
+export function LessonCard({
+  node,
+  certificate = null,
+  unlocking = false,
+}: {
+  node: SkillNode;
+  certificate?: CertificateState;
+  /** The lesson was just unlocked: the card glows once and says so. */
+  unlocking?: boolean;
+}) {
   const { lesson, state } = node;
   const tilt = useCardTilt<HTMLAnchorElement>();
   const tone =
@@ -139,10 +148,13 @@ export function LessonCard({ node, certificate = null }: { node: SkillNode; cert
           </span>
         )}
         <CertificateBadge state={certificate} />
+        {unlocking && (
+          <span className='rounded-[var(--radius-forge)] bg-molten-500/15 px-2 py-0.5 text-xs font-semibold text-amber-300'>Just unlocked</span>
+        )}
       </div>
     </>
   );
-  const className = `${tone} block p-5 transition-colors`;
+  const className = `${tone} relative block p-5 transition-colors` + (unlocking ? ' forge-unlock-card' : '');
   if (state === 'locked') {
     return (
       <LockedCard node={node} className={className} renderBody={renderBody} />
