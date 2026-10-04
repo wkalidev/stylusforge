@@ -344,6 +344,22 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'Ok(())',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Events",
+          question: "How does a stylus-sdk 0.10 method emit a Transfer event?",
+          options: ["self.vm().log(Transfer { from, to, value })", "evm::log(Transfer { from, to, value })", "emit Transfer(from, to, value);"],
+          answer: 0,
+          explanation: "Events go through the host with self.vm().log(...). The evm module, and evm::log with it, was removed in stylus-sdk 0.10.",
+        },
+        {
+          afterStep: "Errors",
+          question: "What does returning Err(...) from a #[public] method do?",
+          options: ["It logs the error and the call succeeds", "It reverts the call with the ABI-encoded error", "It panics and consumes all the gas"],
+          answer: 1,
+          explanation: "With an error enum deriving SolidityError, Err(...) reverts the call and callers can decode the error, like a Solidity custom error.",
+        },
+      ],
     },
   },
   4: {
