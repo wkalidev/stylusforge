@@ -5,12 +5,13 @@ import { network } from "hardhat";
 import type { Address, Hex, LocalAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
-const LESSONS = [
-  { id: 1n, name: "Hello World Stylus", xp: 100n },
-  { id: 2n, name: "Storage and State", xp: 150n },
-  { id: 3n, name: "Events and Errors", xp: 200n },
-  { id: 4n, name: "ERC-20 Token", xp: 300n },
-];
+import { loadLessons } from "../scripts/lessons.js";
+
+const LESSONS = loadLessons();
+const LESSON_IDS = LESSONS.map((lesson) => lesson.id);
+const [FIRST, SECOND] = LESSONS;
+const LAST = LESSONS[LESSONS.length - 1];
+const UNREGISTERED_ID = LESSON_IDS.reduce((max, id) => (id > max ? id : max)) + 1n;
 
 describe("StylusForgeNFT", async function () {
   const { viem, networkHelpers } = await network.create();
@@ -58,28 +59,28 @@ describe("StylusForgeNFT", async function () {
       const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
       const student = alice.account.address;
       const deadline = await deadlineIn(3600);
-      const signature = await signClaim(claimSigner, nft.address, student, 1n, deadline);
+      const signature = await signClaim(claimSigner, nft.address, student, FIRST.id, deadline);
 
       await viem.assertions.emitWithArgs(
-        nft.write.claim([1n, deadline, signature], { account: alice.account }),
+        nft.write.claim([FIRST.id, deadline, signature], { account: alice.account }),
         nft,
         "LessonCompleted",
-        [student, 1n],
+        [student, FIRST.id],
       );
 
-      assert.equal(await nft.read.balanceOf([student, 1n]), 1n);
-      assert.equal(await nft.read.completed([student, 1n]), true);
-      assert.equal(await nft.read.balanceOf([owner.account.address, 1n]), 0n);
+      assert.equal(await nft.read.balanceOf([student, FIRST.id]), 1n);
+      assert.equal(await nft.read.completed([student, FIRST.id]), true);
+      assert.equal(await nft.read.balanceOf([owner.account.address, FIRST.id]), 0n);
     });
 
     it("rejects a voucher signed by another key", async function () {
       const { nft } = await networkHelpers.loadFixture(deployFixture);
       const impostor = privateKeyToAccount(generatePrivateKey());
       const deadline = await deadlineIn(3600);
-      const signature = await signClaim(impostor, nft.address, alice.account.address, 1n, deadline);
+      const signature = await signClaim(impostor, nft.address, alice.account.address, FIRST.id, deadline);
 
       await viem.assertions.revertWithCustomError(
-        nft.write.claim([1n, deadline, signature], { account: alice.account }),
+        nft.write.claim([FIRST.id, deadline, signature], { account: alice.account }),
         nft,
         "InvalidSignature",
       );
@@ -88,10 +89,10 @@ describe("StylusForgeNFT", async function () {
     it("rejects a voucher issued to another student", async function () {
       const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
       const deadline = await deadlineIn(3600);
-      const signature = await signClaim(claimSigner, nft.address, owner.account.address, 1n, deadline);
+      const signature = await signClaim(claimSigner, nft.address, owner.account.address, FIRST.id, deadline);
 
       await viem.assertions.revertWithCustomError(
-        nft.write.claim([1n, deadline, signature], { account: alice.account }),
+        nft.write.claim([FIRST.id, deadline, signature], { account: alice.account }),
         nft,
         "InvalidSignature",
       );
@@ -100,10 +101,10 @@ describe("StylusForgeNFT", async function () {
     it("rejects a voucher for a different lesson", async function () {
       const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
       const deadline = await deadlineIn(3600);
-      const signature = await signClaim(claimSigner, nft.address, alice.account.address, 1n, deadline);
+      const signature = await signClaim(claimSigner, nft.address, alice.account.address, FIRST.id, deadline);
 
       await viem.assertions.revertWithCustomError(
-        nft.write.claim([2n, deadline, signature], { account: alice.account }),
+        nft.write.claim([SECOND.id, deadline, signature], { account: alice.account }),
         nft,
         "InvalidSignature",
       );
@@ -112,11 +113,11 @@ describe("StylusForgeNFT", async function () {
     it("rejects a voucher after its deadline", async function () {
       const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
       const deadline = await deadlineIn(60);
-      const signature = await signClaim(claimSigner, nft.address, alice.account.address, 1n, deadline);
+      const signature = await signClaim(claimSigner, nft.address, alice.account.address, FIRST.id, deadline);
       await networkHelpers.time.increaseTo(deadline + 1n);
 
       await viem.assertions.revertWithCustomErrorWithArgs(
-        nft.write.claim([1n, deadline, signature], { account: alice.account }),
+        nft.write.claim([FIRST.id, deadline, signature], { account: alice.account }),
         nft,
         "ClaimExpired",
         [deadline],
@@ -126,13 +127,13 @@ describe("StylusForgeNFT", async function () {
     it("rejects a voucher for an unregistered lesson", async function () {
       const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
       const deadline = await deadlineIn(3600);
-      const signature = await signClaim(claimSigner, nft.address, alice.account.address, 99n, deadline);
+      const signature = await signClaim(claimSigner, nft.address, alice.account.address, UNREGISTERED_ID, deadline);
 
       await viem.assertions.revertWithCustomErrorWithArgs(
-        nft.write.claim([99n, deadline, signature], { account: alice.account }),
+        nft.write.claim([UNREGISTERED_ID, deadline, signature], { account: alice.account }),
         nft,
         "InvalidLesson",
-        [99n],
+        [UNREGISTERED_ID],
       );
     });
 
@@ -140,16 +141,16 @@ describe("StylusForgeNFT", async function () {
       const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
       const student = alice.account.address;
       const deadline = await deadlineIn(3600);
-      const signature = await signClaim(claimSigner, nft.address, student, 1n, deadline);
-      await nft.write.claim([1n, deadline, signature], { account: alice.account });
+      const signature = await signClaim(claimSigner, nft.address, student, FIRST.id, deadline);
+      await nft.write.claim([FIRST.id, deadline, signature], { account: alice.account });
 
       await viem.assertions.revertWithCustomErrorWithArgs(
-        nft.write.claim([1n, deadline, signature], { account: alice.account }),
+        nft.write.claim([FIRST.id, deadline, signature], { account: alice.account }),
         nft,
         "AlreadyCompleted",
-        [student, 1n],
+        [student, FIRST.id],
       );
-      assert.equal(await nft.read.balanceOf([student, 1n]), 1n);
+      assert.equal(await nft.read.balanceOf([student, FIRST.id]), 1n);
     });
   });
 
@@ -157,8 +158,8 @@ describe("StylusForgeNFT", async function () {
     async function claimedFixture() {
       const { nft, claimSigner } = await deployFixture();
       const deadline = await deadlineIn(3600);
-      const signature = await signClaim(claimSigner, nft.address, alice.account.address, 1n, deadline);
-      await nft.write.claim([1n, deadline, signature], { account: alice.account });
+      const signature = await signClaim(claimSigner, nft.address, alice.account.address, FIRST.id, deadline);
+      await nft.write.claim([FIRST.id, deadline, signature], { account: alice.account });
       return { nft };
     }
 
@@ -167,7 +168,7 @@ describe("StylusForgeNFT", async function () {
 
       await viem.assertions.revertWithCustomError(
         nft.write.safeTransferFrom(
-          [alice.account.address, owner.account.address, 1n, 1n, "0x"],
+          [alice.account.address, owner.account.address, FIRST.id, 1n, "0x"],
           { account: alice.account },
         ),
         nft,
@@ -180,7 +181,7 @@ describe("StylusForgeNFT", async function () {
 
       await viem.assertions.revertWithCustomError(
         nft.write.safeBatchTransferFrom(
-          [alice.account.address, owner.account.address, [1n], [1n], "0x"],
+          [alice.account.address, owner.account.address, [FIRST.id], [1n], "0x"],
           { account: alice.account },
         ),
         nft,
@@ -207,7 +208,7 @@ describe("StylusForgeNFT", async function () {
       const notOwner: [Address] = [alice.account.address];
 
       await viem.assertions.revertWithCustomErrorWithArgs(
-        nft.write.addLesson([5n, "DeFi Interaction", 500n], asAlice),
+        nft.write.addLesson([UNREGISTERED_ID, "DeFi Interaction", 500n], asAlice),
         nft,
         "OwnableUnauthorizedAccount",
         notOwner,
@@ -230,19 +231,19 @@ describe("StylusForgeNFT", async function () {
       const { nft } = await networkHelpers.loadFixture(deployFixture);
 
       await viem.assertions.emitWithArgs(
-        nft.write.addLesson([5n, "DeFi Interaction", 500n]),
+        nft.write.addLesson([UNREGISTERED_ID, "DeFi Interaction", 500n]),
         nft,
         "LessonAdded",
-        [5n, "DeFi Interaction", 500n],
+        [UNREGISTERED_ID, "DeFi Interaction", 500n],
       );
-      assert.deepEqual(await nft.read.getLessonIds(), [1n, 2n, 3n, 4n, 5n]);
-      assert.deepEqual(await nft.read.lessons([5n]), ["DeFi Interaction", 500n, true]);
+      assert.deepEqual(await nft.read.getLessonIds(), [...LESSON_IDS, UNREGISTERED_ID]);
+      assert.deepEqual(await nft.read.lessons([UNREGISTERED_ID]), ["DeFi Interaction", 500n, true]);
 
       await viem.assertions.revertWithCustomErrorWithArgs(
-        nft.write.addLesson([1n, "Duplicate", 1n]),
+        nft.write.addLesson([FIRST.id, "Duplicate", 1n]),
         nft,
         "LessonAlreadyExists",
-        [1n],
+        [FIRST.id],
       );
       await viem.assertions.revertWithCustomErrorWithArgs(
         nft.write.addLesson([0n, "Zero", 1n]),
@@ -277,7 +278,7 @@ describe("StylusForgeNFT", async function () {
 
       await nft.write.setURI([uri]);
 
-      assert.equal(await nft.read.uri([1n]), uri);
+      assert.equal(await nft.read.uri([FIRST.id]), uri);
     });
   });
 
@@ -289,16 +290,16 @@ describe("StylusForgeNFT", async function () {
 
       assert.equal(await nft.read.getTotalXP([student]), 0n);
 
-      for (const lessonId of [1n, 3n]) {
+      for (const lessonId of [FIRST.id, LAST.id]) {
         const signature = await signClaim(claimSigner, nft.address, student, lessonId, deadline);
         await nft.write.claim([lessonId, deadline, signature], { account: alice.account });
       }
 
       assert.deepEqual(await nft.read.getCompletedLessons([student]), [
-        [1n, 2n, 3n, 4n],
-        [true, false, true, false],
+        LESSON_IDS,
+        LESSON_IDS.map((id) => id === FIRST.id || id === LAST.id),
       ]);
-      assert.equal(await nft.read.getTotalXP([student]), 100n + 200n);
+      assert.equal(await nft.read.getTotalXP([student]), FIRST.xp + LAST.xp);
     });
   });
 });
