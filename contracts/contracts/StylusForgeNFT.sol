@@ -15,13 +15,18 @@ contract StylusForgeNFT is ERC1155, Ownable {
     uint256[] private _lessonIds;
     mapping(address => mapping(uint256 => bool)) public completed;
 
+    /// @notice Backend address whose EIP-712 signatures authorize certificate claims.
+    address public signer;
+
     event LessonAdded(uint256 indexed lessonId, string name, uint256 xp);
     event LessonCompleted(address indexed student, uint256 indexed lessonId);
+    event SignerUpdated(address indexed previousSigner, address indexed newSigner);
 
     error InvalidLesson(uint256 lessonId);
     error LessonAlreadyExists(uint256 lessonId);
     error AlreadyCompleted(address student, uint256 lessonId);
     error SoulBound();
+    error InvalidSigner();
 
     constructor() ERC1155("") Ownable(msg.sender) {}
 
@@ -31,6 +36,12 @@ contract StylusForgeNFT is ERC1155, Ownable {
         lessons[lessonId] = Lesson({name: name, xp: xp, exists: true});
         _lessonIds.push(lessonId);
         emit LessonAdded(lessonId, name, xp);
+    }
+
+    function setSigner(address newSigner) external onlyOwner {
+        if (newSigner == address(0)) revert InvalidSigner();
+        emit SignerUpdated(signer, newSigner);
+        signer = newSigner;
     }
 
     function getLessonIds() external view returns (uint256[] memory) {
