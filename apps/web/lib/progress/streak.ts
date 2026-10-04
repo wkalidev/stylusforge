@@ -65,6 +65,25 @@ export function recordActivity(now = new Date()): void {
   }
 }
 
+/** Notifies at the next local midnight and whenever the page becomes visible again. */
+function subscribeToDay(onChange: () => void): () => void {
+  let timer = 0;
+  const schedule = () => {
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    timer = window.setTimeout(() => {
+      onChange();
+      schedule();
+    }, midnight.getTime() - now.getTime() + 1000);
+  };
+  schedule();
+  document.addEventListener('visibilitychange', onChange);
+  return () => {
+    window.clearTimeout(timer);
+    document.removeEventListener('visibilitychange', onChange);
+  };
+}
+
 /** The current daily streak in this browser (0 during server rendering and hydration). */
 export function useStreak(): number {
   const raw = useSyncExternalStore(
@@ -72,5 +91,11 @@ export function useStreak(): number {
     () => readItem(STREAK_KEY),
     () => null,
   );
-  return useMemo(() => currentStreak(parseStreak(raw), new Date()), [raw]);
+  // The local date, so the streak also updates when a day passes with the page open.
+  const today = useSyncExternalStore(
+    subscribeToDay,
+    () => localDay(new Date()),
+    () => null,
+  );
+  return useMemo(() => (today ? currentStreak(parseStreak(raw), new Date()) : 0), [raw, today]);
 }
