@@ -6,6 +6,8 @@ Learn Arbitrum Stylus smart contracts in Rust, in the browser, and earn a soul-b
 
 **Status:** MVP. The full flow runs on a local chain; the Arbitrum Sepolia deployment is not done yet.
 
+<!-- MARKEE -->
+
 ## What is StylusForge?
 
 The first interactive learning platform dedicated to Arbitrum Stylus: write, check and certify your Rust smart contracts directly in the browser.
