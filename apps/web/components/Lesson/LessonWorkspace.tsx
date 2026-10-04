@@ -7,6 +7,7 @@ import { SparkBurst } from '@/components/feedback/SparkBurst';
 import { LessonXpBar } from '@/components/progress/LessonXpBar';
 import { buttonClasses } from '@/components/ui/button';
 import { LESSONS, type Lesson } from '@/lib/curriculum/lessons';
+import { getSimulation } from '@/lib/curriculum/simulations';
 import { evaluateChecks, validateCode } from '@/lib/curriculum/validate';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { useIsApplePlatform } from '@/lib/hooks/usePlatform';
@@ -19,7 +20,8 @@ import { ExplanationSteps } from './ExplanationSteps';
 import { Objectives } from './Objectives';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 import { registerGlossaryHover } from './glossaryHover';
-import { WorkspaceTabs, tabId, tabPanelId, type WorkspaceTab } from './WorkspaceTabs';
+import { RightPaneSwitch, WorkspaceTabs, tabId, tabPanelId, type WorkspaceTab } from './WorkspaceTabs';
+import { TryPanel } from './TryPanel';
 
 const beforeEditorMount: BeforeMount = (monaco) => {
   defineForgeEditorTheme(monaco);
@@ -42,6 +44,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const debouncedCode = useDebouncedValue(code, 300);
   const liveResults = useMemo(() => evaluateChecks(debouncedCode, exercise.checks), [debouncedCode, exercise.checks]);
   const metCount = liveResults.filter((result) => result.passed).length;
+  const simulation = useMemo(() => getSimulation(lesson.id), [lesson.id]);
 
   const passed = completedIds.includes(lesson.id);
   const index = LESSONS.findIndex((candidate) => candidate.id === lesson.id);
@@ -182,8 +185,9 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
           id={tabPanelId('code')}
           role='tabpanel'
           aria-labelledby={tabId('code')}
-          className={`${tab === 'code' ? 'flex' : 'hidden'} flex-col gap-4 p-4 sm:p-5 lg:flex lg:w-1/2 lg:overflow-y-auto`}
+          className={`${tab === 'code' ? 'flex' : 'hidden'} ${tab === 'try' ? 'lg:hidden' : 'lg:flex'} flex-col gap-4 p-4 sm:p-5 lg:w-1/2 lg:overflow-y-auto`}
         >
+          <RightPaneSwitch active={tab} onChange={setTab} />
           <Objectives results={liveResults} variant='compact' />
           <div className='flex h-[60vh] min-h-72 flex-col overflow-hidden rounded-[var(--radius-forge)] border border-steel-700 bg-steel-950 lg:h-auto lg:flex-1'>
             <div className='ember-edge flex items-center justify-between border-b border-steel-800 bg-steel-900 px-4 py-2'>
@@ -229,6 +233,9 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
               </p>
               <div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
                 <ClaimCertificate lessonId={lesson.id} code={code} />
+                <button type='button' onClick={() => setTab('try')} className={buttonClasses('steel', 'md')}>
+                  Try it
+                </button>
                 {next?.available && (
                   <Link href={`/learn/${next.slug}`} className={buttonClasses('steel', 'md')} aria-label={`Next lesson: ${next.title}`}>
                     <span>
@@ -259,6 +266,16 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
               <SparkBurst trigger={strikes} />
             </div>
           </div>
+        </div>
+
+        <div
+          id={tabPanelId('try')}
+          role='tabpanel'
+          aria-labelledby={tabId('try')}
+          className={`${tab === 'try' ? 'flex' : 'hidden'} flex-col gap-4 p-4 sm:p-5 lg:w-1/2 lg:overflow-y-auto`}
+        >
+          <RightPaneSwitch active={tab} onChange={setTab} />
+          <TryPanel key={lesson.id} simulation={simulation} passed={passed} />
         </div>
       </div>
     </div>
