@@ -14,6 +14,7 @@ import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { useIsApplePlatform } from '@/lib/hooks/usePlatform';
 import { resetCode, saveCode, useSavedCode } from '@/lib/progress/code';
 import { useRevealedHints } from '@/lib/progress/hints';
+import { recordActivity } from '@/lib/progress/streak';
 import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progress';
 import { playAnvilStrike } from '@/lib/sound/anvil';
 import { isSoundEnabled } from '@/lib/sound/preference';
@@ -55,6 +56,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const next = LESSONS[index + 1];
 
   const checkCode = () => {
+    recordActivity();
     const result = validateCode(code, exercise.checks);
     setCompleted(result.passed);
     setMissing(result.objectives);
