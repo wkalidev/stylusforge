@@ -42,7 +42,8 @@ apps/web/
 │  ├─ progress/LessonXpBar.tsx  rank progress with the lesson's pending reward
 │  ├─ progress/XpMeter.tsx      local rank, XP and progress to the next rank
 │  ├─ ui/button.ts              button styles (heat, steel, quench)
-│  ├─ Lesson/LessonLayout.tsx   explanation, editor, hints and code check
+│  ├─ Lesson/LessonLayout.tsx   resolves the lesson, or "Lesson not found"
+│  ├─ Lesson/LessonWorkspace.tsx explanation, editor, checks, result bar, tabs below lg
 │  ├─ Lesson/forgeEditorTheme.ts Monaco theme matching the tokens
 │  ├─ Lesson/LessonMarkdown.tsx markdown rendering of the explanation
 │  └─ Wallet/Providers.tsx      Wagmi, TanStack Query and RainbowKit providers
@@ -211,7 +212,9 @@ The contract's metadata URI is `<app origin>/api/metadata/{id}` (`pnpm deploy:lo
 
 ## Lesson feedback
 
-The lesson page keeps its split layout: explanation on the left, editor on the right (stacked below `lg`).
+The lesson page keeps its split layout from `lg` up: explanation on the left, editor on the right. Below `lg` it becomes **Learn / Code** tabs (an ARIA tablist; arrow keys switch tabs), and the explanation ends with an "Open the editor" button.
+
+- **Shortcut**: Ctrl+Enter (⌘ Enter on macOS) runs "Check my code" from the editor or anywhere on the page; inside the editor it replaces Monaco's own "insert line below". The button shows the shortcut and declares `aria-keyshortcuts`.
 
 - **XP bar**: the top bar shows the lesson's reward and a bar with the rank progress plus a ghost segment for that reward. It says when passing the lesson promotes the student, then fills once the lesson is passed.
 - **Spark burst**: a passing check throws sparks from the check button (Web Animations API, no re-render). There is no burst with `prefers-reduced-motion`.
