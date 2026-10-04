@@ -1,4 +1,4 @@
-import { checkedAdd, type LessonSimulation, type SimAccount } from './simulation';
+import { checkedAdd, readMapping, writeMapping, type LessonSimulation, type SimAccount } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -57,6 +57,36 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
         view: false,
         params: [],
         run: (state) => ({ state: { ...state, count: 0n } }),
+      },
+    ],
+  },
+  3: {
+    contract: 'Token',
+    note: 'The model starts with 1,000 tokens for Alice so there is something to send.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ balances: { [SIM_ACCOUNTS[0].address]: 1000n } }),
+    functions: [
+      {
+        name: 'send',
+        abiName: 'send',
+        view: false,
+        params: [
+          { name: 'to', type: 'address' },
+          { name: 'amount', type: 'uint256' },
+        ],
+        run: (state, args, caller) => {
+          const from = caller.address;
+          const to = args.to as string;
+          const amount = args.amount as bigint;
+          const available = readMapping(state, 'balances', from);
+          if (available < amount) {
+            return { revert: { error: 'InsufficientBalance', args: { available, required: amount } } };
+          }
+          // Same order as the lesson: debit the sender, then read and credit the recipient.
+          let next = writeMapping(state, 'balances', from, available - amount);
+          next = writeMapping(next, 'balances', to, checkedAdd(readMapping(next, 'balances', to), amount));
+          return { state: next, events: [{ name: 'Transfer', args: { from, to, value: amount } }] };
+        },
       },
     ],
   },
