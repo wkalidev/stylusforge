@@ -1,14 +1,9 @@
 import { LESSONS } from '@/lib/curriculum/lessons';
+import type { SolutionResponse } from '@/lib/curriculum/reference';
 import { SOLUTIONS } from '@/lib/curriculum/solutions';
 import { validateCode } from '@/lib/curriculum/validate';
 
 const MAX_CODE_LENGTH = 50_000;
-
-/** Body of a successful POST /api/solution. */
-export interface SolutionResponse {
-  lessonId: number;
-  solution: string;
-}
 
 function error(status: number, message: string, hints?: string[]) {
   return Response.json({ error: message, ...(hints ? { hints } : {}) }, { status, headers: { 'cache-control': 'no-store' } });
