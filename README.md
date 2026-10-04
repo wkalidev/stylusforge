@@ -49,7 +49,7 @@ Always install from the repository root: do not run `npm install` or `pnpm insta
 | `pnpm dev` | `next dev` in `apps/web` |
 | `pnpm build` | `next build` in `apps/web` |
 | `pnpm lint` | `eslint .` in `apps/web` |
-| `pnpm test` | the `test` script of `contracts` (not wired to Hardhat yet) |
+| `pnpm test` | `hardhat test` in `contracts` (Solidity and Node.js tests) |
 
 ## License
 
