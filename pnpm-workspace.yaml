@@ -1,3 +1,6 @@
 packages:
   - 'apps/*'
   - 'contracts'
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
