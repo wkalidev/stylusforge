@@ -8,13 +8,23 @@ Interactive IDE to learn Arbitrum Stylus smart contracts in Rust.
 
 The first interactive learning platform dedicated to Arbitrum Stylus — write, deploy and certify your Rust smart contracts directly in the browser.
 
+- **Lessons** in a skill tree, each with an explanation, a Rust editor and instant, static checks.
+- **Progress** saved in the browser: XP and ranks (Apprentice, Smith, Master Forger) update the moment a check passes, no wallet needed.
+- **Certificates**: claim a soul-bound ERC-1155 certificate for each passed lesson. The server re-validates the code and signs a voucher; the student mints it and pays the gas.
+- **Profile**: certificates and XP read on-chain, with ERC-1155 metadata and generated SVG certificates.
+- **Forge identity**: blackened steel, molten heat and Arbitrum blue, with a procedural 3D ingot hero, spark bursts and an optional anvil sound.
+
+How it fits together: [docs/README.md](docs/README.md).
+
 ## Stack
 
 - Next.js 16 (App Router, Turbopack) + React 19 + TypeScript + Tailwind CSS 4
 - Monaco Editor (VS Code in the browser)
+- three.js + React Three Fiber + drei (landing hero)
 - wagmi 2 + viem 2 + RainbowKit 2
+- Vitest (web) and Hardhat's Node.js test runner (contracts)
 - Hardhat 3 + OpenZeppelin Contracts 5 (Solidity 0.8.28)
-- Arbitrum Sepolia (testnet)
+- Arbitrum Sepolia (testnet), or a local Hardhat chain for development
 - Soul-bound NFT certificates (ERC-1155)
 
 ## Repository layout
@@ -26,7 +36,7 @@ stylusforge/
 ├─ apps/web/      Next.js app (lessons, editor, wallet)
 ├─ contracts/     Hardhat 3 project (StylusForgeNFT certificate contract)
 ├─ curriculum/    lessons.json (lesson ids, names, XP) and lesson rules
-└─ docs/          Project documentation
+└─ docs/          Architecture overview
 ```
 
 Workspace packages are declared in `pnpm-workspace.yaml` (`apps/*` and `contracts`).
