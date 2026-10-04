@@ -13,6 +13,7 @@ import { evaluateChecks, validateCode } from '@/lib/curriculum/validate';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { useIsApplePlatform } from '@/lib/hooks/usePlatform';
 import { resetCode, saveCode, useSavedCode } from '@/lib/progress/code';
+import { useRevealedHints } from '@/lib/progress/hints';
 import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progress';
 import { playAnvilStrike } from '@/lib/sound/anvil';
 import { isSoundEnabled } from '@/lib/sound/preference';
@@ -91,19 +92,23 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
     setEditorReady(true);
   };
 
-  // Inline diagnostics: each failing check underlines its anchor line, with the hint on hover.
+  // Inline diagnostics: each failing check underlines its anchor line, with its objective and the
+  // hints revealed so far on hover.
+  const revealedHints = useRevealedHints(lesson.id);
   useEffect(() => {
     const monaco = monacoRef.current;
     const model = editorRef.current?.getModel();
     if (!editorReady || !monaco || !model) return;
     const markers = liveResults
-      .filter((result) => !result.passed && result.line !== null && result.line <= model.getLineCount())
-      .map((result) => {
+      .map((result, index) => ({ result, revealed: revealedHints[index] ?? 0 }))
+      .filter(({ result }) => !result.passed && result.line !== null && result.line <= model.getLineCount())
+      .map(({ result, revealed }) => {
         const line = result.line as number;
+        const hints = (result.check.hints ?? []).slice(0, revealed).map((hint, index) => `Hint ${index + 1}: ${hint}`);
         return {
           severity: monaco.MarkerSeverity.Warning,
           source: 'Lesson check',
-          message: result.check.hint,
+          message: [result.check.objective ?? result.check.hint, ...hints].join('\n'),
           startLineNumber: line,
           startColumn: model.getLineFirstNonWhitespaceColumn(line) || 1,
           endLineNumber: line,
@@ -111,7 +116,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
         };
       });
     monaco.editor.setModelMarkers(model, 'stylusforge-checks', markers);
-  }, [liveResults, editorReady]);
+  }, [liveResults, revealedHints, editorReady]);
   const apple = useIsApplePlatform();
 
   // The editor sits next to the explanation from lg; below it lives in the Code tab.
