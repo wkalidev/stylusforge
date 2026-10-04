@@ -23,6 +23,8 @@ apps/web/
 │  ├─ api/claim/route.ts    POST /api/claim: re-validates code, signs claim vouchers
 │  ├─ api/metadata/[id]/    ERC-1155 metadata JSON (route.ts) and SVG image (image/route.ts)
 │  ├─ profile/page.tsx      on-chain certificates and XP of the connected wallet
+│  ├─ favicon.ico, icon.png, apple-icon.png   the ingot logo for tabs, bookmarks and home screens
+│  ├─ manifest.ts           web manifest (icons in public/icons/)
 │  └─ learn/
 │     ├─ page.tsx           skill tree of the lessons
 │     └─ [slug]/page.tsx    lesson page (prerendered per available lesson, 404 otherwise)
@@ -105,6 +107,21 @@ Utilities:
 | `quench-edge` | Blue edge and glow for on-chain, finished items |
 
 A fixed steel-grain overlay covers the page at 5% opacity and never intercepts input. Textures are static; motion is reserved for the hero and feedback moments, and respects `prefers-reduced-motion`. Buttons come from `buttonClasses(variant, size)` in `components/ui/button.ts` (`heat`, `steel`, `quench`). Focus is always visible as an amber outline.
+
+### Icons
+
+Every icon is the `ForgeMark` ingot with the brand colors inlined:
+
+| File | Image | Used by |
+|---|---|---|
+| `app/favicon.ico` | 16, 32 and 48 px, transparent | Browser tabs, injected wallets (MetaMask reads the page's icons) |
+| `app/icon.png` | 512 px, transparent | `<link rel="icon">` |
+| `app/apple-icon.png` | 180 px on steel | iOS home screen (transparency would turn black) |
+| `public/icons/icon-192.png`, `icon-512.png` | On steel with a molten glow | Web manifest |
+| `public/icons/icon-maskable-512.png` | Smaller ingot, inside the maskable safe zone | Web manifest, `purpose: maskable` |
+| `public/icons/icon-192.png` | | WalletConnect wallets (`appIcon` in `lib/wagmi.ts`) |
+
+Next.js adds the head links for the `app/` files. When the logo changes, render the icons again from `ForgeMark`'s geometry, keeping these sizes.
 
 ## Landing page
 
