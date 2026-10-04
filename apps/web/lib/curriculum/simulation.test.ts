@@ -9,6 +9,8 @@ import {
   formatSimValue,
   parseArgument,
   readMapping,
+  wrappingAdd,
+  wrappingSub,
   writeMapping,
   type LessonSimulation,
 } from "./simulation";
@@ -52,6 +54,16 @@ describe("parseArgument", () => {
 
   it("keeps strings as typed", () => {
     expect(parseArgument("string", "  gm  ", [])).toBe("  gm  ");
+  });
+});
+
+describe("wrapping arithmetic", () => {
+  it("wraps around modulo 2^256 like U256 in Rust", () => {
+    expect(wrappingAdd(UINT256_MAX, 1n)).toBe(0n);
+    expect(wrappingAdd(UINT256_MAX, UINT256_MAX)).toBe(UINT256_MAX - 1n);
+    expect(wrappingSub(0n, 1n)).toBe(UINT256_MAX);
+    expect(wrappingAdd(2n, 3n)).toBe(5n);
+    expect(wrappingSub(5n, 2n)).toBe(3n);
   });
 });
 

@@ -77,6 +77,18 @@ export function parseArgument(type: SimType, raw: string, accounts: SimAccount[]
   return text;
 }
 
+/**
+ * uint256 arithmetic as `U256` does it in Rust: `+` and `-` wrap around modulo 2^256 instead of
+ * reverting (alloy's `ruint` implements them with `wrapping_add` and `wrapping_sub`).
+ */
+export function wrappingAdd(a: bigint, b: bigint): bigint {
+  return (a + b) & UINT256_MAX;
+}
+
+export function wrappingSub(a: bigint, b: bigint): bigint {
+  return (a - b) & UINT256_MAX;
+}
+
 /** Checked uint256 arithmetic, so a model never wraps around silently. */
 export function checkedAdd(a: bigint, b: bigint): bigint {
   const sum = a + b;
