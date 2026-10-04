@@ -14,6 +14,7 @@ import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { useIsApplePlatform } from '@/lib/hooks/usePlatform';
 import { resetCode, saveCode, useSavedCode } from '@/lib/progress/code';
 import { useRevealedHints } from '@/lib/progress/hints';
+import { rememberLesson } from '@/lib/progress/lastLesson';
 import { recordActivity } from '@/lib/progress/streak';
 import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progress';
 import { playAnvilStrike } from '@/lib/sound/anvil';
@@ -50,6 +51,8 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const liveResults = useMemo(() => evaluateChecks(debouncedCode, exercise.checks), [debouncedCode, exercise.checks]);
   const metCount = liveResults.filter((result) => result.passed).length;
   const simulation = useMemo(() => getSimulation(lesson.id), [lesson.id]);
+
+  useEffect(() => rememberLesson(lesson.id), [lesson.id]);
 
   const passed = completedIds.includes(lesson.id);
   const index = LESSONS.findIndex((candidate) => candidate.id === lesson.id);
