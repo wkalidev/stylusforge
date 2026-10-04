@@ -140,7 +140,7 @@ export function ClaimCertificate({ lessonId, code, passed }: { lessonId: number;
   let action: React.ReactNode;
   if (!isConnected) {
     action = (
-      <button type='button' onClick={openConnectModal} className={buttonClasses('quench', 'lg', 'w-full')}>
+      <button type='button' onClick={openConnectModal} className={buttonClasses('heat', 'lg', 'w-full')}>
         Connect wallet to claim
       </button>
     );

@@ -37,7 +37,7 @@ export function ProfileView() {
     return (
       <Notice>
         <p>Connect your wallet to see the certificates it holds and the XP they carry.</p>
-        <button type='button' onClick={openConnectModal} className={buttonClasses('quench', 'lg')}>
+        <button type='button' onClick={openConnectModal} className={buttonClasses('heat', 'lg')}>
           Connect wallet
         </button>
       </Notice>
