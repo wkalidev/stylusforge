@@ -174,7 +174,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
         >
           <div className='mx-auto max-w-2xl'>
             <Objectives results={liveResults} variant='panel' />
-            <ExplanationSteps explanation={exercise.explanation} onOpenEditor={openEditor} />
+            <ExplanationSteps explanation={exercise.explanation} quizzes={exercise.quizzes} onOpenEditor={openEditor} />
           </div>
         </article>
 

@@ -2,14 +2,23 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { buttonClasses } from '@/components/ui/button';
-import { splitSteps } from '@/lib/curriculum/steps';
+import { splitSteps, type LessonQuiz } from '@/lib/curriculum/steps';
 import { LessonMarkdown } from './LessonMarkdown';
+import { QuizCard } from './QuizCard';
 
 /**
  * The lesson explanation one step at a time, with a progress indicator, previous/next, and a
  * toggle to read every step at once. The last step leads to the editor.
  */
-export function ExplanationSteps({ explanation, onOpenEditor }: { explanation: string; onOpenEditor: () => void }) {
+export function ExplanationSteps({
+  explanation,
+  quizzes = [],
+  onOpenEditor,
+}: {
+  explanation: string;
+  quizzes?: LessonQuiz[];
+  onOpenEditor: () => void;
+}) {
   const steps = useMemo(() => splitSteps(explanation), [explanation]);
   const [index, setIndex] = useState(0);
   const [showAll, setShowAll] = useState(false);
@@ -42,6 +51,11 @@ export function ExplanationSteps({ explanation, onOpenEditor }: { explanation: s
           <section key={item.title} className={position > 0 ? 'mt-10' : ''}>
             <h2 className='mb-4 font-display text-4xl font-bold'>{item.title}</h2>
             <LessonMarkdown>{item.body}</LessonMarkdown>
+            {quizzes
+              .filter((quiz) => quiz.afterStep === item.title)
+              .map((quiz) => (
+                <QuizCard key={quiz.question} quiz={quiz} />
+              ))}
           </section>
         ))}
         <button type='button' onClick={onOpenEditor} className={buttonClasses('heat', 'lg', 'mt-6 w-full')}>
@@ -87,6 +101,11 @@ export function ExplanationSteps({ explanation, onOpenEditor }: { explanation: s
           {step.title}
         </h2>
         <LessonMarkdown>{step.body}</LessonMarkdown>
+        {quizzes
+          .filter((quiz) => quiz.afterStep === step.title)
+          .map((quiz) => (
+            <QuizCard key={`${step.title}-${quiz.question}`} quiz={quiz} />
+          ))}
       </section>
 
       <div className='mt-8 flex gap-3'>
