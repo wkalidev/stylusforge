@@ -8,7 +8,8 @@
     "test": "pnpm --filter contracts test && pnpm --filter web test",
     "lint": "pnpm --filter web lint",
     "chain": "pnpm --filter contracts chain",
-    "deploy:local": "pnpm --filter contracts deploy:local"
+    "deploy:local": "pnpm --filter contracts deploy:local",
+    "register:lessons": "pnpm --filter contracts register:lessons"
   },
   "engines": {
     "node": ">=20",
