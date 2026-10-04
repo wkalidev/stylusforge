@@ -163,4 +163,37 @@ impl Erc20 {
     }
 }
 `,
+  6: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    prelude::*,
+};
+
+sol_storage! {
+    #[entrypoint]
+    pub struct Scoreboard {
+        mapping(address => uint256) scores;
+    }
+}
+
+#[public]
+impl Scoreboard {
+    pub fn score_of(&self, account: Address) -> U256 {
+        self.scores.get(account)
+    }
+
+    pub fn record(&mut self, points: U256) {
+        let player = self.vm().msg_sender();
+        let total = self.scores.get(player) + points;
+        self.scores.insert(player, total);
+    }
+
+    pub fn clear(&mut self) {
+        let player = self.vm().msg_sender();
+        self.scores.delete(player);
+    }
+}
+`,
 };
