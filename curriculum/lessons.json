@@ -3,7 +3,7 @@
   { "id": 2, "name": "Storage and State", "xp": 150, "available": true, "module": "foundations" },
   { "id": 6, "name": "Mappings", "xp": 150, "available": true, "module": "foundations" },
   { "id": 7, "name": "Storage vectors", "xp": 175, "available": true, "module": "foundations" },
-  { "id": 8, "name": "Nested structs", "xp": 200, "available": false, "module": "foundations" },
+  { "id": 8, "name": "Nested structs", "xp": 200, "available": true, "module": "foundations" },
   { "id": 3, "name": "Events and Errors", "xp": 200, "available": true, "module": "contract-logic" },
   { "id": 4, "name": "ERC-20 Token", "xp": 300, "available": true, "module": "tokens" },
   { "id": 5, "name": "DeFi Interaction", "xp": 400, "available": false, "module": "interoperability" }
