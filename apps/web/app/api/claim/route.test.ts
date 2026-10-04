@@ -5,8 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CLAIM_TYPES, claimDomain } from "@/lib/claim";
 import { SOLUTIONS } from "@/lib/curriculum/solutions";
 
-vi.mock("server-only", () => ({}));
-
 const CONTRACT = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 const STUDENT = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
 const signerKey = generatePrivateKey();

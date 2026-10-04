@@ -1,7 +1,9 @@
+import 'server-only';
+
 /**
  * Reference solutions, keyed by lesson id. Used by the validation tests to prove that every
- * check can be passed. Never import this module from app code: it would ship the answers to
- * the browser.
+ * check can be passed. `server-only` makes any import from client code fail the build, so the
+ * answers can never reach the browser.
  */
 export const SOLUTIONS: Record<number, string> = {
   1: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]

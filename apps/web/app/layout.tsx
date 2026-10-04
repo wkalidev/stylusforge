@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Big_Shoulders, Geist, Geist_Mono } from "next/font/google";
 import { UnclaimedPrompt } from "@/components/claim/UnclaimedPrompt";
 import { HeaderControls } from "@/components/layout/HeaderControls";
+import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { Providers } from "@/components/Wallet/Providers";
 import "./globals.css";
@@ -39,6 +40,7 @@ export default function RootLayout({
           <SiteHeader actions={<HeaderControls />} />
           <UnclaimedPrompt />
           {children}
+          <SiteFooter />
         </Providers>
       </body>
     </html>

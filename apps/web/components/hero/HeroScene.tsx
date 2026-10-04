@@ -105,6 +105,9 @@ export default function HeroScene({ reducedMotion, constrained, active }: HeroSc
   return (
     <Canvas
       aria-hidden='true'
+      // The ingot follows a window-level pointer listener; the canvas never needs pointer events,
+      // so touches and clicks pass straight through to the page.
+      style={{ pointerEvents: 'none' }}
       frameloop={reducedMotion ? 'demand' : active ? 'always' : 'never'}
       dpr={[1, constrained ? 1.25 : 1.75]}
       camera={{ position: [0, 0.35, 4.6], fov: 36 }}

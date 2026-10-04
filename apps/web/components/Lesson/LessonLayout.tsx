@@ -131,21 +131,23 @@ export function LessonLayout({ slug }: { slug: string }) {
               </ul>
             </div>
           )}
-          {completed && (
-            <div role='status' className='steel-surface heat-glow ember-edge flex flex-wrap items-center justify-between gap-3 p-4'>
-              <div>
-                <p className='font-display text-2xl font-bold text-amber-300'>Forged: +{lesson.xp} XP</p>
-                <p className='text-sm text-steel-300'>Every check passes.</p>
+          {passed && (
+            <div role='status' className='steel-surface ember-edge flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3'>
+              <p className='font-display text-2xl font-bold leading-none text-amber-300'>
+                {completed ? `Forged: +${lesson.xp} XP` : 'Passed'}
+              </p>
+              <div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
+                <ClaimCertificate lessonId={lesson.id} code={code} />
+                {next?.available && (
+                  <Link href={`/learn/${next.slug}`} className={buttonClasses('steel', 'md')} aria-label={`Next lesson: ${next.title}`}>
+                    <span>
+                      Next<span className='hidden sm:inline'> lesson</span>
+                    </span>
+                  </Link>
+                )}
               </div>
-              {next?.available && (
-                <Link href={`/learn/${next.slug}`} className={buttonClasses('steel', 'md')}>
-                  Next lesson: {next.title}
-                </Link>
-              )}
             </div>
           )}
-
-          <ClaimCertificate lessonId={lesson.id} code={code} passed={passed} />
 
           <div className='flex gap-3'>
             <button type='button' onClick={resetToStarter} disabled={savedCode === null} className={buttonClasses('steel', 'lg')}>
