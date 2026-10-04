@@ -110,6 +110,15 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn set_greeting(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Anatomy of a Stylus contract",
+          question: "How do you declare a string field called greeting inside sol_storage!?",
+          options: ["greeting: String,", "string greeting;", "let greeting: String;"],
+          answer: 1,
+          explanation: "sol_storage! uses Solidity field syntax: the type, then the name, then a semicolon. Rust struct syntax does not work inside it.",
+        },
+      ],
     },
   },
   2: {
