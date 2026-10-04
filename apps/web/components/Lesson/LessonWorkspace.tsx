@@ -7,6 +7,7 @@ import { SparkBurst } from '@/components/feedback/SparkBurst';
 import { LessonXpBar } from '@/components/progress/LessonXpBar';
 import { buttonClasses } from '@/components/ui/button';
 import { LESSONS, type Lesson } from '@/lib/curriculum/lessons';
+import { fetchReferenceSolution } from '@/lib/curriculum/reference';
 import { getSimulation } from '@/lib/curriculum/simulations';
 import { evaluateChecks, validateCode } from '@/lib/curriculum/validate';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
@@ -16,6 +17,7 @@ import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progres
 import { playAnvilStrike } from '@/lib/sound/anvil';
 import { isSoundEnabled } from '@/lib/sound/preference';
 import { LessonIngot } from './LessonIngot';
+import { CompareView } from './CompareView';
 import { ExplanationSteps } from './ExplanationSteps';
 import { Objectives } from './Objectives';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
@@ -122,6 +124,28 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
     }
   };
 
+  // "Compare with reference": the server returns the solution only for code that passes.
+  const [compare, setCompare] = useState<{
+    open: boolean;
+    status: 'idle' | 'loading' | 'ready' | 'error';
+    solution?: string;
+    message?: string;
+  }>({ open: false, status: 'idle' });
+  const openCompare = async () => {
+    setTab('code');
+    if (compare.status === 'ready') {
+      setCompare((current) => ({ ...current, open: true }));
+      return;
+    }
+    setCompare({ open: true, status: 'loading' });
+    try {
+      const solution = await fetchReferenceSolution(lesson.id, code);
+      setCompare({ open: true, status: 'ready', solution });
+    } catch (cause) {
+      setCompare({ open: true, status: 'error', message: cause instanceof Error ? cause.message : 'The reference solution could not be loaded.' });
+    }
+  };
+
   const resetToStarter = () => {
     resetCode(lesson.id);
     setCompleted(false);
@@ -190,11 +214,40 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
           <RightPaneSwitch active={tab} onChange={setTab} />
           <Objectives results={liveResults} variant='compact' />
           <div className='flex h-[60vh] min-h-72 flex-col overflow-hidden rounded-[var(--radius-forge)] border border-steel-700 bg-steel-950 lg:h-auto lg:flex-1'>
-            <div className='ember-edge flex items-center justify-between border-b border-steel-800 bg-steel-900 px-4 py-2'>
-              <span className='font-mono text-xs text-steel-300'>src/lib.rs</span>
-              <span className='text-xs text-steel-400'>{savedCode === null ? 'Starter code' : 'Saved in this browser'}</span>
+            <div className='ember-edge flex items-center justify-between gap-3 border-b border-steel-800 bg-steel-900 px-4 py-2'>
+              {compare.open ? (
+                <>
+                  <span className='text-xs text-steel-300'>
+                    <span className='font-mono'>src/lib.rs</span> vs <span className='text-amber-300'>reference solution</span>
+                  </span>
+                  <button
+                    type='button'
+                    onClick={() => setCompare((current) => ({ ...current, open: false }))}
+                    className='text-xs font-semibold text-steel-300 underline-offset-4 hover:text-steel-100 hover:underline'
+                  >
+                    Back to my code
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className='font-mono text-xs text-steel-300'>src/lib.rs</span>
+                  <span className='text-xs text-steel-400'>{savedCode === null ? 'Starter code' : 'Saved in this browser'}</span>
+                </>
+              )}
             </div>
-            <div className='min-h-0 flex-1'>
+            {compare.open && (
+              <div className='min-h-0 flex-1'>
+                {compare.status === 'ready' && compare.solution !== undefined ? (
+                  <CompareView code={code} solution={compare.solution} />
+                ) : (
+                  <p role='status' className={'p-4 text-sm ' + (compare.status === 'error' ? 'text-molten-300' : 'text-steel-400')}>
+                    {compare.status === 'error' ? compare.message : 'Loading the reference solution…'}
+                  </p>
+                )}
+              </div>
+            )}
+            {/* The editor stays mounted while comparing, keeping its state and markers. */}
+            <div className={compare.open ? 'hidden' : 'min-h-0 flex-1'}>
               <Editor
                 height='100%'
                 language='rust'
@@ -235,6 +288,9 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
                 <ClaimCertificate lessonId={lesson.id} code={code} />
                 <button type='button' onClick={() => setTab('try')} className={buttonClasses('steel', 'md')}>
                   Try it
+                </button>
+                <button type='button' onClick={openCompare} className={buttonClasses('steel', 'md')}>
+                  Compare with reference
                 </button>
                 {next?.available && (
                   <Link href={`/learn/${next.slug}`} className={buttonClasses('steel', 'md')} aria-label={`Next lesson: ${next.title}`}>
