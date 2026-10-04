@@ -120,6 +120,31 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'A `StorageMap`: `get(key)` reads (zero for unset keys), `setter(key).set(value)` writes. Keys are not enumerable.',
   },
   {
+    id: 'vector',
+    pattern: /\b\w+\[\]/,
+    title: 'T[] (storage vector)',
+    description:
+      'A `StorageVec`: a dynamic array with `len()`, `push(value)`, `get(index)` (an `Option`), `setter(index)` and `pop()`. It only shrinks from its end.',
+  },
+  {
+    id: 'push',
+    pattern: /(?<=\.)push\(/,
+    title: 'push(value)',
+    description: 'Appends `value` at the end of a storage vector, which grows by one.',
+  },
+  {
+    id: 'pop',
+    pattern: /(?<=\.)pop\(\)/,
+    title: 'pop()',
+    description: 'Removes the last element of a storage vector and returns it: `Some(value)`, or `None` when the vector is empty.',
+  },
+  {
+    id: 'len',
+    pattern: /(?<=\.)len\(\)/,
+    title: 'len()',
+    description: 'The number of elements of a storage vector, as a Rust `usize`. Convert it with `U256::from(...)` to return it.',
+  },
+  {
     id: 'uint256',
     pattern: /\buint256\b/,
     title: 'uint256',

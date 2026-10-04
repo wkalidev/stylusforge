@@ -33,6 +33,18 @@ describe("glossaryAt", () => {
     expect(idAt("let delete = 1;", 5)).toBeNull();
   });
 
+  it("explains a vector declaration as a whole, and the vector methods", () => {
+    expect(glossaryAt("        uint256[] prices;", 10)).toMatchObject({ entry: { id: "vector" }, startColumn: 9, endColumn: 18 });
+    expect(idAt("        uint256 count;", 10)).toBe("uint256");
+    const push = "        self.prices.push(price);";
+    expect(idAt(push, push.indexOf("push") + 1)).toBe("push");
+    const pop = "        self.prices.pop();";
+    expect(idAt(pop, pop.indexOf("pop") + 1)).toBe("pop");
+    const len = "        U256::from(self.prices.len())";
+    expect(idAt(len, len.indexOf("len") + 1)).toBe("len");
+    expect(idAt("let pop = 1;", 5)).toBeNull();
+  });
+
   it("does not match inside longer identifiers", () => {
     expect(idAt("let my_U256x = 1;", 8)).toBeNull();
     expect(idAt("uint2567", 2)).toBeNull();
