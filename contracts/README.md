@@ -55,7 +55,7 @@ The `arbitrumSepolia` network and contract verification read their settings thro
 | `CLAIM_SIGNER_ADDRESS` | `scripts/deploy.ts` | Public address of the backend key that signs claim vouchers |
 | `ETHERSCAN_API_KEY` | `hardhat.config.ts` (`verify`) | Etherscan API V2 key, used to verify the contract on Arbiscan |
 | `NFT_CONTRACT_ADDRESS` | `scripts/set-uri.ts`, `scripts/register-lessons.ts` | Address of the deployed `StylusForgeNFT` |
-| `METADATA_BASE_URL` | `scripts/set-uri.ts` | Base URL of the deployed web app (https) |
+| `METADATA_BASE_URL` | `scripts/set-uri.ts` | Domain of the deployed web app only, such as `https://stylusforge.example` (https, no path, no trailing slash) |
 
 Hardhat 3 does not load `.env` files. A variable is read from the environment first, then from the encrypted Hardhat keystore. `.env.example` only lists the names.
 
@@ -162,11 +162,20 @@ After the web app is deployed, point the certificate metadata at it from the own
 
 ```bash
 pnpm hardhat keystore set NFT_CONTRACT_ADDRESS   # the deployed StylusForgeNFT address
-pnpm hardhat keystore set METADATA_BASE_URL      # e.g. https://stylusforge.example (https, no trailing path needed)
+pnpm hardhat keystore set METADATA_BASE_URL      # the domain only: https://stylusforge.example
 pnpm hardhat run scripts/set-uri.ts --network arbitrumSepolia
 ```
 
-The script sets the URI to `<METADATA_BASE_URL>/api/metadata/{id}`. It refuses non-https bases (http is accepted for localhost), stops if the connected account is not the contract owner, and does nothing when the URI is already set, so it is safe to run again.
+**`METADATA_BASE_URL` is the web app's domain only**, such as `https://stylusforge.example`: no path, no trailing slash and no `{id}`. The script appends `/api/metadata/{id}` itself and sets the URI to `<METADATA_BASE_URL>/api/metadata/{id}`.
+
+| Value | Result |
+|---|---|
+| `https://stylusforge.example` | Accepted: `https://stylusforge.example/api/metadata/{id}` |
+| `https://stylusforge.example/` | Refused: trailing slash |
+| `https://stylusforge.example/api/metadata/{id}` | Refused: the full URL would get the route twice |
+| `https://stylusforge.example/forge` | Refused: path |
+
+It also refuses non-https bases (http is accepted for localhost) and queries, fragments or credentials, and stops if the connected account is not the contract owner. Before sending, it prints the current and the final URI and asks for confirmation (`y`). Without an interactive terminal it sends nothing. It does nothing when the URI is already set, so it is safe to run again.
 
 ### Registering new lessons
 
