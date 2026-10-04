@@ -19,7 +19,7 @@ Next.js app for StylusForge: lesson pages with a Monaco code editor, exercise ch
 apps/web/
 ├─ app/
 │  ├─ layout.tsx            root layout, wraps the app in the wallet providers
-│  ├─ page.tsx              landing page with the curriculum preview
+│  ├─ page.tsx              landing page: hero, how it works, certificate preview, call to action
 │  ├─ api/claim/route.ts    POST /api/claim: re-validates code, signs claim vouchers
 │  ├─ api/metadata/[id]/    ERC-1155 metadata JSON (route.ts) and SVG image (image/route.ts)
 │  ├─ profile/page.tsx      on-chain certificates and XP of the connected wallet
@@ -29,7 +29,7 @@ apps/web/
 ├─ components/
 │  ├─ brand/ForgeMark.tsx       StylusForge mark and logo
 │  ├─ hero/                     3D hero: scene, ingot geometry, shaders, lazy loader, fallback
-│  ├─ landing/Hero.tsx          landing hero section
+│  ├─ landing/                  landing sections: Hero, HowItWorks (TypingCode), CertificatePreview (TiltCard), FinalCta
 │  ├─ claim/ClaimCertificate.tsx claim panel of a passed lesson
 │  ├─ claim/UnclaimedPrompt.tsx bar listing passed lessons whose certificate is not claimed
 │  ├─ profile/ProfileView.tsx   rank, XP and certificates read on-chain
@@ -46,6 +46,7 @@ apps/web/
 │  ├─ curriculum/validate.ts    static checks shared by client and server
 │  ├─ curriculum/solutions.ts   reference solutions (tests only)
 │  ├─ hooks/useMediaQuery.ts    media queries (reduced motion, constrained devices)
+│  ├─ highlightRust.ts          small Rust tokenizer for code snippets
 │  ├─ progress/                 local progress: storage, passed lessons, saved code, ranks
 │  ├─ chain.ts                  chain selection from NEXT_PUBLIC_CHAIN_ID
 │  ├─ contract.ts               StylusForgeNFT ABI (checked against the artifact) and address
@@ -90,6 +91,15 @@ Utilities:
 | `quench-edge` | Blue edge and glow for on-chain, finished items |
 
 A fixed steel-grain overlay covers the page at 5% opacity and never intercepts input. Textures are static; motion is reserved for the hero and feedback moments, and respects `prefers-reduced-motion`. Buttons come from `buttonClasses(variant, size)` in `components/ui/button.ts` (`heat`, `steel`, `quench`). Focus is always visible as an amber outline.
+
+## Landing page
+
+1. **Hero**: the headline "Forge your first Rust smart contract", the call to action and the 3D ingot (below).
+2. **How it works**: a code panel types the lesson 1 solution once it scrolls into view (`TypingCode`, colored by `lib/highlightRust.ts`), next to the three steps Write, Validate and Claim on-chain. The claim step is in quench blue, the on-chain color.
+3. **Certificate preview**: the real certificate SVG in a `TiltCard` that turns towards the pointer, with a moving glare.
+4. **Call to action**: lesson count and total XP computed from the lessons data.
+
+Motion respects `prefers-reduced-motion`: the snippet appears complete, the caret stops blinking and the certificate holds a fixed angle. The certificate also stays static without a fine pointer (touch screens). Screen readers get the full snippet at once.
 
 ## Landing hero
 
