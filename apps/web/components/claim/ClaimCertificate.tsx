@@ -25,10 +25,11 @@ function shortHash(hash: Hash) {
 }
 
 /**
- * Claims the soul-bound certificate of a passed lesson: the server re-validates the code and
- * signs a voucher, then the student sends claim() from their wallet and pays the gas.
+ * The claim action of a passed lesson, compact enough to sit in the lesson's result bar: the
+ * server re-validates the code and signs a voucher, then the student sends claim() from their
+ * wallet and pays the gas. Renders the action (or the owned badge) and, below it, any error.
  */
-export function ClaimCertificate({ lessonId, code, passed }: { lessonId: number; code: string; passed: boolean }) {
+export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: string }) {
   const { address, isConnected, chainId } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { switchChain, isPending: switching } = useSwitchChain();
@@ -48,26 +49,17 @@ export function ClaimCertificate({ lessonId, code, passed }: { lessonId: number;
     query: { enabled: Boolean(address && nftContractAddress) },
   });
 
-  if (!passed && owned.data !== true) {
-    return null;
-  }
-
   if (!nftContractAddress) {
-    return (
-      <p className='steel-surface p-4 text-sm text-steel-300'>
-        Certificates are not available here: no contract address is configured.
-      </p>
-    );
+    return <span className='text-sm text-steel-400'>Certificates unavailable: no contract configured</span>;
   }
 
   if (owned.data === true) {
     const url = txHash ? transactionUrl(txHash) : null;
     return (
-      <div role='status' className='steel-surface quench-edge flex flex-wrap items-center justify-between gap-3 p-4'>
-        <div>
-          <p className='font-semibold text-quench-300'>Certificate owned</p>
-          <p className='text-sm text-steel-300'>This lesson&apos;s soul-bound certificate is in your wallet.</p>
-        </div>
+      <span role='status' className='flex flex-wrap items-center gap-x-3 gap-y-1'>
+        <span className='rounded-[var(--radius-forge)] border border-quench-500/60 px-2.5 py-1.5 text-sm font-semibold text-quench-300 quench-edge'>
+          Certificate owned
+        </span>
         {txHash &&
           (url ? (
             <a href={url} target='_blank' rel='noreferrer' className='text-sm font-medium text-quench-300 underline-offset-4 hover:underline'>
@@ -75,10 +67,10 @@ export function ClaimCertificate({ lessonId, code, passed }: { lessonId: number;
             </a>
           ) : (
             <span className='font-mono text-xs text-steel-400' title={txHash}>
-              Transaction {shortHash(txHash)}
+              Tx {shortHash(txHash)}
             </span>
           ))}
-      </div>
+      </span>
     );
   }
 
@@ -140,7 +132,7 @@ export function ClaimCertificate({ lessonId, code, passed }: { lessonId: number;
   let action: React.ReactNode;
   if (!isConnected) {
     action = (
-      <button type='button' onClick={openConnectModal} className={buttonClasses('heat', 'lg', 'w-full')}>
+      <button type='button' onClick={openConnectModal} className={buttonClasses('heat', 'md')}>
         Connect wallet to claim
       </button>
     );
@@ -150,30 +142,24 @@ export function ClaimCertificate({ lessonId, code, passed }: { lessonId: number;
         type='button'
         onClick={() => switchChain({ chainId: chain.id })}
         disabled={switching}
-        className={buttonClasses('quench', 'lg', 'w-full')}
+        className={buttonClasses('quench', 'md')}
       >
         {switching ? 'Switching…' : `Switch to ${chain.name}`}
       </button>
     );
   } else {
     action = (
-      <button type='button' onClick={claim} disabled={busy || owned.isLoading} className={buttonClasses('quench', 'lg', 'w-full')}>
+      <button type='button' onClick={claim} disabled={busy || owned.isLoading} className={buttonClasses('quench', 'md')}>
         {busy ? PHASE_LABEL[phase as Exclude<Phase, 'idle'>] : 'Claim certificate'}
       </button>
     );
   }
 
   return (
-    <div className='steel-surface space-y-3 p-4'>
-      <div>
-        <p className='font-semibold'>Claim your certificate</p>
-        <p className='text-sm text-steel-300'>
-          Mint this lesson&apos;s soul-bound certificate to your wallet. You pay the gas; it can never be transferred.
-        </p>
-      </div>
+    <>
       {action}
       {error && (
-        <div role='alert' className='text-sm'>
+        <div role='alert' className='basis-full text-sm'>
           <p className='text-molten-300'>{error.message}</p>
           {error.hints.length > 0 && (
             <ul className='mt-1 list-disc pl-5 text-steel-300'>
@@ -184,6 +170,6 @@ export function ClaimCertificate({ lessonId, code, passed }: { lessonId: number;
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }
