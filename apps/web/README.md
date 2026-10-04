@@ -8,6 +8,7 @@ Next.js app for StylusForge: lesson pages with a Monaco code editor, exercise ch
 - TypeScript and Tailwind CSS 4
 - `@monaco-editor/react` for the in-browser editor
 - wagmi 2, viem 2, RainbowKit 2 and TanStack Query 5
+- three.js with `@react-three/fiber` and `@react-three/drei` for the landing hero
 - `react-markdown` and `remark-gfm` for lesson explanations
 - ESLint 9 with `eslint-config-next` (flat config)
 - Vitest for unit tests
@@ -27,6 +28,8 @@ apps/web/
 │     └─ [slug]/page.tsx    lesson page (prerendered per available lesson, 404 otherwise)
 ├─ components/
 │  ├─ brand/ForgeMark.tsx       StylusForge mark and logo
+│  ├─ hero/                     3D hero: scene, ingot geometry, shaders, lazy loader, fallback
+│  ├─ landing/Hero.tsx          landing hero section
 │  ├─ claim/ClaimCertificate.tsx claim panel of a passed lesson
 │  ├─ claim/UnclaimedPrompt.tsx bar listing passed lessons whose certificate is not claimed
 │  ├─ profile/ProfileView.tsx   rank, XP and certificates read on-chain
@@ -42,6 +45,7 @@ apps/web/
 │  ├─ curriculum/lessons.ts     lesson list: curriculum/lessons.json + web content
 │  ├─ curriculum/validate.ts    static checks shared by client and server
 │  ├─ curriculum/solutions.ts   reference solutions (tests only)
+│  ├─ hooks/useMediaQuery.ts    media queries (reduced motion, constrained devices)
 │  ├─ progress/                 local progress: storage, passed lessons, saved code, ranks
 │  ├─ chain.ts                  chain selection from NEXT_PUBLIC_CHAIN_ID
 │  ├─ contract.ts               StylusForgeNFT ABI (checked against the artifact) and address
@@ -86,6 +90,25 @@ Utilities:
 | `quench-edge` | Blue edge and glow for on-chain, finished items |
 
 A fixed steel-grain overlay covers the page at 5% opacity and never intercepts input. Textures are static; motion is reserved for the hero and feedback moments, and respects `prefers-reduced-motion`. Buttons come from `buttonClasses(variant, size)` in `components/ui/button.ts` (`heat`, `steel`, `quench`). Focus is always visible as an amber outline.
+
+## Landing hero
+
+The landing page opens on a molten ingot rendered with three.js (`components/hero`). Everything is procedural, with no model files:
+
+- **Geometry**: a rounded box whose upper half tapers to a smaller top face (`ingotGeometry.ts`).
+- **Molten material** (`moltenMaterial.ts`): simplex-noise heat flowing under a dark crust, thin glowing cracks, a fresnel rim where the core shows through, and a slow pulse.
+- **Heat halo** (`haloMaterial.ts`): an additive glow plane, used instead of a post-processing pass.
+- **Sparks** (`sparks.ts`): GPU particles; each path is computed in the vertex shader from a seed and the time.
+
+The ingot floats (drei `Float`), turns slowly and leans towards the pointer anywhere in the window.
+
+Loading and performance:
+
+- `HeroVisual` imports the scene with `next/dynamic` and `ssr: false`, so three.js is its own chunk and never part of the initial page scripts. A gradient ingot (`HeroFallback`) shows while it loads and when WebGL is unavailable.
+- `prefers-reduced-motion`: a still ingot rendered on demand, without sparks.
+- Phones and touch screens (`max-width: 768px` or `pointer: coarse`): 90 sparks instead of 320, pixel ratio capped at 1.25 instead of 1.75, no antialiasing.
+- The frame loop stops while the hero is off-screen (IntersectionObserver).
+- Measured at 60 fps (16.7 ms average, 16.9 ms p95 frame time) on an integrated AMD Radeon laptop GPU at 1440×900.
 
 ## Scripts
 
