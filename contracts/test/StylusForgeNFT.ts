@@ -188,16 +188,15 @@ describe("StylusForgeNFT", async function () {
       );
     });
 
-    it("rejects transfers by an approved operator", async function () {
+    it("rejects setApprovalForAll", async function () {
       const { nft } = await networkHelpers.loadFixture(claimedFixture);
-      await nft.write.setApprovalForAll([owner.account.address, true], { account: alice.account });
 
       await viem.assertions.revertWithCustomError(
-        nft.write.safeTransferFrom([alice.account.address, owner.account.address, 1n, 1n, "0x"]),
+        nft.write.setApprovalForAll([owner.account.address, true], { account: alice.account }),
         nft,
         "SoulBound",
       );
-      assert.equal(await nft.read.balanceOf([alice.account.address, 1n]), 1n);
+      assert.equal(await nft.read.isApprovedForAll([alice.account.address, owner.account.address]), false);
     });
   });
 

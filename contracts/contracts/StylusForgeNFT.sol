@@ -96,6 +96,11 @@ contract StylusForgeNFT is ERC1155, Ownable, EIP712 {
         }
     }
 
+    /// @dev Soul-bound: certificates cannot be transferred, so setApprovalForAll reverts and no operator is ever approved.
+    function _setApprovalForAll(address, address, bool) internal pure override {
+        revert SoulBound();
+    }
+
     /// @dev Soul-bound: only mints (from == address(0)) are allowed; transfers and burns revert.
     function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
         internal
