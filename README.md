@@ -40,6 +40,8 @@ pnpm install   # installs every workspace package from the root
 pnpm dev       # starts the web app on http://localhost:3000
 ```
 
+`pnpm build` needs `NEXT_PUBLIC_WALLETCONNECT_ID` in `apps/web/.env.local` (production builds refuse the shared demo id); see [`apps/web/.env.example`](apps/web/.env.example).
+
 Always install from the repository root: do not run `npm install` or `pnpm install` inside a package directory, and do not add other lockfiles.
 
 ## Local development
