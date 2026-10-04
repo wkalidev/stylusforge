@@ -1302,6 +1302,33 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn complete(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Structs in mappings",
+          question: "How do you read the level of the Member stored for account?",
+          options: ["self.members.get(account).level", "self.members.getter(account).level.get()", "self.members[account].level"],
+          answer: 1,
+          explanation: "get(key) only returns simple values. getter(key) returns a read handle to the struct, and its level field is read with get().",
+        },
+        {
+          afterStep: "Structs in vectors",
+          question: "Why does a vector of structs use grow() rather than push(value)?",
+          options: [
+            "A storage struct is not a plain value to pass, so grow() adds an empty element and returns a handle to fill",
+            "push(value) only works on vectors of addresses",
+            "grow() is cheaper because it skips writing the length",
+          ],
+          answer: 0,
+          explanation: "push needs a plain value such as a U256 or an Address. grow() appends an element with every field at zero and returns a handle to set its fields.",
+        },
+        {
+          afterStep: "Handles borrow the contract",
+          question: "Where should self.vm().msg_sender() be read when you also need self.members.setter(account)?",
+          options: ["Anywhere: handles do not borrow self", "After the last use of the handle only", "Before taking the handle"],
+          answer: 2,
+          explanation: "The handle keeps self borrowed until its last use, so reading self.vm() in between does not compile. Read the caller first, then take the handle.",
+        },
+      ],
     },
   },
 };
