@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
+    "test": "pnpm --filter contracts test",
     "lint": "pnpm --filter web lint"
   },
   "engines": {
