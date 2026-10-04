@@ -29,7 +29,7 @@ export function ForgeLogo() {
   return (
     <span className='inline-flex items-center gap-2'>
       <ForgeMark />
-      <span className='font-display text-2xl font-extrabold leading-none tracking-wide text-steel-100'>StylusForge</span>
+      <span className='hidden font-display text-2xl font-extrabold leading-none tracking-wide text-steel-100 sm:inline'>StylusForge</span>
     </span>
   );
 }

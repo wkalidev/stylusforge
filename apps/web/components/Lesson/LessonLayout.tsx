@@ -5,15 +5,19 @@ import Editor from '@monaco-editor/react';
 import { buttonClasses } from '@/components/ui/button';
 import { getLesson } from '@/lib/curriculum/lessons';
 import { validateCode } from '@/lib/curriculum/validate';
+import { resetCode, saveCode, useSavedCode } from '@/lib/progress/code';
+import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progress';
 import { LessonMarkdown } from './LessonMarkdown';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 
 export function LessonLayout({ slug }: { slug: string }) {
   const lesson = getLesson(slug);
   const exercise = lesson?.exercise;
-  const [code, setCode] = useState(exercise?.starterCode ?? '');
+  const savedCode = useSavedCode(lesson?.id ?? 0);
+  const code = savedCode ?? exercise?.starterCode ?? '';
   const [completed, setCompleted] = useState(false);
   const [hints, setHints] = useState<string[]>([]);
+  const completedIds = useCompletedLessons();
 
   if (!lesson || !exercise) {
     return (
@@ -27,6 +31,15 @@ export function LessonLayout({ slug }: { slug: string }) {
     const result = validateCode(code, exercise.checks);
     setCompleted(result.passed);
     setHints(result.hints);
+    if (result.passed) {
+      markLessonCompleted(lesson.id);
+    }
+  };
+
+  const resetToStarter = () => {
+    resetCode(lesson.id);
+    setCompleted(false);
+    setHints([]);
   };
 
   return (
@@ -37,6 +50,9 @@ export function LessonLayout({ slug }: { slug: string }) {
           <span aria-hidden='true' className='text-steel-600'>/</span>
           <h1 className='font-display text-2xl font-bold'>{lesson.title}</h1>
           <span className='rounded-[var(--radius-forge)] bg-steel-800 px-2 py-0.5 text-xs text-steel-300'>{lesson.difficulty}</span>
+          {completedIds.includes(lesson.id) && (
+            <span className='rounded-[var(--radius-forge)] bg-molten-500/15 px-2 py-0.5 text-xs font-semibold text-amber-300'>Passed</span>
+          )}
         </div>
         <span className='font-semibold text-amber-300'>{lesson.xp} XP</span>
       </div>
@@ -52,7 +68,7 @@ export function LessonLayout({ slug }: { slug: string }) {
               theme={FORGE_EDITOR_THEME}
               beforeMount={defineForgeEditorTheme}
               value={code}
-              onChange={(val) => setCode(val ?? '')}
+              onChange={(val) => saveCode(lesson.id, val ?? '')}
               options={{
                 fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
                 fontSize: 13,
@@ -75,9 +91,19 @@ export function LessonLayout({ slug }: { slug: string }) {
               <p className='text-lg font-semibold text-amber-300'>Lesson complete: +{lesson.xp} XP</p>
             </div>
           )}
-          <button onClick={checkCode} className={buttonClasses('heat', 'lg')}>
-            Check my code
-          </button>
+          <div className='flex gap-3'>
+            <button
+              type='button'
+              onClick={resetToStarter}
+              disabled={savedCode === null}
+              className={buttonClasses('steel', 'lg')}
+            >
+              Reset code
+            </button>
+            <button type='button' onClick={checkCode} className={buttonClasses('heat', 'lg', 'flex-1')}>
+              Check my code
+            </button>
+          </div>
         </div>
       </div>
     </div>

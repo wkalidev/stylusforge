@@ -25,6 +25,8 @@ apps/web/
 ├─ components/
 │  ├─ brand/ForgeMark.tsx       StylusForge mark and logo
 │  ├─ layout/SiteHeader.tsx     shared header (logo, navigation, player controls slot)
+│  ├─ layout/HeaderControls.tsx XP meter and wallet button in the header
+│  ├─ progress/XpMeter.tsx      local rank, XP and progress to the next rank
 │  ├─ ui/button.ts              button styles (heat, steel, quench)
 │  ├─ Lesson/LessonLayout.tsx   explanation, editor, hints and code check
 │  ├─ Lesson/forgeEditorTheme.ts Monaco theme matching the tokens
@@ -34,6 +36,7 @@ apps/web/
 │  ├─ curriculum/lessons.ts     lesson list: curriculum/lessons.json + web content
 │  ├─ curriculum/validate.ts    static checks shared by client and server
 │  ├─ curriculum/solutions.ts   reference solutions (tests only)
+│  ├─ progress/                 local progress: storage, passed lessons, saved code, ranks
 │  ├─ chain.ts                  chain selection from NEXT_PUBLIC_CHAIN_ID
 │  └─ wagmi.ts                  wagmi config for the selected chain
 ├─ eslint.config.mjs
@@ -95,12 +98,24 @@ Variable names are listed in [`.env.example`](.env.example). Two files hold the 
 
 | Variable | Scope | Description |
 |---|---|---|
-| `NEXT_PUBLIC_WALLETCONNECT_ID` | browser | WalletConnect Cloud project ID used by RainbowKit. Falls back to `demo` when unset. |
+| `NEXT_PUBLIC_WALLETCONNECT_ID` | browser | WalletConnect Cloud project ID used by RainbowKit. Required by production builds (`next build` fails without it); `next dev` falls back to the shared `demo` id with a warning. |
 | `NEXT_PUBLIC_CHAIN_ID` | browser | `31337` for the local Hardhat node, `421614` for Arbitrum Sepolia (default when unset). Any other value fails at startup. |
 | `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` | browser | Address of `StylusForgeNFT` on that chain |
 | `CLAIM_SIGNER_PRIVATE_KEY` | server only | Key that signs claim vouchers. Never import it from a client component. |
 
 See the [root README](../../README.md#local-development) to run the app against a local chain.
+
+## Wallet and progress
+
+The header shows the player's controls on every page: the XP meter and RainbowKit's connect button, themed with the forge palette (avatar only on small screens).
+
+Progress is local first, so the reward is immediate and needs no wallet:
+
+- a passing check records the lesson in `localStorage` (`stylusforge:completed:v1`) and the lesson bar shows "Passed";
+- the code of each lesson is saved on every change (`stylusforge:code:v1:<id>`) and restored when the lesson is reopened; "Reset code" brings back the starter code;
+- the XP meter sums the XP of the passed lessons and shows the rank: Apprentice from 0 XP, Smith from 250, Master Forger from 600.
+
+The store (`lib/progress/storage.ts`) is read through `useSyncExternalStore`: empty during server rendering and hydration (no mismatch), synced across tabs through the `storage` event, and kept in memory for the page when `localStorage` is blocked. On-chain XP and certificates are shown on the profile page.
 
 ## Lessons and checks
 
