@@ -45,6 +45,15 @@ describe("glossaryAt", () => {
     expect(idAt("let pop = 1;", 5)).toBeNull();
   });
 
+  it("explains grow and getter on structs", () => {
+    const grow = "        let mut task = self.tasks.grow();";
+    expect(idAt(grow, grow.indexOf("grow") + 1)).toBe("grow");
+    const read = "        let task = self.tasks.getter(id).ok_or(TodoError::UnknownTask(UnknownTask { id }))?;";
+    expect(idAt(read, read.indexOf("getter") + 1)).toBe("getter");
+    expect(idAt("        Task[] tasks;", 10)).toBe("vector");
+    expect(idAt("let grow = 1;", 5)).toBeNull();
+  });
+
   it("does not match inside longer identifiers", () => {
     expect(idAt("let my_U256x = 1;", 8)).toBeNull();
     expect(idAt("uint2567", 2)).toBeNull();

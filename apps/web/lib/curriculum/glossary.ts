@@ -96,10 +96,25 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'Writes a `string` storage field from anything that converts to `&str`.',
   },
   {
+    id: 'getter',
+    pattern: /\bgetter\(/,
+    title: 'getter(key)',
+    description:
+      'Returns a read handle to one entry of a `mapping`, or `Some` handle to an element of a vector (`None` past its end). Use it to read the fields of a struct or an inner mapping.',
+  },
+  {
+    id: 'grow',
+    pattern: /(?<=\.)grow\(\)/,
+    title: 'grow()',
+    description:
+      'Appends an element with every field at zero to a storage vector and returns a writable handle to it. Use it for vectors of structs, which cannot be pushed.',
+  },
+  {
     id: 'setter',
     pattern: /\bsetter\(/,
     title: 'setter(key)',
-    description: 'Returns a writable handle to one entry of a `mapping`; chain `.set(value)` to store it.',
+    description:
+      'Returns a writable handle to one entry of a `mapping`; chain `.set(value)` to store it. On a vector it returns `Some` handle to an element, or `None` past its end.',
   },
   {
     id: 'insert',
