@@ -28,6 +28,11 @@ export interface RankProgress {
   xpToNext: number;
   /** Progress from the current rank to the next one, between 0 and 1 (1 at the top rank). */
   fraction: number;
+  /**
+   * XP as a share of the next rank's threshold, between 0 and 1 (1 at the top rank). Unlike
+   * `fraction`, it does not drop to 0 on a rank-up.
+   */
+  thresholdFraction: number;
 }
 
 export function rankProgress(xp: number): RankProgress {
@@ -39,12 +44,13 @@ export function rankProgress(xp: number): RankProgress {
   const rank = RANKS[index];
   const next = RANKS[index + 1] ?? null;
   if (!next) {
-    return { rank, next: null, xpToNext: 0, fraction: 1 };
+    return { rank, next: null, xpToNext: 0, fraction: 1, thresholdFraction: 1 };
   }
   return {
     rank,
     next,
     xpToNext: next.minXp - total,
     fraction: (total - rank.minXp) / (next.minXp - rank.minXp),
+    thresholdFraction: total / next.minXp,
   };
 }
