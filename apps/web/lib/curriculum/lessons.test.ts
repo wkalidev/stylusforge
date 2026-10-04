@@ -6,9 +6,14 @@ import { SOLUTIONS } from "./solutions";
 import { splitSteps } from "./steps";
 import { evaluateChecks, snippetPattern, validateCode, type LessonCheck } from "./validate";
 
-/** Whether a text gives the expected code of a check, matched like the check itself. */
+/** Whether a text gives any expected snippet of a check, matched like the check itself. */
 function givesCode(text: string, check: LessonCheck): boolean {
-  return check.anyOf.some((snippet) => snippetPattern(snippet).test(text));
+  return [check.anyOf, ...(check.alsoAnyOf ?? [])].flat().some((snippet) => snippetPattern(snippet).test(text));
+}
+
+/** Whether a text gives every part of a check: one snippet of each group. */
+function givesAllCode(text: string, check: LessonCheck): boolean {
+  return [check.anyOf, ...(check.alsoAnyOf ?? [])].every((group) => group.some((snippet) => snippetPattern(snippet).test(text)));
 }
 
 describe("LESSONS", () => {
@@ -94,7 +99,9 @@ describe.each(available)("lesson $id: $title", (lesson) => {
       check.hints.forEach((hint, index) => {
         expect(hint.trim(), `empty hint for "${check.objective}"`).not.toBe("");
         const last = index === check.hints.length - 1;
-        expect(givesCode(hint, check), `hint ${index + 1} of "${check.objective}"`).toBe(last);
+        // The last hint gives every part of the check; the ones before give none.
+        const gives = last ? givesAllCode(hint, check) : givesCode(hint, check);
+        expect(gives, `hint ${index + 1} of "${check.objective}"`).toBe(last);
       });
     }
   });

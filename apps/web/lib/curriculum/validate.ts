@@ -6,6 +6,11 @@
 export interface LessonCheck {
   /** Code snippets; the check passes when the code contains any of them, whatever the whitespace. */
   anyOf: string[];
+  /**
+   * Further parts of the same goal, each a group of alternative snippets: the check also needs
+   * one snippet of every group ("grow the list" and "set the title" of the new element).
+   */
+  alsoAnyOf?: string[][];
   /** The goal of the check in plain words, never the expected code ("Increment the count by 1"). */
   objective: string;
   /**
@@ -142,7 +147,8 @@ function lineAt(code: string, index: number): number {
 export function evaluateChecks(code: string, checks: LessonCheck[]): CheckResult[] {
   const source = stripCommentsAndStrings(code);
   return checks.map((check) => {
-    const passed = check.anyOf.some((snippet) => snippetPattern(snippet).test(source));
+    const matches = (snippets: string[]) => snippets.some((snippet) => snippetPattern(snippet).test(source));
+    const passed = [check.anyOf, ...(check.alsoAnyOf ?? [])].every(matches);
     const anchor = check.anchor ? snippetPattern(check.anchor).exec(source) : null;
     return { check, passed, line: anchor ? lineAt(source, anchor.index) : null };
   });

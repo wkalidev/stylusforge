@@ -113,4 +113,18 @@ describe("validateCode", () => {
     const code = '// uint256 count;\n/* self.count.set(U256::ZERO) */ let s = "uint256 count;";';
     expect(validateCode(code, checks).passed).toBe(false);
   });
+
+  it("requires one snippet of every further group of a check", () => {
+    const merged = [
+      {
+        anyOf: ["self.tasks.grow()"],
+        alsoAnyOf: [[".title.set_str(title)", ".title.set_str(&title)"]],
+        objective: "add a task",
+        hints: [],
+      },
+    ];
+    expect(validateCode("let mut task = self.tasks.grow(); task.title.set_str(&title);", merged).passed).toBe(true);
+    expect(validateCode("let mut task = self.tasks.grow();", merged)).toEqual({ passed: false, objectives: ["add a task"] });
+    expect(validateCode("task.title.set_str(title);", merged).passed).toBe(false);
+  });
 });
