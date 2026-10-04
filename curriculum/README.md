@@ -8,8 +8,8 @@ Lesson metadata for StylusForge, plus the rules every lesson exercise follows.
 
 ```json
 [
-  { "id": 1, "name": "Hello World Stylus", "xp": 100, "available": true },
-  { "id": 5, "name": "DeFi Interaction", "xp": 500, "available": false }
+  { "id": 1, "name": "Hello World Stylus", "xp": 100, "available": true, "module": "foundations" },
+  { "id": 5, "name": "DeFi Interaction", "xp": 400, "available": false, "module": "interoperability" }
 ]
 ```
 
@@ -19,20 +19,35 @@ Lesson metadata for StylusForge, plus the rules every lesson exercise follows.
 | `name` | string | Non-empty. Registered on-chain with `addLesson` and shown as the lesson title. |
 | `xp` | integer | Zero or more. XP awarded for the lesson. |
 | `available` | boolean | `true` when the lesson is written. Unavailable lessons are shown as "Soon" and never registered on-chain. |
+| `module` | string | Id of the lesson's module in `modules.json`. |
 
-The order of the array is the curriculum order.
+The order of the array is the curriculum order. Lessons are listed module by module, in the order of `modules.json`, so ids do not follow the curriculum order: existing ids never change and new lessons take the next free id.
+
+## modules.json
+
+[`modules.json`](modules.json) lists the modules, in curriculum order. Each module is shown as a zone of the forge, next to its name:
+
+| `id` | `name` | `zone` |
+|---|---|---|
+| `foundations` | Foundations | The Hearth |
+| `contract-logic` | Contract logic | The Anvil |
+| `tokens` | Tokens | The Mint |
+| `interoperability` | Interoperability | The Bellows |
+| `stylus-specifics` | Stylus specifics | The Quench |
+
+All three fields are non-empty strings and ids are unique. Modules are web-only: the contract knows nothing about them.
 
 ### Consumers
 
 - `contracts/scripts/deploy.ts` and `contracts/scripts/deploy-local.ts` register every available lesson on `StylusForgeNFT`.
 - `contracts/test/StylusForgeNFT.ts` registers the same lessons and derives its expectations from them.
-- `apps/web/lib/curriculum/lessons.ts` builds the web lesson list (landing page, `/learn`, lesson pages) from it.
+- `apps/web/lib/curriculum/lessons.ts` builds the web lesson list (landing page, `/learn`, lesson pages) from it, and `apps/web/lib/curriculum/modules.ts` groups that list by module.
 
-The contracts load the file through `contracts/scripts/lessons.ts`, which validates it and fails on a malformed entry. The web app fails to build if a lesson has no web content or if an available lesson has no exercise.
+The contracts load the file through `contracts/scripts/lessons.ts`, which validates it and fails on a malformed entry, an unknown module or lessons that are not grouped by module. The web app fails to build if a lesson has no web content or if an available lesson has no exercise.
 
 ### Changing lessons
 
-Lessons are registered once, at deployment. On a deployed contract a lesson cannot be renamed, repriced or removed, so editing an existing entry here does not change it on-chain. To publish a new lesson after deployment, add its web content, set `"available": true` and call `addLesson` with the same values from the owner account.
+The deploy scripts register every available lesson. On a deployed contract a lesson cannot be renamed, repriced or removed, so never edit the name or XP of a registered lesson. To publish a new lesson after deployment, add its web content, set `"available": true` and run `pnpm register:lessons --network <name>` from the owner account: it registers the missing lessons and refuses to run if a registered lesson differs from this file ([contracts README](../contracts/README.md#registering-new-lessons)).
 
 ## Lesson content
 
