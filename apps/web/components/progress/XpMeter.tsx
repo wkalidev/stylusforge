@@ -5,12 +5,14 @@ import { rankProgress } from '@/lib/progress/ranks';
 
 /**
  * Rank, XP and progress to the next rank, from the lessons passed in this browser.
- * Updates as soon as a check passes, wallet or not.
+ * Updates as soon as a check passes, wallet or not. The caption shows the XP against the next
+ * rank's threshold ("275 / 750 XP"), so the meter stays readable right after a rank-up.
  */
 export function XpMeter() {
   const xp = useLocalXp();
   const { rank, next, xpToNext, fraction } = rankProgress(xp);
   const label = next ? `${xp} XP, ${xpToNext} XP to ${next.name}` : `${xp} XP, top rank`;
+  const caption = next ? `${xp} / ${next.minXp} XP` : `${xp} XP · top rank`;
 
   return (
     <div className='flex items-center gap-2 sm:gap-3' title={label}>
@@ -30,7 +32,7 @@ export function XpMeter() {
             style={{ width: `${fraction * 100}%` }}
           />
         </div>
-        <span className='text-[11px] leading-none text-steel-400 tabular-nums'>{xp} XP</span>
+        <span className='whitespace-nowrap text-[11px] leading-none text-steel-400 tabular-nums'>{caption}</span>
       </div>
     </div>
   );
