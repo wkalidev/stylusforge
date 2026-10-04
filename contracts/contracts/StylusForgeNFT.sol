@@ -45,23 +45,26 @@ contract StylusForgeNFT is ERC1155, Ownable {
         emit LessonCompleted(student, lessonId);
     }
 
-    function getCompletedLessons(address student) external view returns (bool[] memory) {
-        bool[] memory result = new bool[](5);
-        for (uint256 i = 0; i < 5; i++) {
-            result[i] = completed[student][i + 1];
+    /// @notice Registered lesson ids, in registration order, with the student's completion flag for each.
+    function getCompletedLessons(address student)
+        external
+        view
+        returns (uint256[] memory lessonIds, bool[] memory done)
+    {
+        lessonIds = _lessonIds;
+        done = new bool[](lessonIds.length);
+        for (uint256 i = 0; i < lessonIds.length; i++) {
+            done[i] = completed[student][lessonIds[i]];
         }
-        return result;
     }
 
-    function getTotalXP(address student) external view returns (uint256) {
-        uint256[5] memory xpValues = [uint256(100), 150, 200, 300, 500];
-        uint256 total = 0;
-        for (uint256 i = 0; i < 5; i++) {
-            if (completed[student][i + 1]) {
-                total += xpValues[i];
+    function getTotalXP(address student) external view returns (uint256 total) {
+        for (uint256 i = 0; i < _lessonIds.length; i++) {
+            uint256 lessonId = _lessonIds[i];
+            if (completed[student][lessonId]) {
+                total += lessons[lessonId].xp;
             }
         }
-        return total;
     }
 
     /// @dev Soul-bound: only mints (from == address(0)) are allowed; transfers and burns revert.
