@@ -127,10 +127,11 @@ export function SkillTree() {
   const passed = useCompletedLessons();
   const onChain = useClaimedLessons();
   const zones = forgePath(MODULES, skillTree(LESSONS, passed));
-  // Passed lessons not known to be claimed get a reminder: unclaimed on-chain, or unknown without a wallet.
+  // Owned certificates show wherever the lesson was passed; passed lessons not known to be claimed
+  // get a reminder (unclaimed on-chain, or unknown without a wallet).
   const certificate = (node: SkillNode): CertificateState => {
-    if (node.state !== 'completed') return null;
     if (onChain?.claimed.has(node.lesson.id)) return 'claimed';
+    if (node.state !== 'completed') return null;
     return !onChain || onChain.unclaimed.has(node.lesson.id) ? 'unclaimed' : null;
   };
 

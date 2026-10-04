@@ -22,8 +22,8 @@ function details(node: SkillNode): string {
 }
 
 /**
- * The certificate state of a passed lesson: claimed (owned by the connected wallet) or unclaimed
- * (registered and not owned, or unknown without a wallet). Null for lessons not passed.
+ * The certificate state of a lesson: claimed (owned by the connected wallet, wherever it was
+ * passed) or unclaimed (passed here, and not owned or unknown without a wallet). Null otherwise.
  */
 export type CertificateState = 'claimed' | 'unclaimed' | null;
 
