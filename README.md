@@ -4,7 +4,7 @@
 
 Learn Arbitrum Stylus smart contracts in Rust, in the browser, and earn a soul-bound certificate on-chain for every lesson you finish.
 
-**Status:** MVP. The full flow runs on a local chain; the Arbitrum Sepolia deployment is not done yet.
+**Status:** MVP, live on Arbitrum Sepolia: <https://stylusforge-drab.vercel.app>. The full flow also runs on a local chain.
 
 <!-- MARKEE -->
 
@@ -157,7 +157,9 @@ For local development `pnpm deploy:local` writes the last three to `apps/web/.en
 
 | Network | Address |
 |---|---|
-| Arbitrum Sepolia (421614) | Not deployed yet |
+| Arbitrum Sepolia (421614) | [`0xf7f027a6af8d2f99a9b8f466983f4515522daa8d`](https://sepolia.arbiscan.io/address/0xf7f027a6af8d2f99a9b8f466983f4515522daa8d#code) (verified) |
+
+Live app: <https://stylusforge-drab.vercel.app>
 
 Deployment and verification steps: [contracts/README.md](contracts/README.md#deployment).
 
@@ -197,12 +199,12 @@ After the first deployment:
 - Four lessons with static checks, local progress, XP and ranks, the claim flow, the profile, certificate metadata and the forge redesign.
 - Module 1, Foundations: mappings, storage vectors and nested structs join the first two lessons (seven lessons in all).
 - Local development stack, CI on pull requests and the Vercel configuration.
+- Arbitrum Sepolia deployment: the verified contract and the web app on Vercel.
 
 **Next**
 
 - Lesson interactivity: live objectives, inline diagnostics in the editor, a "Try it" simulation of each contract, step-by-step explanations with quizzes, and a comparison with the reference solution once a lesson is passed.
 - Curriculum expansion: modules 2 to 5 (contract logic, tokens, interoperability, Stylus specifics), registered on-chain with `addLesson` without redeploying.
-- Arbitrum Sepolia deployment of the contract and the web app.
 
 **Later**
 
