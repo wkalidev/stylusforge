@@ -223,7 +223,7 @@ const CONTENT: Record<number, LessonContent> = {
           hints: [
             'A `uint256` field is a `StorageU256` accessor: read it instead of returning the field itself.',
             '`StorageU256` has a `get()` method that returns a `U256`.',
-            'Replace `U256::ZERO` with `self.count.get()`.',
+            'The body of `get` is only the read: `pub fn get(&self) -> U256 { self.count.get() }`.',
           ],
           anchor: 'pub fn get(&self)',
         },
