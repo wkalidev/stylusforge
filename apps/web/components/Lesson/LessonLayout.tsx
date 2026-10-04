@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import Editor from '@monaco-editor/react';
 import { LESSONS } from '@/lib/curriculum/lessons';
 
@@ -37,7 +38,7 @@ export function LessonLayout({ slug }: { slug: string }) {
     <div className='min-h-screen bg-gray-950 text-white flex flex-col'>
       <div className='border-b border-gray-800 px-6 py-4 flex items-center justify-between'>
         <div className='flex items-center gap-4'>
-          <a href='/learn' className='text-gray-400 hover:text-white text-sm'>← Back</a>
+          <Link href='/learn' className='text-gray-400 hover:text-white text-sm'>← Back</Link>
           <span className='text-gray-600'>|</span>
           <h1 className='font-bold'>{lesson.title}</h1>
           <span className='text-xs bg-gray-800 px-2 py-1 rounded text-gray-400'>{lesson.difficulty}</span>
