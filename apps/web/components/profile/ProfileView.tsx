@@ -91,6 +91,9 @@ export function ProfileView() {
             {next ? `${xpToNext} XP to ${next.name}` : 'Top rank reached'}
           </p>
         </div>
+        <p className='basis-full text-sm text-steel-400'>
+          The rank in the header counts every lesson passed in this browser; this one counts only the certificates claimed on-chain.
+        </p>
       </section>
 
       <section aria-labelledby='certificates-heading'>
