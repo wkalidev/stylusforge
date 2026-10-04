@@ -45,10 +45,65 @@ export function snippetPattern(snippet: string): RegExp {
   return new RegExp(start + source + end);
 }
 
-/** Runs every check against the code and collects the hints of the failed ones. */
+/**
+ * Removes what a check must never match: line comments, (nested) block comments and the
+ * contents of string literals, including raw strings. Comments become a space so the tokens
+ * around them stay separated; strings keep their quotes and lose their contents.
+ */
+export function stripCommentsAndStrings(code: string): string {
+  let out = "";
+  let i = 0;
+  while (i < code.length) {
+    const rest = code.slice(i);
+    if (rest.startsWith("//")) {
+      const end = code.indexOf("\n", i);
+      i = end === -1 ? code.length : end;
+      out += " ";
+    } else if (rest.startsWith("/*")) {
+      let depth = 1;
+      i += 2;
+      while (i < code.length && depth > 0) {
+        if (code.startsWith("/*", i)) {
+          depth += 1;
+          i += 2;
+        } else if (code.startsWith("*/", i)) {
+          depth -= 1;
+          i += 2;
+        } else {
+          i += 1;
+        }
+      }
+      out += " ";
+    } else if (/^b?r#*"/.test(rest) && !/[A-Za-z0-9_]/.test(code[i - 1] ?? "")) {
+      // Raw string r"..." / r#"..."#: ends at a quote followed by the same number of hashes.
+      const opening = rest.match(/^b?r(#*)"/)!;
+      const closing = `"${opening[1]}`;
+      const end = code.indexOf(closing, i + opening[0].length);
+      i = end === -1 ? code.length : end + closing.length;
+      out += '""';
+    } else if (code[i] === '"') {
+      i += 1;
+      while (i < code.length && code[i] !== '"') {
+        i += code[i] === "\\" ? 2 : 1;
+      }
+      i += 1;
+      out += '""';
+    } else {
+      out += code[i];
+      i += 1;
+    }
+  }
+  return out;
+}
+
+/**
+ * Runs every check against the code, with comments and string contents removed so a check
+ * cannot be passed by writing the expected snippet in a comment or a string.
+ */
 export function validateCode(code: string, checks: LessonCheck[]): ValidationResult {
+  const source = stripCommentsAndStrings(code);
   const hints = checks
-    .filter((check) => !check.anyOf.some((snippet) => snippetPattern(snippet).test(code)))
+    .filter((check) => !check.anyOf.some((snippet) => snippetPattern(snippet).test(source)))
     .map((check) => check.hint);
   return { passed: hints.length === 0, hints };
 }
