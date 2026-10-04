@@ -217,7 +217,9 @@ With a wallet connected, a bar under the header lists the lessons passed in this
 
 ## Profile and metadata
 
-`/profile` shows what is on-chain for the connected wallet, not local progress: the claimed certificates (rendered with the certificate SVG) and the XP they carry (`getTotalXP`), with the rank that XP reaches. The header XP meter stays local, so both views can differ until every passed lesson is claimed.
+`/profile` shows what is on-chain for the connected wallet: the claimed certificates (rendered with the certificate SVG) and the XP they carry (`getTotalXP`), with the rank that XP reaches. The header XP meter stays local, so both ranks can differ until every passed lesson is claimed; a line under the on-chain rank says so.
+
+Below the certificates, **Ready to claim** (`components/profile/UnclaimedLessons.tsx`) lists the lessons passed in this browser that are registered on-chain but not owned by the wallet. Each has the regular claim action (`ClaimCertificate`), sent with the code saved for the lesson (`stylusforge:code:v1:<id>`); the server re-validates it as usual. When the saved code is missing or no longer passes the checks, the row offers "Open lesson" instead. A successful claim refreshes the on-chain reads, so the lesson moves to the certificates.
 
 The contract's metadata URI is `<app origin>/api/metadata/{id}` (`pnpm deploy:local` sets `http://localhost:3000/api/metadata/{id}`):
 
