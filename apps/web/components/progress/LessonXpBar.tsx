@@ -23,7 +23,7 @@ export function LessonXpBar({ lessonId, lessonXp }: { lessonId: number; lessonXp
 
   return (
     <div className='flex min-w-0 items-center gap-3'>
-      <span className='font-display text-xl font-bold leading-none text-amber-300'>{now.rank.name}</span>
+      <span className='font-display text-2xl font-bold leading-none text-amber-300 tabular-nums'>+{lessonXp} XP</span>
       <div className='flex min-w-0 flex-col gap-1'>
         <div
           role='meter'
