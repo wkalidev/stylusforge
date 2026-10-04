@@ -239,4 +239,50 @@ impl PriceLog {
     }
 }
 `,
+  8: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::string::String;
+use stylus_sdk::{alloy_primitives::U256, alloy_sol_types::sol, prelude::*};
+
+sol! {
+    error UnknownTask(uint256 id);
+}
+
+#[derive(SolidityError)]
+pub enum TodoError {
+    UnknownTask(UnknownTask),
+}
+
+sol_storage! {
+    pub struct Task {
+        string title;
+        bool done;
+    }
+
+    #[entrypoint]
+    pub struct TodoList {
+        Task[] tasks;
+    }
+}
+
+#[public]
+impl TodoList {
+    pub fn add_task(&mut self, title: String) {
+        let mut task = self.tasks.grow();
+        task.title.set_str(title);
+    }
+
+    pub fn task(&self, id: U256) -> Result<(String, bool), TodoError> {
+        let task = self.tasks.getter(id).ok_or(TodoError::UnknownTask(UnknownTask { id }))?;
+        Ok((task.title.get_string(), task.done.get()))
+    }
+
+    pub fn complete(&mut self, id: U256) -> Result<(), TodoError> {
+        let mut task = self.tasks.setter(id).ok_or(TodoError::UnknownTask(UnknownTask { id }))?;
+        task.done.set(true);
+        Ok(())
+    }
+}
+`,
 };
