@@ -43,7 +43,7 @@ export function HowItWorks() {
         <TypingCode code={SNIPPET} filename='src/lib.rs' />
         <div>
           <h2 id='how-it-works-heading' className='font-display text-5xl font-extrabold leading-none sm:text-6xl'>
-            From a first line of Rust to proof on-chain
+            From a first line of Rust to proof <span className='whitespace-nowrap'>on-chain</span>
           </h2>
           <ol className='mt-10 space-y-8'>
             {STEPS.map((step, index) => (
