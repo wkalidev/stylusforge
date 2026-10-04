@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Big_Shoulders, Geist, Geist_Mono } from "next/font/google";
+import { UnclaimedPrompt } from "@/components/claim/UnclaimedPrompt";
 import { HeaderControls } from "@/components/layout/HeaderControls";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { Providers } from "@/components/Wallet/Providers";
@@ -36,6 +37,7 @@ export default function RootLayout({
       <body className={`${bigShoulders.variable} ${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
           <SiteHeader actions={<HeaderControls />} />
+          <UnclaimedPrompt />
           {children}
         </Providers>
       </body>

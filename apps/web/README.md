@@ -19,11 +19,14 @@ apps/web/
 ├─ app/
 │  ├─ layout.tsx            root layout, wraps the app in the wallet providers
 │  ├─ page.tsx              landing page with the curriculum preview
+│  ├─ api/claim/route.ts    POST /api/claim: re-validates code, signs claim vouchers
 │  └─ learn/
 │     ├─ page.tsx           curriculum list
 │     └─ [slug]/page.tsx    lesson page (prerendered per available lesson, 404 otherwise)
 ├─ components/
 │  ├─ brand/ForgeMark.tsx       StylusForge mark and logo
+│  ├─ claim/ClaimCertificate.tsx claim panel of a passed lesson
+│  ├─ claim/UnclaimedPrompt.tsx bar listing passed lessons whose certificate is not claimed
 │  ├─ layout/SiteHeader.tsx     shared header (logo, navigation, player controls slot)
 │  ├─ layout/HeaderControls.tsx XP meter and wallet button in the header
 │  ├─ progress/XpMeter.tsx      local rank, XP and progress to the next rank
@@ -38,6 +41,11 @@ apps/web/
 │  ├─ curriculum/solutions.ts   reference solutions (tests only)
 │  ├─ progress/                 local progress: storage, passed lessons, saved code, ranks
 │  ├─ chain.ts                  chain selection from NEXT_PUBLIC_CHAIN_ID
+│  ├─ contract.ts               StylusForgeNFT ABI (checked against the artifact) and address
+│  ├─ claim.ts                  EIP-712 voucher types and signing (shared)
+│  ├─ claimErrors.ts            claim errors in plain words
+│  ├─ explorer.ts               block explorer links (none on the local chain)
+│  ├─ server/claimSigner.ts     server-only: loads CLAIM_SIGNER_PRIVATE_KEY
 │  └─ wagmi.ts                  wagmi config for the selected chain
 ├─ eslint.config.mjs
 └─ vitest.config.mts
@@ -116,6 +124,28 @@ Progress is local first, so the reward is immediate and needs no wallet:
 - the XP meter sums the XP of the passed lessons and shows the rank: Apprentice from 0 XP, Smith from 250, Master Forger from 600.
 
 The store (`lib/progress/storage.ts`) is read through `useSyncExternalStore`: empty during server rendering and hydration (no mismatch), synced across tabs through the `storage` event, and kept in memory for the page when `localStorage` is blocked. On-chain XP and certificates are shown on the profile page.
+
+## Claim flow
+
+1. The student passes a lesson; the claim panel appears under the editor.
+2. Without a wallet it offers to connect one; on another network it offers to switch to the app's chain.
+3. "Claim certificate" posts `{ address, lessonId, code }` to `/api/claim`. The route validates the input, runs the lesson checks again on the server, and signs an EIP-712 voucher `Claim(student, lessonId, deadline)` valid for 15 minutes with `CLAIM_SIGNER_PRIVATE_KEY`.
+4. The panel simulates `claim(lessonId, deadline, signature)` (so contract errors are explained before the wallet opens), sends it with wagmi from the student's wallet, waits for the receipt and refreshes every on-chain read.
+5. When `completed(student, lessonId)` is true the panel shows "Certificate owned", with an explorer link to the transaction (Arbiscan on Arbitrum Sepolia; the hash only on the local chain).
+
+With a wallet connected, a bar under the header lists the lessons passed in this browser whose certificate the wallet does not own yet, so local and on-chain progress converge.
+
+### `POST /api/claim`
+
+| Status | Body | When |
+|---|---|---|
+| 200 | `{ lessonId, deadline, signature }` (uint256 as decimal strings) | Code passes; voucher signed |
+| 400 | `{ error }` | Body is not JSON, invalid address, non-integer lesson id, code over 50,000 characters |
+| 404 | `{ error }` | Unknown or unavailable lesson |
+| 422 | `{ error, hints }` | Code fails the lesson checks |
+| 503 | `{ error }` | Contract address or signer key not configured |
+
+`CLAIM_SIGNER_PRIVATE_KEY` is only read in `lib/server/claimSigner.ts`, which imports `server-only`: importing it from a Client Component fails the build. Its address must be the contract's `signer`; `pnpm deploy:local` sets both for the local chain.
 
 ## Lessons and checks
 
