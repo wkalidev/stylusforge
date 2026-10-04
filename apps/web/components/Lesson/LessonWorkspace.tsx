@@ -15,7 +15,7 @@ import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progres
 import { playAnvilStrike } from '@/lib/sound/anvil';
 import { isSoundEnabled } from '@/lib/sound/preference';
 import { LessonIngot } from './LessonIngot';
-import { LessonMarkdown } from './LessonMarkdown';
+import { ExplanationSteps } from './ExplanationSteps';
 import { Objectives } from './Objectives';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 import { registerGlossaryHover } from './glossaryHover';
@@ -109,6 +109,16 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   }, [liveResults, editorReady]);
   const apple = useIsApplePlatform();
 
+  // The editor sits next to the explanation from lg; below it lives in the Code tab.
+  const openEditor = () => {
+    if (window.matchMedia('(min-width: 1024px)').matches) {
+      editorRef.current?.focus();
+    } else {
+      setTab('code');
+      window.scrollTo({ top: 0 });
+    }
+  };
+
   const resetToStarter = () => {
     resetCode(lesson.id);
     setCompleted(false);
@@ -164,17 +174,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
         >
           <div className='mx-auto max-w-2xl'>
             <Objectives results={liveResults} variant='panel' />
-            <LessonMarkdown>{exercise.explanation}</LessonMarkdown>
-            <button
-              type='button'
-              onClick={() => {
-                setTab('code');
-                window.scrollTo({ top: 0 });
-              }}
-              className={buttonClasses('heat', 'lg', 'mt-4 w-full lg:hidden')}
-            >
-              Open the editor
-            </button>
+            <ExplanationSteps explanation={exercise.explanation} onOpenEditor={openEditor} />
           </div>
         </article>
 
