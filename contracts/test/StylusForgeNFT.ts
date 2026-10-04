@@ -123,6 +123,19 @@ describe("StylusForgeNFT", async function () {
       );
     });
 
+    it("rejects a voucher for an unregistered lesson", async function () {
+      const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
+      const deadline = await deadlineIn(3600);
+      const signature = await signClaim(claimSigner, nft.address, alice.account.address, 99n, deadline);
+
+      await viem.assertions.revertWithCustomErrorWithArgs(
+        nft.write.claim([99n, deadline, signature], { account: alice.account }),
+        nft,
+        "InvalidLesson",
+        [99n],
+      );
+    });
+
     it("rejects replaying a voucher that was already used", async function () {
       const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
       const student = alice.account.address;
@@ -189,7 +202,7 @@ describe("StylusForgeNFT", async function () {
   });
 
   describe("owner-only functions", function () {
-    it("restricts addLesson, setSigner, setURI and mintCertificate to the owner", async function () {
+    it("restricts addLesson, setSigner and setURI to the owner", async function () {
       const { nft } = await networkHelpers.loadFixture(deployFixture);
       const asAlice = { account: alice.account };
       const notOwner: [Address] = [alice.account.address];
@@ -208,12 +221,6 @@ describe("StylusForgeNFT", async function () {
       );
       await viem.assertions.revertWithCustomErrorWithArgs(
         nft.write.setURI(["https://example.com/{id}.json"], asAlice),
-        nft,
-        "OwnableUnauthorizedAccount",
-        notOwner,
-      );
-      await viem.assertions.revertWithCustomErrorWithArgs(
-        nft.write.mintCertificate([alice.account.address, 1n], asAlice),
         nft,
         "OwnableUnauthorizedAccount",
         notOwner,
@@ -272,20 +279,6 @@ describe("StylusForgeNFT", async function () {
       await nft.write.setURI([uri]);
 
       assert.equal(await nft.read.uri([1n]), uri);
-    });
-
-    it("lets the owner mint a certificate directly", async function () {
-      const { nft } = await networkHelpers.loadFixture(deployFixture);
-
-      await nft.write.mintCertificate([alice.account.address, 2n]);
-
-      assert.equal(await nft.read.balanceOf([alice.account.address, 2n]), 1n);
-      await viem.assertions.revertWithCustomErrorWithArgs(
-        nft.write.mintCertificate([alice.account.address, 99n]),
-        nft,
-        "InvalidLesson",
-        [99n],
-      );
     });
   });
 

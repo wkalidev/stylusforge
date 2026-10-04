@@ -67,19 +67,11 @@ contract StylusForgeNFT is ERC1155, Ownable, EIP712 {
         bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(CLAIM_TYPEHASH, msg.sender, lessonId, deadline)));
         (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
         if (err != ECDSA.RecoverError.NoError || recovered != signer) revert InvalidSignature();
-        _complete(msg.sender, lessonId);
-    }
-
-    function mintCertificate(address student, uint256 lessonId) external onlyOwner {
-        _complete(student, lessonId);
-    }
-
-    function _complete(address student, uint256 lessonId) private {
         if (!lessons[lessonId].exists) revert InvalidLesson(lessonId);
-        if (completed[student][lessonId]) revert AlreadyCompleted(student, lessonId);
-        completed[student][lessonId] = true;
-        _mint(student, lessonId, 1, "");
-        emit LessonCompleted(student, lessonId);
+        if (completed[msg.sender][lessonId]) revert AlreadyCompleted(msg.sender, lessonId);
+        completed[msg.sender][lessonId] = true;
+        _mint(msg.sender, lessonId, 1, "");
+        emit LessonCompleted(msg.sender, lessonId);
     }
 
     /// @notice Registered lesson ids, in registration order, with the student's completion flag for each.
