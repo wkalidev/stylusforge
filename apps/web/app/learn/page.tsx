@@ -1,12 +1,5 @@
 import Link from 'next/link';
-
-const lessons = [
-  { id: 1, slug: 'hello-world', title: 'Hello World Stylus', difficulty: 'Beginner', xp: 100, available: true },
-  { id: 2, slug: 'storage-state', title: 'Storage and State', difficulty: 'Beginner', xp: 150, available: true },
-  { id: 3, slug: 'events-errors', title: 'Events and Errors', difficulty: 'Intermediate', xp: 200, available: true },
-  { id: 4, slug: 'erc20-token', title: 'ERC-20 Token', difficulty: 'Intermediate', xp: 300, available: true },
-  { id: 5, slug: 'defi-interaction', title: 'DeFi Interaction', difficulty: 'Advanced', xp: 500, available: false },
-];
+import { LESSONS } from '@/lib/curriculum/lessons';
 
 export default function LearnPage() {
   return (
@@ -18,7 +11,7 @@ export default function LearnPage() {
         <h1 className='text-4xl font-black mb-2'>Curriculum</h1>
         <p className='text-gray-400 mb-12'>Learn Arbitrum Stylus smart contracts step by step.</p>
         <div className='space-y-4'>
-          {lessons.map((lesson) => (
+          {LESSONS.map((lesson) => (
             <div key={lesson.id} className='relative'>
               {lesson.available ? (
                 <Link href={'/learn/' + lesson.slug} className='flex items-center justify-between bg-gray-900 rounded-xl p-6 border border-gray-800 hover:border-purple-600 transition group'>
