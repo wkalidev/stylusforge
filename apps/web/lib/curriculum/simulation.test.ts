@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   UINT256_MAX,
   callSimulation,
+  deleteMapping,
   checkedAdd,
   checkedSub,
+  formatSimValue,
   parseArgument,
   readMapping,
   writeMapping,
@@ -66,6 +68,14 @@ describe("checked arithmetic and mappings", () => {
     expect(readMapping(next, "balances", bob.address)).toBe(7n);
     expect(readMapping(state, "balances", bob.address)).toBe(0n);
   });
+
+  it("deletes an entry from a copy, whatever the address case", () => {
+    const state = writeMapping({ balances: {} }, "balances", bob.address, 7n);
+    const next = deleteMapping(state, "balances", bob.address.toUpperCase().replace("0X", "0x"));
+    expect(next.balances).toEqual({});
+    expect(readMapping(next, "balances", bob.address)).toBe(0n);
+    expect(readMapping(state, "balances", bob.address)).toBe(7n);
+  });
 });
 
 describe("callSimulation", () => {
@@ -92,5 +102,56 @@ describe("callSimulation", () => {
   it("reports invalid arguments and arithmetic errors as failed calls", () => {
     expect(callSimulation(vault, state, "add", { amount: "abc" }, alice).error?.error).toMatch(/unsigned/);
     expect(callSimulation(vault, { ...state, total: UINT256_MAX }, "add", { amount: "1" }, alice).error?.error).toMatch(/overflow/);
+  });
+});
+
+describe("formatSimValue", () => {
+  it("formats scalars, accounts and addresses", () => {
+    expect(formatSimValue(1234567n, [alice])).toBe("1,234,567");
+    expect(formatSimValue(true, [alice])).toBe("true");
+    expect(formatSimValue("gm", [alice])).toBe('"gm"');
+    expect(formatSimValue(alice.address.toUpperCase().replace("0X", "0x"), [alice])).toBe("Alice");
+    expect(formatSimValue(bob.address, [alice])).toBe("0x0000…0b0b");
+  });
+
+  it("formats tuples and structs", () => {
+    expect(formatSimValue(["Buy milk", false], [alice])).toBe('("Buy milk", false)');
+    expect(formatSimValue({ title: "Buy milk", done: true }, [alice])).toBe('{ title: "Buy milk", done: true }');
+  });
+});
+
+describe("callSimulation with vectors", () => {
+  const log: LessonSimulation = {
+    contract: "Log",
+    accounts: [alice],
+    initialState: () => ({ items: [] }),
+    functions: [
+      {
+        name: "push",
+        abiName: "push",
+        view: false,
+        params: [{ name: "value", type: "uint256" }],
+        run: (state, args) => {
+          const items = state.items as bigint[];
+          items.push(args.value as bigint);
+          return items.length > 2 ? { revert: { error: "Full" } } : { state };
+        },
+      },
+    ],
+  };
+
+  it("appends to a copy and keeps the previous state", () => {
+    const state = log.initialState();
+    const result = callSimulation(log, state, "push", { value: "7" }, alice);
+    expect(result.state.items).toEqual([7n]);
+    expect(state.items).toEqual([]);
+  });
+
+  it("drops changes made to a list before a revert", () => {
+    const state = { items: [1n, 2n] };
+    const result = callSimulation(log, state, "push", { value: "3" }, alice);
+    expect(result).toMatchObject({ ok: false, error: { error: "Full" } });
+    expect(result.state).toBe(state);
+    expect(state.items).toEqual([1n, 2n]);
   });
 });

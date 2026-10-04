@@ -4,6 +4,7 @@ import { useId, useState } from 'react';
 import { buttonClasses } from '@/components/ui/button';
 import {
   callSimulation,
+  formatSimValue,
   type LessonSimulation,
   type SimAccount,
   type SimCallResult,
@@ -20,18 +21,9 @@ interface LogEntry {
   result: SimCallResult;
 }
 
-function formatValue(value: SimValue | boolean | undefined, accounts: SimAccount[]): string {
-  if (value === undefined) return '';
-  if (typeof value === 'bigint') return value.toLocaleString('en-US');
-  if (typeof value === 'boolean') return String(value);
-  const account = accounts.find((candidate) => candidate.address.toLowerCase() === value.toLowerCase());
-  if (account) return account.name;
-  return /^0x[0-9a-fA-F]{40}$/.test(value) ? `${value.slice(0, 6)}…${value.slice(-4)}` : JSON.stringify(value);
-}
-
 function formatArgs(record: Record<string, SimValue> | undefined, accounts: SimAccount[]): string {
   return Object.entries(record ?? {})
-    .map(([name, value]) => `${name}: ${formatValue(value, accounts)}`)
+    .map(([name, value]) => `${name}: ${formatSimValue(value, accounts)}`)
     .join(', ');
 }
 
@@ -49,7 +41,9 @@ function FunctionForm({ fn, onCall }: { fn: SimFunction; onCall: (args: Record<s
       <p className='font-mono text-sm text-steel-100'>
         {fn.abiName}(
         <span className='text-steel-400'>{fn.params.map((param) => `${param.type} ${param.name}`).join(', ')}</span>)
-        {fn.returns && <span className='text-quench-300'> → {fn.returns}</span>}
+        {fn.returns && (
+          <span className='text-quench-300'> → {Array.isArray(fn.returns) ? `(${fn.returns.join(', ')})` : fn.returns}</span>
+        )}
       </p>
       <div className='mt-2 flex flex-wrap items-end gap-2'>
         {fn.params.map((param) => (
@@ -72,29 +66,43 @@ function FunctionForm({ fn, onCall }: { fn: SimFunction; onCall: (args: Record<s
   );
 }
 
+const EMPTY = <span className='text-steel-600'>(empty)</span>;
+
+/** Storage fields: scalars inline, vectors by index, mappings by key. */
 function StorageView({ state, accounts }: { state: SimState; accounts: SimAccount[] }) {
   return (
     <dl className='space-y-2 font-mono text-sm'>
       {Object.entries(state).map(([field, value]) =>
-        typeof value === 'object' ? (
+        Array.isArray(value) ? (
           <div key={field}>
             <dt className='text-steel-400'>{field}</dt>
             <dd className='pl-3'>
-              {Object.keys(value).length === 0 ? (
-                <span className='text-steel-600'>(empty)</span>
-              ) : (
-                Object.entries(value).map(([key, entry]) => (
-                  <div key={key} className='text-steel-100'>
-                    {formatValue(key, accounts)} → {formatValue(entry, accounts)}
-                  </div>
-                ))
-              )}
+              {value.length === 0
+                ? EMPTY
+                : value.map((item, index) => (
+                    <div key={index} className='text-steel-100'>
+                      <span className='text-steel-400'>[{index}]</span> {formatSimValue(item, accounts)}
+                    </div>
+                  ))}
+            </dd>
+          </div>
+        ) : typeof value === 'object' ? (
+          <div key={field}>
+            <dt className='text-steel-400'>{field}</dt>
+            <dd className='pl-3'>
+              {Object.keys(value).length === 0
+                ? EMPTY
+                : Object.entries(value).map(([key, entry]) => (
+                    <div key={key} className='text-steel-100'>
+                      {formatSimValue(key, accounts)} → {formatSimValue(entry, accounts)}
+                    </div>
+                  ))}
             </dd>
           </div>
         ) : (
           <div key={field} className='flex gap-2'>
             <dt className='text-steel-400'>{field}</dt>
-            <dd className='text-steel-100'>{value === '' ? <span className='text-steel-600'>(empty)</span> : formatValue(value, accounts)}</dd>
+            <dd className='text-steel-100'>{value === '' ? EMPTY : formatSimValue(value, accounts)}</dd>
           </div>
         ),
       )}
@@ -195,7 +203,7 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
                   {entry.result.ok ? (
                     <>
                       {entry.result.returns !== undefined && (
-                        <p className='text-quench-300'>returned {formatValue(entry.result.returns, simulation.accounts)}</p>
+                        <p className='text-quench-300'>returned {formatSimValue(entry.result.returns, simulation.accounts)}</p>
                       )}
                       {entry.result.events.map((event, index) => (
                         <p key={index} className='text-amber-300'>

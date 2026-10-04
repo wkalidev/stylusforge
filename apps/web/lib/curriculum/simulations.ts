@@ -1,4 +1,4 @@
-import { checkedAdd, readMapping, writeMapping, type LessonSimulation, type SimAccount } from './simulation';
+import { checkedAdd, deleteMapping, readMapping, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -140,7 +140,131 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  6: {
+    contract: 'Scoreboard',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ scores: {} }),
+    functions: [
+      {
+        name: 'score_of',
+        abiName: 'scoreOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'scores', args.account as string) }),
+      },
+      {
+        name: 'record',
+        abiName: 'record',
+        view: false,
+        params: [{ name: 'points', type: 'uint256' }],
+        run: (state, args, caller) => {
+          const total = checkedAdd(readMapping(state, 'scores', caller.address), args.points as bigint);
+          return { state: writeMapping(state, 'scores', caller.address, total) };
+        },
+      },
+      {
+        name: 'clear',
+        abiName: 'clear',
+        view: false,
+        params: [],
+        run: (state, _args, caller) => ({ state: deleteMapping(state, 'scores', caller.address) }),
+      },
+    ],
+  },
+  7: {
+    contract: 'PriceLog',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ prices: [] }),
+    functions: [
+      {
+        name: 'length',
+        abiName: 'length',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: BigInt((state.prices as bigint[]).length) }),
+      },
+      {
+        name: 'record',
+        abiName: 'record',
+        view: false,
+        params: [{ name: 'price', type: 'uint256' }],
+        run: (state, args) => ({ state: { ...state, prices: [...(state.prices as bigint[]), args.price as bigint] } }),
+      },
+      {
+        name: 'price_at',
+        abiName: 'priceAt',
+        view: true,
+        params: [{ name: 'index', type: 'uint256' }],
+        returns: 'uint256',
+        run: (state, args) => {
+          const prices = state.prices as bigint[];
+          const index = args.index as bigint;
+          if (index >= BigInt(prices.length)) {
+            return { revert: { error: 'IndexOutOfBounds', args: { index, length: BigInt(prices.length) } } };
+          }
+          return { returns: prices[Number(index)] };
+        },
+      },
+      {
+        name: 'remove_last',
+        abiName: 'removeLast',
+        view: false,
+        params: [],
+        // Like pop() on an empty vector: nothing to remove, and no revert.
+        run: (state) => ({ state: { ...state, prices: (state.prices as bigint[]).slice(0, -1) } }),
+      },
+    ],
+  },
+  8: {
+    contract: 'TodoList',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ tasks: [] }),
+    functions: [
+      {
+        name: 'add_task',
+        abiName: 'addTask',
+        view: false,
+        params: [{ name: 'title', type: 'string' }],
+        // grow() appends a task with every field at zero, then the title is set.
+        run: (state, args) => ({ state: { ...state, tasks: [...(state.tasks as Task[]), { title: args.title, done: false }] } }),
+      },
+      {
+        name: 'task',
+        abiName: 'task',
+        view: true,
+        params: [{ name: 'id', type: 'uint256' }],
+        returns: ['string', 'bool'],
+        run: (state, args) => {
+          const task = findTask(state, args.id as bigint);
+          return 'revert' in task ? task : { returns: [task.title, task.done] };
+        },
+      },
+      {
+        name: 'complete',
+        abiName: 'complete',
+        view: false,
+        params: [{ name: 'id', type: 'uint256' }],
+        run: (state, args) => {
+          const task = findTask(state, args.id as bigint);
+          if ('revert' in task) return task;
+          const tasks = (state.tasks as Task[]).map((entry, index) => (BigInt(index) === args.id ? { ...entry, done: true } : entry));
+          return { state: { ...state, tasks } };
+        },
+      },
+    ],
+  },
 };
+
+/** A task of the lesson 8 to-do list. */
+type Task = { title: string; done: boolean };
+
+/** The task at `id`, or the UnknownTask revert of getter(id) and setter(id) past the end. */
+function findTask(state: SimState, id: bigint): Task | { revert: { error: string; args: { id: bigint } } } {
+  const tasks = state.tasks as Task[];
+  return id < BigInt(tasks.length) ? tasks[Number(id)] : { revert: { error: 'UnknownTask', args: { id } } };
+}
 
 export function getSimulation(lessonId: number): LessonSimulation | null {
   return SIMULATIONS[lessonId] ?? null;

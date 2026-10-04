@@ -6,8 +6,17 @@
 export type SimType = 'uint256' | 'address' | 'string';
 export type SimValue = bigint | string;
 
-/** Storage values; mappings are plain records keyed by address. */
-export type SimState = Record<string, SimValue | Record<string, SimValue>>;
+/**
+ * A stored value: a scalar, a vector (an array) or a record, either a mapping keyed by address or
+ * a struct keyed by field name.
+ */
+export type SimStored = SimValue | boolean | SimStored[] | { [key: string]: SimStored };
+
+/** Storage fields by name. */
+export type SimState = Record<string, SimStored>;
+
+/** What a function returns: one value, or a tuple. */
+export type SimReturn = SimValue | boolean | (SimValue | boolean)[];
 
 export interface SimAccount {
   name: string;
@@ -22,7 +31,7 @@ export interface SimEvent {
 /** What a function body returns: a revert, or a new state with an optional value and events. */
 export type SimOutcome =
   | { revert: { error: string; args?: Record<string, SimValue> } }
-  | { state?: SimState; returns?: SimValue | boolean; events?: SimEvent[] };
+  | { state?: SimState; returns?: SimReturn; events?: SimEvent[] };
 
 export interface SimFunction {
   /** Rust name, as in the lesson code. */
@@ -32,7 +41,8 @@ export interface SimFunction {
   /** View functions read; the others write and can revert. */
   view: boolean;
   params: { name: string; type: SimType }[];
-  returns?: SimType | 'bool';
+  /** Return type; an array for a tuple, such as `(string, bool)`. */
+  returns?: SimType | 'bool' | (SimType | 'bool')[];
   /** Pure: receives a copy of the state, the parsed arguments and the caller. */
   run(state: SimState, args: Record<string, SimValue>, caller: SimAccount): SimOutcome;
 }
@@ -91,10 +101,32 @@ export function writeMapping(state: SimState, field: string, key: string, value:
   return { ...state, [field]: mapping };
 }
 
+/** Returns a state copy with one mapping entry reset to zero, which removes it from the view. */
+export function deleteMapping(state: SimState, field: string, key: string): SimState {
+  const entries = Object.entries(state[field] as Record<string, SimValue>);
+  return { ...state, [field]: Object.fromEntries(entries.filter(([entry]) => entry !== key.toLowerCase())) };
+}
+
+/**
+ * A value as the Try it panel shows it: numbers with separators, known accounts by name, other
+ * addresses shortened, strings quoted, tuples as `(a, b)` and structs as `{ field: value }`.
+ */
+export function formatSimValue(value: SimStored, accounts: SimAccount[]): string {
+  if (typeof value === 'bigint') return value.toLocaleString('en-US');
+  if (typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return `(${value.map((item) => formatSimValue(item, accounts)).join(', ')})`;
+  if (typeof value === 'object') {
+    return `{ ${Object.entries(value).map(([field, item]) => `${field}: ${formatSimValue(item, accounts)}`).join(', ')} }`;
+  }
+  const account = accounts.find((candidate) => candidate.address.toLowerCase() === value.toLowerCase());
+  if (account) return account.name;
+  return /^0x[0-9a-fA-F]{40}$/.test(value) ? `${value.slice(0, 6)}…${value.slice(-4)}` : JSON.stringify(value);
+}
+
 export interface SimCallResult {
   ok: boolean;
   state: SimState;
-  returns?: SimValue | boolean;
+  returns?: SimReturn;
   events: SimEvent[];
   /** Set when the call reverted or the arguments were invalid. */
   error?: { error: string; args?: Record<string, SimValue> };

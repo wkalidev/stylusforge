@@ -163,4 +163,126 @@ impl Erc20 {
     }
 }
 `,
+  6: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    prelude::*,
+};
+
+sol_storage! {
+    #[entrypoint]
+    pub struct Scoreboard {
+        mapping(address => uint256) scores;
+    }
+}
+
+#[public]
+impl Scoreboard {
+    pub fn score_of(&self, account: Address) -> U256 {
+        self.scores.get(account)
+    }
+
+    pub fn record(&mut self, points: U256) {
+        let player = self.vm().msg_sender();
+        let total = self.scores.get(player) + points;
+        self.scores.insert(player, total);
+    }
+
+    pub fn clear(&mut self) {
+        let player = self.vm().msg_sender();
+        self.scores.delete(player);
+    }
+}
+`,
+  7: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{alloy_primitives::U256, alloy_sol_types::sol, prelude::*};
+
+sol! {
+    error IndexOutOfBounds(uint256 index, uint256 length);
+}
+
+#[derive(SolidityError)]
+pub enum PriceLogError {
+    IndexOutOfBounds(IndexOutOfBounds),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct PriceLog {
+        uint256[] prices;
+    }
+}
+
+#[public]
+impl PriceLog {
+    pub fn length(&self) -> U256 {
+        U256::from(self.prices.len())
+    }
+
+    pub fn record(&mut self, price: U256) {
+        self.prices.push(price);
+    }
+
+    pub fn price_at(&self, index: U256) -> Result<U256, PriceLogError> {
+        self.prices.get(index).ok_or(PriceLogError::IndexOutOfBounds(IndexOutOfBounds {
+            index,
+            length: self.length(),
+        }))
+    }
+
+    pub fn remove_last(&mut self) {
+        self.prices.pop();
+    }
+}
+`,
+  8: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::string::String;
+use stylus_sdk::{alloy_primitives::U256, alloy_sol_types::sol, prelude::*};
+
+sol! {
+    error UnknownTask(uint256 id);
+}
+
+#[derive(SolidityError)]
+pub enum TodoError {
+    UnknownTask(UnknownTask),
+}
+
+sol_storage! {
+    pub struct Task {
+        string title;
+        bool done;
+    }
+
+    #[entrypoint]
+    pub struct TodoList {
+        Task[] tasks;
+    }
+}
+
+#[public]
+impl TodoList {
+    pub fn add_task(&mut self, title: String) {
+        let mut task = self.tasks.grow();
+        task.title.set_str(title);
+    }
+
+    pub fn task(&self, id: U256) -> Result<(String, bool), TodoError> {
+        let task = self.tasks.getter(id).ok_or(TodoError::UnknownTask(UnknownTask { id }))?;
+        Ok((task.title.get_string(), task.done.get()))
+    }
+
+    pub fn complete(&mut self, id: U256) -> Result<(), TodoError> {
+        let mut task = self.tasks.setter(id).ok_or(TodoError::UnknownTask(UnknownTask { id }))?;
+        task.done.set(true);
+        Ok(())
+    }
+}
+`,
 };

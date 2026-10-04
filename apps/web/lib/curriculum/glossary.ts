@@ -96,16 +96,68 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'Writes a `string` storage field from anything that converts to `&str`.',
   },
   {
+    id: 'getter',
+    pattern: /\bgetter\(/,
+    title: 'getter(key)',
+    description:
+      'Returns a read handle to one entry of a `mapping`, or `Some` handle to an element of a vector (`None` past its end). Use it to read the fields of a struct or an inner mapping.',
+  },
+  {
+    id: 'grow',
+    pattern: /(?<=\.)grow\(\)/,
+    title: 'grow()',
+    description:
+      'Appends an element with every field at zero to a storage vector and returns a writable handle to it. Use it for vectors of structs, which cannot be pushed.',
+  },
+  {
     id: 'setter',
     pattern: /\bsetter\(/,
     title: 'setter(key)',
-    description: 'Returns a writable handle to one entry of a `mapping`; chain `.set(value)` to store it.',
+    description:
+      'Returns a writable handle to one entry of a `mapping`; chain `.set(value)` to store it. On a vector it returns `Some` handle to an element, or `None` past its end.',
+  },
+  {
+    id: 'insert',
+    pattern: /(?<=\.)insert\(/,
+    title: 'insert(key, value)',
+    description: 'Stores `value` for `key` in a `mapping`, overwriting what was there. The same as `setter(key).set(value)`.',
+  },
+  {
+    id: 'delete',
+    pattern: /(?<=\.)delete\(/,
+    title: 'delete(key)',
+    description: 'Resets one entry of a `mapping` to its zero value. `take(key)` does the same and returns the old value.',
   },
   {
     id: 'mapping',
     pattern: /\bmapping\(/,
     title: 'mapping(K => V)',
     description: 'A `StorageMap`: `get(key)` reads (zero for unset keys), `setter(key).set(value)` writes. Keys are not enumerable.',
+  },
+  {
+    id: 'vector',
+    pattern: /\b\w+\[\]/,
+    title: 'T[] (storage vector)',
+    description:
+      'A `StorageVec`: a dynamic array with `len()`, `push(value)`, `get(index)` (an `Option`), `setter(index)` and `pop()`. It only shrinks from its end.',
+  },
+  {
+    id: 'push',
+    pattern: /(?<=\.)push\(/,
+    title: 'push(value)',
+    description: 'Appends `value` at the end of a storage vector, which grows by one.',
+  },
+  {
+    id: 'pop',
+    pattern: /(?<=\.)pop\(\)/,
+    title: 'pop()',
+    description: 'Removes the last element of a storage vector and returns it: `Some(value)`, or `None` when the vector is empty.',
+  },
+  {
+    id: 'len',
+    pattern: /(?<=\.)len\(\)/,
+    title: 'len()',
+    description: 'The number of elements of a storage vector, as a Rust `usize`. Convert it with `U256::from(...)` to return it.',
   },
   {
     id: 'uint256',

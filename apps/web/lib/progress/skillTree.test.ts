@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { LESSONS } from "@/lib/curriculum/lessons";
+import type { Lesson } from "@/lib/curriculum/lessons";
 import { skillTree } from "./skillTree";
 
+function lesson(id: number, available = true): Lesson {
+  const base = { id, slug: `lesson-${id}`, title: `Lesson ${id}`, difficulty: "Beginner", xp: 100, module: "a", preview: "", minutes: 10 };
+  return available
+    ? { ...base, available: true, exercise: { explanation: "", starterCode: "", checks: [] } }
+    : { ...base, available: false };
+}
+
+// A fixed curriculum, so the tests do not change when lessons are added: four written lessons,
+// then one not written yet.
+const LESSONS = [lesson(1), lesson(2), lesson(3), lesson(4), lesson(5, false)];
 const states = (passed: number[]) => skillTree(LESSONS, passed).map((node) => node.state);
 
 describe("skillTree", () => {
