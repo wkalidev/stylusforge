@@ -1,4 +1,4 @@
-import { checkedAdd, deleteMapping, readMapping, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
+import { checkedAdd, wrappingAdd, deleteMapping, readMapping, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -49,7 +49,7 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
         abiName: 'increment',
         view: false,
         params: [],
-        run: (state) => ({ state: { ...state, count: checkedAdd(state.count as bigint, 1n) } }),
+        run: (state) => ({ state: { ...state, count: wrappingAdd(state.count as bigint, 1n) } }),
       },
       {
         name: 'reset',
