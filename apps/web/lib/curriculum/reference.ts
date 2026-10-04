@@ -7,7 +7,8 @@ export interface SolutionResponse {
 /** Body of a refused POST /api/solution. */
 export interface SolutionErrorResponse {
   error: string;
-  hints?: string[];
+  /** Objectives the submitted code does not meet yet (422 only). */
+  objectives?: string[];
 }
 
 /**

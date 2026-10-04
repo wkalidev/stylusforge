@@ -4,7 +4,8 @@ import { BaseError, ContractFunctionRevertedError, UserRejectedRequestError } fr
 export class VoucherRequestError extends Error {
   constructor(
     message: string,
-    readonly hints: string[] = [],
+    /** Objectives the code does not meet yet, when the server refused it. */
+    readonly objectives: string[] = [],
   ) {
     super(message);
     this.name = 'VoucherRequestError';

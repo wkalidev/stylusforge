@@ -44,7 +44,7 @@ describe.each(available)("lesson $id: $title", (lesson) => {
   });
 
   it("passes every check with the reference solution", () => {
-    expect(validateCode(solution, checks)).toEqual({ passed: true, hints: [] });
+    expect(validateCode(solution, checks)).toEqual({ passed: true, objectives: [] });
   });
 
   it("still passes when the solution is reformatted", () => {

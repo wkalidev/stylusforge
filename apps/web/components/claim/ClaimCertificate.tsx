@@ -38,7 +38,7 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
   const { writeContractAsync } = useWriteContract();
   const [phase, setPhase] = useState<Phase>('idle');
   const [txHash, setTxHash] = useState<Hash | null>(null);
-  const [error, setError] = useState<{ message: string; hints: string[] } | null>(null);
+  const [error, setError] = useState<{ message: string; objectives: string[] } | null>(null);
 
   const owned = useReadContract({
     address: nftContractAddress ?? undefined,
@@ -89,7 +89,7 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
       const body = (await response.json()) as ClaimResponse | ClaimErrorResponse;
       if (!response.ok || 'error' in body) {
         const refused = body as ClaimErrorResponse;
-        throw new VoucherRequestError(refused.error ?? 'The voucher could not be issued.', refused.hints);
+        throw new VoucherRequestError(refused.error ?? 'The voucher could not be issued.', refused.objectives);
       }
 
       const args = [BigInt(body.lessonId), BigInt(body.deadline), body.signature] as const;
@@ -121,7 +121,7 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
     } catch (cause) {
       setError({
         message: describeClaimError(cause),
-        hints: cause instanceof VoucherRequestError ? cause.hints : [],
+        objectives: cause instanceof VoucherRequestError ? cause.objectives : [],
       });
     } finally {
       setPhase('idle');
@@ -161,10 +161,10 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
       {error && (
         <div role='alert' className='basis-full text-sm'>
           <p className='text-molten-300'>{error.message}</p>
-          {error.hints.length > 0 && (
+          {error.objectives.length > 0 && (
             <ul className='mt-1 list-disc pl-5 text-steel-300'>
-              {error.hints.map((hint) => (
-                <li key={hint}>{hint}</li>
+              {error.objectives.map((objective) => (
+                <li key={objective}>{objective}</li>
               ))}
             </ul>
           )}

@@ -5,8 +5,8 @@ import { validateCode } from '@/lib/curriculum/validate';
 
 const MAX_CODE_LENGTH = 50_000;
 
-function error(status: number, message: string, hints?: string[]) {
-  return Response.json({ error: message, ...(hints ? { hints } : {}) }, { status, headers: { 'cache-control': 'no-store' } });
+function error(status: number, message: string, objectives?: string[]) {
+  return Response.json({ error: message, ...(objectives ? { objectives } : {}) }, { status, headers: { 'cache-control': 'no-store' } });
 }
 
 /**
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
   const result = validateCode(code, lesson.exercise.checks);
   if (!result.passed) {
-    return error(422, 'Pass the lesson checks to compare with the reference solution.', result.hints);
+    return error(422, 'Pass the lesson checks to compare with the reference solution.', result.objectives);
   }
 
   return Response.json({ lessonId, solution } satisfies SolutionResponse, { headers: { 'cache-control': 'no-store' } });

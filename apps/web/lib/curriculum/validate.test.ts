@@ -102,11 +102,11 @@ describe("validateCode", () => {
 
   it("passes when every check matches one of its snippets", () => {
     const result = validateCode("uint256 count; self.count.set(U256::from(0))", checks);
-    expect(result).toEqual({ passed: true, hints: [] });
+    expect(result).toEqual({ passed: true, objectives: [] });
   });
 
-  it("returns the hints of the failed checks in order", () => {
-    expect(validateCode("", checks)).toEqual({ passed: false, hints: ["declare count", "reset"] });
+  it("returns the objectives of the failed checks in order", () => {
+    expect(validateCode("", checks)).toEqual({ passed: false, objectives: ["declare count", "reset"] });
   });
 
   it("ignores snippets written in comments or strings", () => {

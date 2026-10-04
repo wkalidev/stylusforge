@@ -39,7 +39,8 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const savedCode = useSavedCode(lesson.id);
   const code = savedCode ?? exercise.starterCode;
   const [completed, setCompleted] = useState(false);
-  const [hints, setHints] = useState<string[]>([]);
+  // Objectives still missing after the last "Check my code".
+  const [missing, setMissing] = useState<string[]>([]);
   const [strikes, setStrikes] = useState(0);
   const [tab, setTab] = useState<WorkspaceTab>('learn');
   const completedIds = useCompletedLessons();
@@ -56,7 +57,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const checkCode = () => {
     const result = validateCode(code, exercise.checks);
     setCompleted(result.passed);
-    setHints(result.hints);
+    setMissing(result.objectives);
     if (result.passed) {
       markLessonCompleted(lesson.id);
       setStrikes((count) => count + 1);
@@ -154,7 +155,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const resetToStarter = () => {
     resetCode(lesson.id);
     setCompleted(false);
-    setHints([]);
+    setMissing([]);
   };
 
   return (
@@ -274,14 +275,15 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
             </div>
           </div>
 
-          {hints.length > 0 && (
+          {missing.length > 0 && (
             <div role='status' className='steel-surface ember-edge p-4'>
               <p className='mb-2 font-semibold text-amber-300'>Not there yet</p>
               <ul className='list-disc space-y-1 pl-5 text-sm text-steel-300'>
-                {hints.map((hint) => (
-                  <li key={hint}>{hint}</li>
+                {missing.map((objective) => (
+                  <li key={objective}>{objective}</li>
                 ))}
               </ul>
+              <p className='mt-2 text-xs text-steel-400'>Stuck? Reveal hints one at a time in the objectives list.</p>
             </div>
           )}
           {passed && (

@@ -22,13 +22,13 @@ describe("POST /api/solution", () => {
     expect(await response.json()).toEqual({ lessonId: 2, solution: SOLUTIONS[2] });
   });
 
-  it("refuses the starter code and returns the hints", async () => {
+  it("refuses the starter code and returns the objectives it misses", async () => {
     const lesson = LESSONS.find((candidate) => candidate.id === 1)!;
     const response = await post({ lessonId: 1, code: lesson.exercise!.starterCode });
     expect(response.status).toBe(422);
     const body = await response.json();
     expect(body.solution).toBeUndefined();
-    expect(body.hints.length).toBeGreaterThan(0);
+    expect(body.objectives).toEqual(lesson.exercise!.checks.map((check) => check.objective));
   });
 
   it("refuses a solution copied into comments", async () => {
