@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Editor from '@monaco-editor/react';
 import { getLesson } from '@/lib/curriculum/lessons';
+import { validateCode } from '@/lib/curriculum/validate';
 
 export function LessonLayout({ slug }: { slug: string }) {
   const lesson = getLesson(slug);
@@ -20,19 +21,9 @@ export function LessonLayout({ slug }: { slug: string }) {
   }
 
   const checkCode = () => {
-    const h: string[] = [];
-    for (const check of exercise.checks) {
-      if (!code.includes(check.code)) {
-        h.push(check.hint);
-      }
-    }
-    if (h.length === 0) {
-      setCompleted(true);
-      setHints([]);
-    } else {
-      setCompleted(false);
-      setHints(h);
-    }
+    const result = validateCode(code, exercise.checks);
+    setCompleted(result.passed);
+    setHints(result.hints);
   };
 
   return (

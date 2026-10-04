@@ -1,9 +1,5 @@
 import curriculum from '../../../../curriculum/lessons.json';
-
-export interface LessonCheck {
-  code: string;
-  hint: string;
-}
+import type { LessonCheck } from './validate';
 
 export interface LessonExercise {
   explanation: string;
@@ -78,9 +74,9 @@ const CONTENT: Record<number, LessonContent> = {
         '}',
       ].join('\n'),
       checks: [
-        { code: 'String greeting', hint: 'Add a String field called greeting in sol_storage!' },
-        { code: 'get_string()', hint: 'Use self.greeting.get_string() in get_greeting' },
-        { code: 'set_str', hint: 'Use self.greeting.set_str(&greeting) in set_greeting' },
+        { anyOf: ['String greeting'], hint: 'Add a String field called greeting in sol_storage!' },
+        { anyOf: ['get_string()'], hint: 'Use self.greeting.get_string() in get_greeting' },
+        { anyOf: ['set_str'], hint: 'Use self.greeting.set_str(&greeting) in set_greeting' },
       ],
     },
   },
@@ -141,9 +137,9 @@ const CONTENT: Record<number, LessonContent> = {
         '}',
       ].join('\n'),
       checks: [
-        { code: 'U256 count', hint: 'Add a U256 field called count in sol_storage!' },
-        { code: 'self.count.get()', hint: 'Use self.count.get() to return the count value' },
-        { code: 'self.count.set(', hint: 'Use self.count.set(...) to update the count' },
+        { anyOf: ['U256 count'], hint: 'Add a U256 field called count in sol_storage!' },
+        { anyOf: ['self.count.get()'], hint: 'Use self.count.get() to return the count value' },
+        { anyOf: ['self.count.set('], hint: 'Use self.count.set(...) to update the count' },
       ],
     },
   },
@@ -205,9 +201,9 @@ const CONTENT: Record<number, LessonContent> = {
         '}',
       ].join('\n'),
       checks: [
-        { code: 'event Transfer', hint: 'Define a Transfer event with from, to and value fields using sol! macro' },
-        { code: 'error InsufficientBalance', hint: 'Define an InsufficientBalance error using sol! macro' },
-        { code: 'evm::log', hint: 'Emit the Transfer event using evm::log(Transfer { ... })' },
+        { anyOf: ['event Transfer'], hint: 'Define a Transfer event with from, to and value fields using sol! macro' },
+        { anyOf: ['error InsufficientBalance'], hint: 'Define an InsufficientBalance error using sol! macro' },
+        { anyOf: ['evm::log'], hint: 'Emit the Transfer event using evm::log(Transfer { ... })' },
       ],
     },
   },
@@ -278,9 +274,9 @@ const CONTENT: Record<number, LessonContent> = {
         '}',
       ].join('\n'),
       checks: [
-        { code: 'total_supply', hint: 'Add a total_supply field in sol_storage!' },
-        { code: 'mapping(address => uint256) balances', hint: 'Add a balances mapping in sol_storage!' },
-        { code: 'self.total_supply.get()', hint: 'Return self.total_supply.get() in total_supply()' },
+        { anyOf: ['total_supply'], hint: 'Add a total_supply field in sol_storage!' },
+        { anyOf: ['mapping(address => uint256) balances'], hint: 'Add a balances mapping in sol_storage!' },
+        { anyOf: ['self.total_supply.get()'], hint: 'Return self.total_supply.get() in total_supply()' },
       ],
     },
   },
