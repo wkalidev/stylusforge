@@ -196,4 +196,47 @@ impl Scoreboard {
     }
 }
 `,
+  7: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{alloy_primitives::U256, alloy_sol_types::sol, prelude::*};
+
+sol! {
+    error IndexOutOfBounds(uint256 index, uint256 length);
+}
+
+#[derive(SolidityError)]
+pub enum PriceLogError {
+    IndexOutOfBounds(IndexOutOfBounds),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct PriceLog {
+        uint256[] prices;
+    }
+}
+
+#[public]
+impl PriceLog {
+    pub fn length(&self) -> U256 {
+        U256::from(self.prices.len())
+    }
+
+    pub fn record(&mut self, price: U256) {
+        self.prices.push(price);
+    }
+
+    pub fn price_at(&self, index: U256) -> Result<U256, PriceLogError> {
+        self.prices.get(index).ok_or(PriceLogError::IndexOutOfBounds(IndexOutOfBounds {
+            index,
+            length: self.length(),
+        }))
+    }
+
+    pub fn remove_last(&mut self) {
+        self.prices.pop();
+    }
+}
+`,
 };
