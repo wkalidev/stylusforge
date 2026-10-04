@@ -102,10 +102,16 @@ export function ProfileView() {
         </h2>
         {certificates.length === 0 ? (
           <Notice>
-            <p>No certificates yet. Pass a lesson, then claim its certificate to see it here.</p>
-            <Link href='/learn' className={buttonClasses('heat', 'md')}>
-              Go to the lessons
-            </Link>
+            {unclaimed.length > 0 ? (
+              <p>No certificates yet. Claim the lessons you passed, listed below, to see them here.</p>
+            ) : (
+              <>
+                <p>No certificates yet. Pass a lesson, then claim its certificate to see it here.</p>
+                <Link href='/learn' className={buttonClasses('heat', 'md')}>
+                  Go to the lessons
+                </Link>
+              </>
+            )}
           </Notice>
         ) : (
           <ul className='grid gap-6 md:grid-cols-2'>
