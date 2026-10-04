@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { LESSONS } from '@/lib/curriculum/lessons';
-import { useCompletedLessons, useLocalXp } from '@/lib/progress/progress';
+import { useCompletedLessons } from '@/lib/progress/progress';
 import { skillTree, type SkillNode } from '@/lib/progress/skillTree';
 import { useClaimedLessons } from '@/lib/useClaimedLessons';
 
@@ -101,18 +101,11 @@ function NodeCard({ node, claimed }: { node: SkillNode; claimed: boolean }) {
 /** The curriculum as a path of connected nodes, heated along the lessons already passed. */
 export function SkillTree() {
   const passed = useCompletedLessons();
-  const xp = useLocalXp();
   const onChain = useClaimedLessons();
   const nodes = skillTree(LESSONS, passed);
-  const written = LESSONS.filter((lesson) => lesson.available);
-  const passedCount = written.filter((lesson) => passed.includes(lesson.id)).length;
 
   return (
     <div>
-      <p className='text-steel-300'>
-        <span className='font-semibold text-amber-300'>{passedCount}</span> of {written.length} lessons passed,{' '}
-        <span className='font-semibold text-amber-300'>{xp}</span> XP earned.
-      </p>
       <ol aria-label='Skill tree' className='relative mt-10'>
         {nodes.map((node, index) => {
           const next = nodes[index + 1];
