@@ -110,6 +110,30 @@ The local node keeps its state in memory: after restarting `pnpm chain`, run `pn
 | `pnpm chain` | `hardhat node` in `contracts`: local chain on port 8545 |
 | `pnpm deploy:local` | Deploys to the local node and writes `apps/web/.env.development.local` |
 
+## Deployment (Vercel)
+
+The web app is ready for Vercel; nothing is deployed yet. [`apps/web/vercel.json`](apps/web/vercel.json) holds the build settings.
+
+1. Import the repository in Vercel and set **Root Directory** to `apps/web`. Keep **Include files outside the Root Directory** enabled: the app reads `curriculum/lessons.json`.
+2. Set **Node.js version** to 22.x (Project Settings → Build and Deployment).
+3. Define the environment variables below, then deploy.
+
+`vercel.json` installs only the web package and its dependencies from the pnpm workspace (`pnpm install --frozen-lockfile --filter web...`, so Hardhat is not installed) and runs `pnpm build`. Changes under `curriculum/` are outside the workspace packages, so Vercel treats them as global and redeploys.
+
+| Variable | Environments | Value |
+|---|---|---|
+| `NEXT_PUBLIC_WALLETCONNECT_ID` | Production, Preview | WalletConnect Cloud project id (required: production builds fail without it) |
+| `NEXT_PUBLIC_CHAIN_ID` | Production, Preview | `421614` (Arbitrum Sepolia; also the default when unset) |
+| `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` | Production, Preview | Address of `StylusForgeNFT` on Arbitrum Sepolia, printed by `scripts/deploy.ts` |
+| `CLAIM_SIGNER_PRIVATE_KEY` | Production (and Preview if previews may sign) | Private key of the contract's `signer`. Mark it **Sensitive**; it is only read by the server. |
+
+Never set the local values written to `apps/web/.env.development.local` (chain 31337, Hardhat keys) on Vercel.
+
+After the first deployment:
+
+1. Point the token metadata at the deployed app (owner account): `setURI("https://<your-domain>/api/metadata/{id}")`.
+2. Verify the contract on Arbiscan ([contracts/README.md](contracts/README.md#verification-on-arbiscan)).
+
 ## Continuous integration
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request (and on demand): `pnpm install --frozen-lockfile` on Node 22, then `pnpm lint`, `pnpm test` (contracts, then vitest) and `pnpm build`. The build uses a placeholder WalletConnect id unless the repository variable `NEXT_PUBLIC_WALLETCONNECT_ID` is set.
