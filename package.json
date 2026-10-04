@@ -6,7 +6,9 @@
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
     "test": "pnpm --filter contracts test",
-    "lint": "pnpm --filter web lint"
+    "lint": "pnpm --filter web lint",
+    "chain": "pnpm --filter contracts chain",
+    "deploy:local": "pnpm --filter contracts deploy:local"
   },
   "engines": {
     "node": ">=20",
