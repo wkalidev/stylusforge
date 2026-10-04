@@ -1233,8 +1233,11 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn add_task(',
         },
         {
-          anyOf: ['self.tasks.getter(id)'],
-          alsoAnyOf: [['TodoError::UnknownTask(UnknownTask {']],
+          // The revert is bound to the lookup, so the one in complete does not count for task.
+          anyOf: [
+            'self.tasks.getter(id).ok_or(TodoError::UnknownTask(UnknownTask {',
+            'self.tasks.getter(id).ok_or_else(|| TodoError::UnknownTask(UnknownTask {',
+          ],
           objective: 'Look a task up by its id, and revert when there is no such task',
           hints: [
             'The id of a task is its position in the vector. Past the end there is no task, and that case must revert instead of returning an empty task.',
@@ -1255,9 +1258,12 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn task(',
         },
         {
-          anyOf: ['self.tasks.setter(id)'],
+          anyOf: [
+            'self.tasks.setter(id).ok_or(TodoError::UnknownTask(UnknownTask {',
+            'self.tasks.setter(id).ok_or_else(|| TodoError::UnknownTask(UnknownTask {',
+          ],
           alsoAnyOf: [['.done.set(true)']],
-          objective: 'Mark the task as done',
+          objective: 'Mark the task as done, and revert when there is no such task',
           hints: [
             '`complete` changes a task, so it needs a handle that can write, then it changes the flag of the task.',
             '`setter(index)` is the writable counterpart of `getter(index)`; it also returns `None` past the end, so revert with `UnknownTask` as in `task`. A `bool` field is written with `set(value)`.',
