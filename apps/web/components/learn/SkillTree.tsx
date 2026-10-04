@@ -53,7 +53,7 @@ const SEGMENT = 'absolute left-6 -translate-x-1/2';
 
 function segmentClass(heat: Exclude<Heat, null>): string {
   return heat === 'hot'
-    ? 'w-1 bg-gradient-to-b from-molten-500 to-amber-300 shadow-[0_0_12px_var(--color-molten-500)]'
+    ? 'w-1 bg-molten-400 shadow-[0_0_12px_var(--color-molten-500)]'
     : 'w-0 border-l-2 border-dashed border-steel-700';
 }
 
