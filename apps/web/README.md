@@ -8,7 +8,9 @@ Next.js app for StylusForge: lesson pages with a Monaco code editor, exercise ch
 - TypeScript and Tailwind CSS 4
 - `@monaco-editor/react` for the in-browser editor
 - wagmi 2, viem 2, RainbowKit 2 and TanStack Query 5
+- `react-markdown` and `remark-gfm` for lesson explanations
 - ESLint 9 with `eslint-config-next` (flat config)
+- Vitest for unit tests
 
 ## Structure
 
@@ -19,15 +21,19 @@ apps/web/
 │  ├─ page.tsx              landing page with the curriculum preview
 │  └─ learn/
 │     ├─ page.tsx           curriculum list
-│     └─ [slug]/page.tsx    lesson page
+│     └─ [slug]/page.tsx    lesson page (prerendered per available lesson, 404 otherwise)
 ├─ components/
 │  ├─ Lesson/LessonLayout.tsx   explanation, editor, hints and code check
+│  ├─ Lesson/LessonMarkdown.tsx markdown rendering of the explanation
 │  └─ Wallet/Providers.tsx      Wagmi, TanStack Query and RainbowKit providers
 ├─ lib/
-│  ├─ curriculum/lessons.ts     lesson content, starter code and checks
+│  ├─ curriculum/lessons.ts     lesson list: curriculum/lessons.json + web content
+│  ├─ curriculum/validate.ts    static checks shared by client and server
+│  ├─ curriculum/solutions.ts   reference solutions (tests only)
 │  ├─ chain.ts                  chain selection from NEXT_PUBLIC_CHAIN_ID
 │  └─ wagmi.ts                  wagmi config for the selected chain
-└─ eslint.config.mjs
+├─ eslint.config.mjs
+└─ vitest.config.mts
 ```
 
 ## Scripts
@@ -40,6 +46,7 @@ Run them from the repository root (`pnpm dev`, `pnpm build`, `pnpm lint`) or fro
 | `pnpm build` | `next build` |
 | `pnpm start` | `next start` |
 | `pnpm lint` | `eslint .` |
+| `pnpm test` | `vitest run` (also run by the root `pnpm test`) |
 
 Install dependencies from the repository root with `pnpm install`.
 
@@ -59,6 +66,8 @@ Variable names are listed in [`.env.example`](.env.example). Two files hold the 
 
 See the [root README](../../README.md#local-development) to run the app against a local chain.
 
-## Exercise checks
+## Lessons and checks
 
-Each lesson in `lib/curriculum/lessons.ts` defines a list of checks. "Check my code" runs them in the browser by looking for an expected snippet in the editor content and shows the hint of every check that fails. The code is not compiled.
+Lesson ids, titles and XP come from [`curriculum/lessons.json`](../../curriculum/lessons.json); `lib/curriculum/lessons.ts` adds the slug, difficulty and exercise of each lesson and exports them as `LESSONS`, in curriculum order. The landing page, `/learn` and the lesson pages all read `LESSONS`.
+
+"Check my code" runs `validateCode` from `lib/curriculum/validate.ts`: whitespace-insensitive snippet checks, with comments and string contents removed first. The code is not compiled. The format and the rules each lesson must satisfy are documented in the [curriculum README](../../curriculum/README.md#validation-rules).
