@@ -1,5 +1,5 @@
 import { getAddress, isAddress } from 'viem';
-import { CLAIM_VOUCHER_TTL_SECONDS, signClaimVoucher } from '@/lib/claim';
+import { CLAIM_VOUCHER_TTL_SECONDS, signClaimVoucher, type ClaimErrorResponse, type ClaimResponse } from '@/lib/claim';
 import { chain } from '@/lib/chain';
 import { nftContractAddress } from '@/lib/contract';
 import { LESSONS } from '@/lib/curriculum/lessons';
@@ -8,17 +8,6 @@ import { getClaimSigner } from '@/lib/server/claimSigner';
 
 /** Larger than any lesson solution by far; rejects abusive payloads before validation. */
 const MAX_CODE_LENGTH = 50_000;
-
-export interface ClaimResponse {
-  lessonId: string;
-  deadline: string;
-  signature: `0x${string}`;
-}
-
-export interface ClaimErrorResponse {
-  error: string;
-  hints?: string[];
-}
 
 function error(status: number, message: string, hints?: string[]) {
   return Response.json({ error: message, ...(hints ? { hints } : {}) } satisfies ClaimErrorResponse, { status });

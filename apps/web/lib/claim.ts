@@ -16,6 +16,19 @@ export function claimDomain(chainId: number, verifyingContract: Address) {
   return { name: 'StylusForge', version: '1', chainId, verifyingContract } as const;
 }
 
+/** Body of a successful POST /api/claim (uint256 values as decimal strings). */
+export interface ClaimResponse {
+  lessonId: string;
+  deadline: string;
+  signature: Hex;
+}
+
+/** Body of a refused POST /api/claim. */
+export interface ClaimErrorResponse {
+  error: string;
+  hints?: string[];
+}
+
 export interface ClaimVoucher {
   lessonId: bigint;
   deadline: bigint;
