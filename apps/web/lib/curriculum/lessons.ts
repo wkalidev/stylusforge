@@ -206,6 +206,15 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn reset(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Storage and State",
+          question: "Which line writes a new value to a uint256 field called count?",
+          options: ["self.count = value;", "self.count.write(value);", "self.count.set(value);"],
+          answer: 2,
+          explanation: "Storage fields are accessors, not plain values: read with get() and write with set(value).",
+        },
+      ],
     },
   },
   3: {
