@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   UINT256_MAX,
   callSimulation,
+  deleteMapping,
   checkedAdd,
   checkedSub,
   parseArgument,
@@ -65,6 +66,14 @@ describe("checked arithmetic and mappings", () => {
     const next = writeMapping(state, "balances", bob.address.toUpperCase().replace("0X", "0x"), 7n);
     expect(readMapping(next, "balances", bob.address)).toBe(7n);
     expect(readMapping(state, "balances", bob.address)).toBe(0n);
+  });
+
+  it("deletes an entry from a copy, whatever the address case", () => {
+    const state = writeMapping({ balances: {} }, "balances", bob.address, 7n);
+    const next = deleteMapping(state, "balances", bob.address.toUpperCase().replace("0X", "0x"));
+    expect(next.balances).toEqual({});
+    expect(readMapping(next, "balances", bob.address)).toBe(0n);
+    expect(readMapping(state, "balances", bob.address)).toBe(7n);
   });
 });
 

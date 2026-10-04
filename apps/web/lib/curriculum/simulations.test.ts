@@ -63,6 +63,34 @@ describe("lesson simulations", () => {
     expect(readMapping(self.state, "balances", alice.address)).toBe(1000n);
   });
 
+  it("lesson 6 adds up scores per player and clears only the caller's", () => {
+    const results = run(getSimulation(6)!, [
+      ["record", { points: "10" }, alice],
+      ["record", { points: "5" }, alice],
+      ["record", { points: "7" }, bob],
+      ["score_of", { account: "Alice" }, bob],
+      ["score_of", { account: "Carol" }, bob],
+      ["clear", {}, alice],
+      ["score_of", { account: "Alice" }, alice],
+      ["score_of", { account: "Bob" }, alice],
+    ]);
+    expect(results[3].returns).toBe(15n);
+    expect(results[4].returns).toBe(0n);
+    expect(results[6].returns).toBe(0n);
+    expect(results[7].returns).toBe(7n);
+    // A cleared entry leaves the storage view, like a mapping key back at zero.
+    expect(results[5].state.scores).toEqual({ [bob.address]: 7n });
+  });
+
+  it("lesson 6 keeps the score when the sum overflows", () => {
+    const [, overflow] = run(getSimulation(6)!, [
+      ["record", { points: "1" }, alice],
+      ["record", { points: ((1n << 256n) - 1n).toString() }, alice],
+    ]);
+    expect(overflow).toMatchObject({ ok: false, error: { error: "Arithmetic overflow" } });
+    expect(readMapping(overflow.state, "scores", alice.address)).toBe(1n);
+  });
+
   it("lesson 4 behaves like an ERC-20 transfer", () => {
     const results = run(getSimulation(4)!, [
       ["transfer", { to: "Bob", value: "400" }, alice],
