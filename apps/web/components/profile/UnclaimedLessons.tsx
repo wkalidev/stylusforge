@@ -1,8 +1,31 @@
 'use client';
 
 import Link from 'next/link';
+import { ClaimCertificate } from '@/components/claim/ClaimCertificate';
 import { buttonClasses } from '@/components/ui/button';
 import type { Lesson } from '@/lib/curriculum/lessons';
+import { validateCode } from '@/lib/curriculum/validate';
+import { useSavedCode } from '@/lib/progress/code';
+
+/**
+ * The claim of one lesson, with the code saved for it in this browser (the server re-validates
+ * it before signing). Without saved code that still passes, the student reopens the lesson.
+ */
+function LessonClaim({ lesson }: { lesson: Lesson }) {
+  const code = useSavedCode(lesson.id);
+  const passing = Boolean(lesson.available && code !== null && validateCode(code, lesson.exercise.checks).passed);
+  if (!passing || code === null) {
+    return (
+      <>
+        <span className='text-sm text-steel-400'>Your passing code is no longer saved here.</span>
+        <Link href={`/learn/${lesson.slug}`} className={buttonClasses('steel', 'md')}>
+          Open lesson
+        </Link>
+      </>
+    );
+  }
+  return <ClaimCertificate lessonId={lesson.id} code={code} />;
+}
 
 /** Lessons passed in this browser whose certificate the connected wallet does not own yet. */
 export function UnclaimedLessons({ lessons }: { lessons: Lesson[] }) {
@@ -20,9 +43,7 @@ export function UnclaimedLessons({ lessons }: { lessons: Lesson[] }) {
               <p className='text-sm text-amber-300'>{lesson.xp} XP</p>
             </div>
             <div className='flex flex-wrap items-center justify-end gap-2'>
-              <Link href={`/learn/${lesson.slug}`} className={buttonClasses('steel', 'md')}>
-                Open lesson
-              </Link>
+              <LessonClaim lesson={lesson} />
             </div>
           </li>
         ))}
