@@ -50,6 +50,12 @@ Each available lesson also has a reference solution in `apps/web/lib/curriculum/
 
 Content targets the current `stylus-sdk` (0.10): `sol_storage!` with Solidity field syntax, `#[entrypoint]` and `#[public]`, events emitted with `self.vm().log(...)`, errors declared in `sol!` and wrapped in an enum deriving `SolidityError`, and `self.vm().msg_sender()` for the caller.
 
+## Glossary
+
+`apps/web/lib/curriculum/glossary.ts` explains Stylus tokens on hover in the lesson editor: `sol_storage!`, `sol!`, `#[entrypoint]`, `#[public]`, the `no_main` `cfg_attr`, `extern crate alloc`, the prelude, `SolidityError`, `self.vm()`, `msg_sender()`, `vm().log`, `get_string`, `set_str`, `setter`, `mapping`, `uint256`, `U256` and `Address`.
+
+Each entry has an `id`, a `pattern` (a regular expression without the `g` or `y` flag; the whole match is the hovered range), a `title` and a Markdown `description` written for stylus-sdk 0.10. Tokens in comments and strings get no tooltip. Tests check that every key token of the starter code has an entry; add one when a lesson introduces new syntax.
+
 ## Validation rules
 
 Checks are static: the code is not compiled. `apps/web/lib/curriculum/validate.ts` runs them in the browser for instant feedback and again on the server before a certificate voucher is signed.

@@ -217,6 +217,7 @@ The lesson page keeps its split layout from `lg` up: explanation on the left, ed
 
 - **Heating ingot**: a small version of the landing ingot sits in the lesson header (`LessonIngot`). Its heat is the share of live objectives met: cold steel, then dull red, then molten, eased over about a second. It follows the hero's rules: lazy chunk (`ssr: false`), gradient fallback while loading and without WebGL, still with reduced motion, paused off-screen. The molten shader takes a `uHeat` uniform (1 for the hero).
 - **Live objectives**: the lesson checks are listed as objectives and re-evaluated 300 ms after typing pauses: a card above the explanation from `lg`, a collapsible summary above the editor below `lg`. Met objectives light up from cold steel to molten, with a heat bar and a live count. They are guidance only; "Check my code" is the validation that records progress.
+- **Token tooltips**: hovering a Stylus token in the editor (`sol_storage!`, `#[public]`, `self.vm()`, ...) explains it, from the [glossary](../../curriculum/README.md#glossary).
 - **Inline diagnostics**: each failing check underlines the line of its `anchor` (see the [curriculum README](../../curriculum/README.md#validation-rules)) with an amber squiggle; hovering shows the hint.
 - **Shortcut**: Ctrl+Enter (⌘ Enter on macOS) runs "Check my code" from the editor or anywhere on the page; inside the editor it replaces Monaco's own "insert line below". The button shows the shortcut and declares `aria-keyshortcuts`.
 

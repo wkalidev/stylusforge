@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import Editor, { type OnMount } from '@monaco-editor/react';
+import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
 import { ClaimCertificate } from '@/components/claim/ClaimCertificate';
 import { SparkBurst } from '@/components/feedback/SparkBurst';
 import { LessonXpBar } from '@/components/progress/LessonXpBar';
@@ -18,7 +18,13 @@ import { LessonIngot } from './LessonIngot';
 import { LessonMarkdown } from './LessonMarkdown';
 import { Objectives } from './Objectives';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
+import { registerGlossaryHover } from './glossaryHover';
 import { WorkspaceTabs, tabId, tabPanelId, type WorkspaceTab } from './WorkspaceTabs';
+
+const beforeEditorMount: BeforeMount = (monaco) => {
+  defineForgeEditorTheme(monaco);
+  registerGlossaryHover(monaco);
+};
 
 export type AvailableLesson = Extract<Lesson, { available: true }>;
 
@@ -189,7 +195,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
                 height='100%'
                 language='rust'
                 theme={FORGE_EDITOR_THEME}
-                beforeMount={defineForgeEditorTheme}
+                beforeMount={beforeEditorMount}
                 onMount={onEditorMount}
                 value={code}
                 onChange={(val) => saveCode(lesson.id, val ?? '')}
