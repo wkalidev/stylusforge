@@ -8,7 +8,9 @@ import { certificateSvg } from '@/lib/certificate/svg';
 import { chain } from '@/lib/chain';
 import { nftContractAddress, stylusForgeNftAbi } from '@/lib/contract';
 import { LESSONS } from '@/lib/curriculum/lessons';
+import { useCompletedLessons } from '@/lib/progress/progress';
 import { rankProgress } from '@/lib/progress/ranks';
+import { UnclaimedLessons } from './UnclaimedLessons';
 
 function Notice({ children }: { children: React.ReactNode }) {
   return <div className='steel-surface max-w-xl space-y-4 p-6 text-steel-300'>{children}</div>;
@@ -18,6 +20,7 @@ function Notice({ children }: { children: React.ReactNode }) {
 export function ProfileView() {
   const { address } = useAccount();
   const { openConnectModal } = useConnectModal();
+  const passed = useCompletedLessons();
   const contract = { address: nftContractAddress ?? undefined, abi: stylusForgeNftAbi, chainId: chain.id } as const;
   const reads = useReadContracts({
     contracts: address
@@ -57,6 +60,11 @@ export function ProfileView() {
   const [totalXp, [registeredIds, done]] = reads.data as [bigint, readonly [readonly bigint[], readonly boolean[]]];
   const claimedIds = new Set(registeredIds.filter((_, index) => done[index]).map(Number));
   const certificates = LESSONS.filter((lesson) => claimedIds.has(lesson.id));
+  // Passed in this browser, registered on-chain, not owned yet: ready to claim.
+  const registered = new Set(registeredIds.map(Number));
+  const unclaimed = LESSONS.filter(
+    (lesson) => lesson.available && passed.includes(lesson.id) && registered.has(lesson.id) && !claimedIds.has(lesson.id),
+  );
   const xp = Number(totalXp);
   const { rank, next, xpToNext, fraction } = rankProgress(xp);
 
@@ -83,6 +91,9 @@ export function ProfileView() {
             {next ? `${xpToNext} XP to ${next.name}` : 'Top rank reached'}
           </p>
         </div>
+        <p className='basis-full text-sm text-steel-400'>
+          The rank in the header counts every lesson passed in this browser; this one counts only the certificates claimed on-chain.
+        </p>
       </section>
 
       <section aria-labelledby='certificates-heading'>
@@ -91,10 +102,16 @@ export function ProfileView() {
         </h2>
         {certificates.length === 0 ? (
           <Notice>
-            <p>No certificates yet. Pass a lesson, then claim its certificate to see it here.</p>
-            <Link href='/learn' className={buttonClasses('heat', 'md')}>
-              Go to the lessons
-            </Link>
+            {unclaimed.length > 0 ? (
+              <p>No certificates yet. Claim the lessons you passed, listed below, to see them here.</p>
+            ) : (
+              <>
+                <p>No certificates yet. Pass a lesson, then claim its certificate to see it here.</p>
+                <Link href='/learn' className={buttonClasses('heat', 'md')}>
+                  Go to the lessons
+                </Link>
+              </>
+            )}
           </Notice>
         ) : (
           <ul className='grid gap-6 md:grid-cols-2'>
@@ -112,6 +129,8 @@ export function ProfileView() {
           </ul>
         )}
       </section>
+
+      {unclaimed.length > 0 && <UnclaimedLessons lessons={unclaimed} />}
     </div>
   );
 }
