@@ -33,7 +33,7 @@ export function skillTree(lessons: readonly Lesson[], passedIds: readonly number
 
 export interface ContinueTarget {
   lesson: Lesson;
-  /** resume: the unfinished lesson opened last; next: the next lesson to start; start: nothing opened yet. */
+  /** resume: the unfinished lesson opened last; next: the next lesson to start; start: nothing done yet. */
   kind: 'resume' | 'next' | 'start';
 }
 
@@ -53,5 +53,6 @@ export function continueTarget(nodes: readonly SkillNode[], lastLessonId: number
   if (!next) {
     return null;
   }
-  return { lesson: next.lesson, kind: last ? 'next' : 'start' };
+  const started = last !== null || nodes.some((node) => node.state === 'completed');
+  return { lesson: next.lesson, kind: started ? 'next' : 'start' };
 }
