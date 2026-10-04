@@ -67,10 +67,38 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+  const monacoRef = useRef<Parameters<OnMount>[1] | null>(null);
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+  const [editorReady, setEditorReady] = useState(false);
   const onEditorMount: OnMount = (editor, monaco) => {
     // Overrides Monaco's own Ctrl+Enter ("insert line below").
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => checkRef.current());
+    editorRef.current = editor;
+    monacoRef.current = monaco;
+    setEditorReady(true);
   };
+
+  // Inline diagnostics: each failing check underlines its anchor line, with the hint on hover.
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    const model = editorRef.current?.getModel();
+    if (!editorReady || !monaco || !model) return;
+    const markers = liveResults
+      .filter((result) => !result.passed && result.line !== null && result.line <= model.getLineCount())
+      .map((result) => {
+        const line = result.line as number;
+        return {
+          severity: monaco.MarkerSeverity.Warning,
+          source: 'Lesson check',
+          message: result.check.hint,
+          startLineNumber: line,
+          startColumn: model.getLineFirstNonWhitespaceColumn(line) || 1,
+          endLineNumber: line,
+          endColumn: model.getLineMaxColumn(line),
+        };
+      });
+    monaco.editor.setModelMarkers(model, 'stylusforge-checks', markers);
+  }, [liveResults, editorReady]);
   const apple = useIsApplePlatform();
 
   const resetToStarter = () => {

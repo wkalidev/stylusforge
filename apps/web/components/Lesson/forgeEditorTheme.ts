@@ -31,6 +31,9 @@ export const defineForgeEditorTheme: BeforeMount = (monaco) => {
       'editorIndentGuide.background1': '#1f252e',
       'editorWidget.background': '#12161c',
       'editorWidget.border': '#2b333f',
+      'editorWarning.foreground': '#ffbe4a',
+      'editorHoverWidget.background': '#12161c',
+      'editorHoverWidget.border': '#2b333f',
     },
   });
 };
