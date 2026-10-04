@@ -74,17 +74,23 @@ void main() {
   // Rim light: the core shows through where the surface turns away from the eye.
   float fresnel = pow(1.0 - max(dot(n, normalize(vViewDir)), 0.0), 2.2);
 
-  // Heat flowing slowly through the metal.
-  vec3 p = vLocal * 1.7 + vec3(0.0, -uTime * 0.12, uTime * 0.05);
+  // Heat flowing slowly under the surface: mostly cooled crust, with hotter pockets.
+  vec3 p = vLocal * 1.5 + vec3(0.0, -uTime * 0.1, uTime * 0.04);
   float heat = 0.5 + 0.5 * (0.65 * snoise(p) + 0.35 * snoise(p * 2.3 + 7.0));
 
-  // Thin bright cracks in the cooling crust.
-  float vein = 1.0 - smoothstep(0.0, 0.07, abs(snoise(vLocal * 2.6 + vec3(0.0, uTime * 0.04, 0.0))));
+  // Cracks in the crust: ridged noise at two scales, thin and sharp, brightest where it is hot.
+  vec3 q = vLocal * 3.2 + vec3(0.0, uTime * 0.03, 0.0);
+  float crack = max(
+    1.0 - smoothstep(0.0, 0.045, abs(snoise(q))),
+    0.6 * (1.0 - smoothstep(0.0, 0.03, abs(snoise(q * 2.1 + 3.0))))
+  );
+  crack *= smoothstep(0.25, 0.7, heat);
 
-  vec3 color = mix(uCrust, uMolten, smoothstep(0.3, 0.85, heat));
-  color = mix(color, uAmber, vein * 0.85);
-  color += uAmber * fresnel * 1.1;
-  color *= 0.9 + 0.1 * sin(uTime * 1.2);
+  vec3 color = mix(uCrust, uMolten, smoothstep(0.55, 0.95, heat) * 0.85);
+  color = mix(color, uAmber, crack);
+  // The core shows through at grazing angles: molten at the rim, amber at the very edge.
+  color += mix(uMolten, uAmber, fresnel) * pow(fresnel, 1.3) * 1.4;
+  color *= 0.92 + 0.08 * sin(uTime * 1.2);
 
   gl_FragColor = vec4(color, 1.0);
   #include <tonemapping_fragment>
@@ -97,7 +103,7 @@ export function createMoltenMaterial() {
   return new ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
-      uCrust: { value: new Color('#3a1408') },
+      uCrust: { value: new Color('#2a0d06') },
       uMolten: { value: new Color('#ff6a10') },
       uAmber: { value: new Color('#ffd27a') },
     },

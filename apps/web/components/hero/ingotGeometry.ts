@@ -5,9 +5,9 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
  * top face, like metal poured into a tapered mould. No model file is loaded.
  */
 export function createIngotGeometry({
-  width = 2.2,
-  height = 0.72,
-  depth = 1.05,
+  width = 2.4,
+  height = 0.78,
+  depth = 1.15,
   radius = 0.12,
   topScale = 0.74,
   segments = 6,
