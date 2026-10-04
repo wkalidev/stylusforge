@@ -134,7 +134,7 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
             return { revert: { error: 'InsufficientBalance', args: { from, have, want: value } } };
           }
           let next = writeMapping(state, 'balances', from, have - value);
-          next = writeMapping(next, 'balances', to, checkedAdd(readMapping(next, 'balances', to), value));
+          next = writeMapping(next, 'balances', to, wrappingAdd(readMapping(next, 'balances', to), value));
           return { state: next, returns: true, events: [{ name: 'Transfer', args: { from, to, value } }] };
         },
       },
