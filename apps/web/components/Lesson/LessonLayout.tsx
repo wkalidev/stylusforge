@@ -5,6 +5,7 @@ import Editor from '@monaco-editor/react';
 import { buttonClasses } from '@/components/ui/button';
 import { getLesson } from '@/lib/curriculum/lessons';
 import { validateCode } from '@/lib/curriculum/validate';
+import { resetCode, saveCode, useSavedCode } from '@/lib/progress/code';
 import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progress';
 import { LessonMarkdown } from './LessonMarkdown';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
@@ -12,7 +13,8 @@ import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 export function LessonLayout({ slug }: { slug: string }) {
   const lesson = getLesson(slug);
   const exercise = lesson?.exercise;
-  const [code, setCode] = useState(exercise?.starterCode ?? '');
+  const savedCode = useSavedCode(lesson?.id ?? 0);
+  const code = savedCode ?? exercise?.starterCode ?? '';
   const [completed, setCompleted] = useState(false);
   const [hints, setHints] = useState<string[]>([]);
   const completedIds = useCompletedLessons();
@@ -32,6 +34,12 @@ export function LessonLayout({ slug }: { slug: string }) {
     if (result.passed) {
       markLessonCompleted(lesson.id);
     }
+  };
+
+  const resetToStarter = () => {
+    resetCode(lesson.id);
+    setCompleted(false);
+    setHints([]);
   };
 
   return (
@@ -60,7 +68,7 @@ export function LessonLayout({ slug }: { slug: string }) {
               theme={FORGE_EDITOR_THEME}
               beforeMount={defineForgeEditorTheme}
               value={code}
-              onChange={(val) => setCode(val ?? '')}
+              onChange={(val) => saveCode(lesson.id, val ?? '')}
               options={{
                 fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
                 fontSize: 13,
@@ -83,9 +91,19 @@ export function LessonLayout({ slug }: { slug: string }) {
               <p className='text-lg font-semibold text-amber-300'>Lesson complete: +{lesson.xp} XP</p>
             </div>
           )}
-          <button onClick={checkCode} className={buttonClasses('heat', 'lg')}>
-            Check my code
-          </button>
+          <div className='flex gap-3'>
+            <button
+              type='button'
+              onClick={resetToStarter}
+              disabled={savedCode === null}
+              className={buttonClasses('steel', 'lg')}
+            >
+              Reset code
+            </button>
+            <button type='button' onClick={checkCode} className={buttonClasses('heat', 'lg', 'flex-1')}>
+              Check my code
+            </button>
+          </div>
         </div>
       </div>
     </div>
