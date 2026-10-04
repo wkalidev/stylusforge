@@ -32,14 +32,14 @@ describe.each(available)("lesson $id: $title", (lesson) => {
 
   it("anchors every check to a line of the starter code", () => {
     for (const result of evaluateChecks(starterCode, checks)) {
-      expect(result.check.anchor, result.check.hint).toBeTypeOf("string");
+      expect(result.check.anchor, result.check.objective).toBeTypeOf("string");
       expect(result.line, `anchor not found: ${result.check.anchor}`).toBeGreaterThan(0);
     }
   });
 
   it("fails every check on the starter code", () => {
     for (const check of checks) {
-      expect(validateCode(starterCode, [check]).passed, check.hint).toBe(false);
+      expect(validateCode(starterCode, [check]).passed, check.objective).toBe(false);
     }
   });
 

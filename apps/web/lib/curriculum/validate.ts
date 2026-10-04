@@ -6,15 +6,13 @@
 export interface LessonCheck {
   /** Code snippets; the check passes when the code contains any of them, whatever the whitespace. */
   anyOf: string[];
-  /** Shown to the student when the check fails. */
-  hint: string;
   /** The goal of the check in plain words, never the expected code ("Increment the count by 1"). */
-  objective?: string;
+  objective: string;
   /**
    * Hints revealed one at a time, from a nudge to the exact code: only the last one gives the
    * expected code. Inline code is written between backticks.
    */
-  hints?: string[];
+  hints: string[];
   /**
    * Optional snippet locating where the check belongs (a struct, a function signature): when the
    * check fails, the editor underlines the line where this snippet starts.
@@ -154,6 +152,6 @@ export function evaluateChecks(code: string, checks: LessonCheck[]): CheckResult
 export function validateCode(code: string, checks: LessonCheck[]): ValidationResult {
   const objectives = evaluateChecks(code, checks)
     .filter((result) => !result.passed)
-    .map((result) => result.check.objective ?? result.check.hint);
+    .map((result) => result.check.objective);
   return { passed: objectives.length === 0, objectives };
 }

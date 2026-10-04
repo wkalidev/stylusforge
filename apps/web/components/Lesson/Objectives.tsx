@@ -39,9 +39,9 @@ export function Objectives({
           <div className='min-w-0 flex-1'>
             <span className={'transition-colors duration-500 motion-reduce:transition-none ' + (result.passed ? 'text-steel-100' : 'text-steel-400')}>
               <span className='sr-only'>{result.passed ? 'Done: ' : 'To do: '}</span>
-              {result.check.objective ?? result.check.hint}
+              {result.check.objective}
             </span>
-            {!result.passed && <ObjectiveHints lessonId={lessonId} checkIndex={index} hints={result.check.hints ?? []} revealed={revealed[index] ?? 0} />}
+            {!result.passed && <ObjectiveHints lessonId={lessonId} checkIndex={index} hints={result.check.hints} revealed={revealed[index] ?? 0} />}
           </div>
         </li>
       ))}

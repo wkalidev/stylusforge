@@ -101,7 +101,6 @@ const CONTENT: Record<number, LessonContent> = {
       checks: [
         {
           anyOf: ['string greeting;'],
-          hint: 'Declare the field in sol_storage! with Solidity syntax: string greeting;',
           objective: 'Store a greeting text in the contract storage',
           hints: [
             'Storage fields are declared inside `sol_storage!`, in the `HelloWorld` struct, with Solidity syntax: the type, then the name.',
@@ -112,7 +111,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['self.greeting.get_string()'],
-          hint: 'Return self.greeting.get_string() from get_greeting',
           objective: 'Return the stored greeting from get_greeting',
           hints: [
             'A `string` field is a `StorageString` accessor: you read it with a method instead of using it as a plain value.',
@@ -123,7 +121,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['self.greeting.set_str(greeting)', 'self.greeting.set_str(&greeting)'],
-          hint: 'Store the argument with self.greeting.set_str(greeting) in set_greeting',
           objective: 'Save the new greeting in set_greeting',
           hints: [
             'Writing a storage field also goes through its accessor, and `set_greeting` already takes `&mut self`.',
@@ -212,7 +209,6 @@ const CONTENT: Record<number, LessonContent> = {
       checks: [
         {
           anyOf: ['uint256 count;'],
-          hint: 'Declare the field in sol_storage! with Solidity syntax: uint256 count;',
           objective: 'Store a number called count in the contract',
           hints: [
             'Declare the field inside `sol_storage!`, in the `Counter` struct, with Solidity syntax.',
@@ -223,7 +219,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['-> U256 { self.count.get() }', '-> U256 { return self.count.get(); }'],
-          hint: 'Return self.count.get() from get',
           objective: 'Return the current count from get',
           hints: [
             'A `uint256` field is a `StorageU256` accessor: read it instead of returning the field itself.',
@@ -234,7 +229,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['self.count.set(self.count.get() + U256::from(1))', 'self.count.set(self.count.get() + U256::from(1u8))'],
-          hint: 'In increment, write self.count.set(self.count.get() + U256::from(1))',
           objective: 'Increment the count by 1',
           hints: [
             'Read the current value, add one, then write the result back.',
@@ -245,7 +239,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['self.count.set(U256::ZERO)', 'self.count.set(U256::from(0))'],
-          hint: 'In reset, write self.count.set(U256::ZERO)',
           objective: 'Reset the count to zero',
           hints: [
             'Resetting is a write: store the value zero in the field.',
@@ -366,7 +359,6 @@ const CONTENT: Record<number, LessonContent> = {
       checks: [
         {
           anyOf: ['event Transfer(address indexed from, address indexed to, uint256 value);'],
-          hint: 'Declare event Transfer(address indexed from, address indexed to, uint256 value); in sol!',
           objective: 'Declare a Transfer event with indexed from and to addresses and a value',
           hints: [
             'Events are declared in the `sol!` block with Solidity syntax, as in a Solidity contract.',
@@ -377,7 +369,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['error InsufficientBalance(uint256 available, uint256 required);'],
-          hint: 'Declare error InsufficientBalance(uint256 available, uint256 required); in sol!',
           objective: 'Declare an InsufficientBalance error with the available and required amounts',
           hints: [
             'Custom errors are declared in `sol!` too, with the `error` keyword.',
@@ -388,7 +379,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['InsufficientBalance(InsufficientBalance)'],
-          hint: 'Add an InsufficientBalance(InsufficientBalance) variant to TokenError',
           objective: 'Let TokenError carry the InsufficientBalance error',
           hints: [
             'An error enum deriving `SolidityError` has one variant per `sol!` error.',
@@ -399,7 +389,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['if available < amount {', 'if amount > available {'],
-          hint: 'Compare the balance with the amount before moving tokens: if available < amount { ... }',
           objective: 'Check the balance before moving tokens',
           hints: [
             'The sender must hold at least `amount`: check it before any balance changes.',
@@ -410,7 +399,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['Err(TokenError::InsufficientBalance(InsufficientBalance {'],
-          hint: 'Revert with Err(TokenError::InsufficientBalance(InsufficientBalance { available, required: amount }))',
           objective: 'Revert when the balance is too low',
           hints: [
             'Returning an `Err` from a `#[public]` method reverts the call.',
@@ -421,7 +409,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['self.vm().log(Transfer {'],
-          hint: 'Emit the event with self.vm().log(Transfer { from, to, value: amount })',
           objective: 'Emit Transfer after the balances are updated',
           hints: [
             'Events are emitted through the host, which `self.vm()` returns.',
@@ -544,7 +531,6 @@ const CONTENT: Record<number, LessonContent> = {
       checks: [
         {
           anyOf: ['uint256 total_supply;'],
-          hint: 'Declare uint256 total_supply; in sol_storage!',
           objective: 'Store the total supply',
           hints: [
             'Declare the field inside `sol_storage!`, in the `Erc20` struct, with Solidity syntax.',
@@ -555,7 +541,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['mapping(address => uint256) balances;'],
-          hint: 'Declare mapping(address => uint256) balances; in sol_storage!',
           objective: 'Store the balance of each account',
           hints: [
             'A balance per account is a mapping from an address to an amount.',
@@ -566,7 +551,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['mapping(address => mapping(address => uint256)) allowances;'],
-          hint: 'Declare mapping(address => mapping(address => uint256)) allowances; in sol_storage!',
           objective: 'Store the allowance of each owner for each spender',
           hints: [
             'An allowance depends on two addresses, the owner and then the spender: nest one mapping in another.',
@@ -577,7 +561,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['self.total_supply.get()'],
-          hint: 'Return self.total_supply.get() from total_supply',
           objective: 'Return the total supply',
           hints: [
             'Read the storage field instead of returning zero.',
@@ -588,7 +571,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['self.balances.get(account)'],
-          hint: 'Return self.balances.get(account) from balance_of',
           objective: 'Return the balance of an account',
           hints: [
             'Look the account up in the balances mapping.',
@@ -599,7 +581,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['Err(Erc20Error::InsufficientBalance(InsufficientBalance {'],
-          hint: 'In transfer, revert with Err(Erc20Error::InsufficientBalance(InsufficientBalance { from, have, want: value }))',
           objective: "Revert a transfer larger than the sender's balance",
           hints: [
             'Read the balance of `from` and compare it with `value` before moving anything.',
@@ -610,7 +591,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['self.vm().log(Transfer {'],
-          hint: 'Emit self.vm().log(Transfer { from, to, value }) in transfer',
           objective: 'Emit Transfer when tokens move',
           hints: [
             'Events are emitted through the host, which `self.vm()` returns.',
@@ -621,7 +601,6 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           anyOf: ['Ok(true)'],
-          hint: 'Return Ok(true) once the transfer is done',
           objective: 'Report a successful transfer',
           hints: [
             '`transfer` returns a `Result<bool, _>`, and the starter code reports a failure.',

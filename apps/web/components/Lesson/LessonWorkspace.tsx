@@ -105,11 +105,11 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
       .filter(({ result }) => !result.passed && result.line !== null && result.line <= model.getLineCount())
       .map(({ result, revealed }) => {
         const line = result.line as number;
-        const hints = (result.check.hints ?? []).slice(0, revealed).map((hint, index) => `Hint ${index + 1}: ${hint}`);
+        const hints = result.check.hints.slice(0, revealed).map((hint, index) => `Hint ${index + 1}: ${hint}`);
         return {
           severity: monaco.MarkerSeverity.Warning,
           source: 'Lesson check',
-          message: [result.check.objective ?? result.check.hint, ...hints].join('\n'),
+          message: [result.check.objective, ...hints].join('\n'),
           startLineNumber: line,
           startColumn: model.getLineFirstNonWhitespaceColumn(line) || 1,
           endLineNumber: line,
