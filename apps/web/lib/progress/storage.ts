@@ -1,12 +1,15 @@
 /**
  * Tiny localStorage-backed store for useSyncExternalStore. Every access is guarded: storage
- * can be unavailable (private mode, blocked site data), in which case reads return null and
- * writes only notify the current tab.
+ * can be unavailable (private mode, blocked site data), in which case values are kept in
+ * memory for the lifetime of the page.
  */
 
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
+
+/** Values whose write to localStorage failed; they take precedence over storage. */
+const memory = new Map<string, string | null>();
 
 function notify() {
   for (const listener of listeners) {
@@ -15,6 +18,9 @@ function notify() {
 }
 
 export function readItem(key: string): string | null {
+  if (memory.has(key)) {
+    return memory.get(key) ?? null;
+  }
   try {
     return window.localStorage.getItem(key);
   } catch {
@@ -30,8 +36,9 @@ export function writeItem(key: string, value: string | null): void {
     } else {
       window.localStorage.setItem(key, value);
     }
+    memory.delete(key);
   } catch {
-    // Storage unavailable: progress lives for this page only.
+    memory.set(key, value);
   }
   notify();
 }
