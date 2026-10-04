@@ -39,7 +39,7 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
   const { writeContractAsync } = useWriteContract();
   const [phase, setPhase] = useState<Phase>('idle');
   const [txHash, setTxHash] = useState<Hash | null>(null);
-  const [error, setError] = useState<{ message: string; objectives: string[] } | null>(null);
+  const [error, setError] = useState<{ message: string; details: string | null; objectives: string[] } | null>(null);
 
   const owned = useReadContract({
     address: nftContractAddress ?? undefined,
@@ -126,7 +126,7 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
       await queryClient.invalidateQueries();
     } catch (cause) {
       setError({
-        message: describeClaimError(cause).message,
+        ...describeClaimError(cause),
         objectives: cause instanceof VoucherRequestError ? cause.objectives : [],
       });
     } finally {
@@ -173,6 +173,14 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
                 <li key={objective}>{objective}</li>
               ))}
             </ul>
+          )}
+          {error.details && (
+            <details className='mt-1 text-steel-400'>
+              <summary className='cursor-pointer text-xs hover:text-steel-200'>Error details</summary>
+              <pre className='mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-[var(--radius-forge)] border border-steel-800 bg-steel-950 p-2 font-mono text-[11px] leading-snug'>
+                {error.details}
+              </pre>
+            </details>
           )}
         </div>
       )}
