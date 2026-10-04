@@ -57,7 +57,7 @@ The web-only content lives in `apps/web/lib/curriculum/lessons.ts`, keyed by les
 |---|---|
 | `slug` | URL segment of the lesson page (`/learn/<slug>`) |
 | `difficulty` | `Beginner`, `Intermediate` or `Advanced` |
-| `exercise.explanation` | Markdown (GitHub-flavoured: tables and fenced code blocks are supported) |
+| `exercise.explanation` | Markdown (GitHub-flavoured: tables and fenced code blocks are supported; a `> ` line renders as a note) |
 | `exercise.starterCode` | Rust code loaded in the editor |
 | `exercise.checks` | Static checks, see below |
 
@@ -101,7 +101,7 @@ A simulation has a `contract` name, an optional `note` on its starting state (fo
 
 State fields are scalars (`bigint`, `string`, `boolean`), mappings (records keyed by lowercase address, read and written with `readMapping`, `writeMapping` and `deleteMapping`), vectors (arrays) and structs (records keyed by field name). The panel shows vectors by index and structs and tuples inline.
 
-The engine parses arguments by type (uint256 within range, addresses by hex or account name), runs the function on a copy of the state, and leaves the state unchanged on a revert, an invalid argument or an arithmetic error (`checkedAdd` / `checkedSub`). Model the same order of operations as the reference solution. Tests require a simulation for every available lesson, with the same functions as its reference solution, and a scenario per lesson.
+The engine parses arguments by type (uint256 within range, addresses by hex or account name), runs the function on a copy of the state, and leaves the state unchanged on a revert or an invalid argument. Model the same order of operations and the same arithmetic as the reference solution: `U256` `+` and `-` wrap around modulo 2^256 in Rust, so use `wrappingAdd` and `wrappingSub`, and revert only where the Rust code does (an explicit `Err`, or `checked_add` turned into an error). Tests require a simulation for every available lesson, with the same functions as its reference solution, and a scenario per lesson. `simulations.test.ts` also needs an overflow case for every lesson whose solution uses `+` or `-`, and fails if the simulation reverts or does not wrap like `U256`.
 
 ## Glossary
 
