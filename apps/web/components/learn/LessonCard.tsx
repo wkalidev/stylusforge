@@ -83,7 +83,7 @@ function LockedCard({
 
   useEffect(() => {
     if (nudged === 0) return;
-    const timer = window.setTimeout(() => setNudged(0), 2600);
+    const timer = window.setTimeout(() => setNudged(0), 4000);
     return () => window.clearTimeout(timer);
   }, [nudged]);
 
