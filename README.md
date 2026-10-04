@@ -185,6 +185,24 @@ After the first deployment:
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request (and on demand): `pnpm install --frozen-lockfile` on Node 22, then `pnpm lint`, `pnpm test` (contracts, then vitest) and `pnpm build`. The build uses a placeholder WalletConnect id unless the repository variable `NEXT_PUBLIC_WALLETCONNECT_ID` is set.
 
+## Roadmap
+
+**Done**
+
+- Single pnpm workspace, Hardhat 3, the `StylusForgeNFT` contract (soul-bound ERC-1155, lesson registry, EIP-712 claims) with tests.
+- Four lessons with static checks, local progress, XP and ranks, the claim flow, the profile, certificate metadata and the forge redesign.
+- Local development stack, CI on pull requests and the Vercel configuration.
+
+**Next**
+
+- Lesson interactivity: live objectives, inline diagnostics in the editor, a "Try it" simulation of each contract, step-by-step explanations with quizzes, and a comparison with the reference solution once a lesson is passed.
+- Curriculum expansion: about 20 lessons in five modules (foundations, contract logic, tokens, interoperability, Stylus specifics), registered on-chain with `addLesson` without redeploying.
+- Arbitrum Sepolia deployment of the contract and the web app.
+
+**Later**
+
+- Real Rust compilation. Checks are static today: the code is matched against expected snippets, not compiled. Running `cargo stylus check` on submissions is planned for a later version.
+
 ## License
 
 [MIT](LICENSE)
