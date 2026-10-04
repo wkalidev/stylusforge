@@ -494,6 +494,22 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn transfer(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Interface",
+          question: "Under which name does the Rust method balance_of appear in the contract ABI?",
+          options: ["balance_of", "BalanceOf", "balanceOf"],
+          answer: 2,
+          explanation: "Stylus exports snake_case Rust methods under camelCase Solidity names, so wallets see the standard ERC-20 balanceOf.",
+        },
+        {
+          afterStep: "Storage",
+          question: "How do you write the new balance of to in the balances mapping?",
+          options: ["self.balances.setter(to).set(new_balance)", "self.balances.get(to).set(new_balance)", "self.balances[to] = new_balance"],
+          answer: 0,
+          explanation: "get(key) returns a copy of the value; setter(key) returns a writable handle to the entry, and set(value) stores it.",
+        },
+      ],
     },
   },
   5: {
