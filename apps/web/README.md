@@ -64,6 +64,7 @@ apps/web/
 │  ├─ contract.ts               StylusForgeNFT ABI (checked against the artifact) and address
 │  ├─ claim.ts                  EIP-712 voucher types and signing (shared)
 │  ├─ claimErrors.ts            claim errors in plain words
+│  ├─ claimFees.ts              claim fees with a margin over the base fee
 │  ├─ certificate/              token id parsing, ERC-1155 metadata, SVG certificate
 │  ├─ explorer.ts               block explorer links (none on the local chain)
 │  ├─ site.ts                   footer facts: handles, links, first commit date
@@ -198,8 +199,18 @@ The store (`lib/progress/storage.ts`) is read through `useSyncExternalStore`: em
 1. The student passes a lesson; a compact result bar appears under the editor ("Forged: +XP", the claim action and the next lesson), so the editor keeps its height.
 2. Without a wallet it offers to connect one; on another network it offers to switch to the app's chain.
 3. "Claim certificate" posts `{ address, lessonId, code }` to `/api/claim`. The route validates the input, runs the lesson checks again on the server, and signs an EIP-712 voucher `Claim(student, lessonId, deadline)` valid for 15 minutes with `CLAIM_SIGNER_PRIVATE_KEY`.
-4. The panel simulates `claim(lessonId, deadline, signature)` (so contract errors are explained before the wallet opens), sends it with wagmi from the student's wallet, waits for the receipt and refreshes every on-chain read.
+4. The panel simulates `claim(lessonId, deadline, signature)` (so contract errors are explained before the wallet opens), sends it with wagmi from the student's wallet, waits for the receipt and refreshes every on-chain read. It sends explicit EIP-1559 fees (`lib/claimFees.ts`): `maxFeePerGas` is twice the latest base fee plus the priority fee estimate. A wallet left to estimate can propose a max fee at the current base fee, which a slightly higher next block rejects. Only the block's base fee is charged, so the margin costs nothing. When the fees cannot be read, the wallet estimates them.
 5. When `completed(student, lessonId)` is true the bar shows "Certificate owned", with an explorer link to the transaction (Arbiscan on Arbitrum Sepolia; the hash only on the local chain).
+
+Errors are explained by `lib/claimErrors.ts`, with the raw error in a collapsible "Error details" section. Wallets report most failures as JSON-RPC `-32603`, and viem relabels every `-32603` from a contract write as "The contract function ... reverted", so the reason is read along the whole error chain, the wallet's `data.message` included:
+
+| Cause | Message |
+|---|---|
+| Rejected in the wallet (4001) | Transaction rejected in your wallet. Nothing was sent. |
+| `AlreadyCompleted`, `ClaimExpired`, `InvalidSignature`, `InvalidLesson` reverts | One message per contract error |
+| Max fee below the base fee, underpriced transaction | Network fee changed, please try again. |
+| Insufficient funds | Insufficient funds for gas. Add ETH on this network to the wallet, then try again. |
+| Other wallet or RPC refusal | The wallet or the network refused the transaction, so nothing was claimed. |
 
 With a wallet connected, a bar under the header lists the lessons passed in this browser whose certificate the wallet does not own yet, so local and on-chain progress converge.
 
