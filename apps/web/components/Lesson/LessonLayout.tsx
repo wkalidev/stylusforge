@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Editor from '@monaco-editor/react';
+import { ClaimCertificate } from '@/components/claim/ClaimCertificate';
 import { buttonClasses } from '@/components/ui/button';
 import { getLesson } from '@/lib/curriculum/lessons';
 import { validateCode } from '@/lib/curriculum/validate';
@@ -91,6 +92,7 @@ export function LessonLayout({ slug }: { slug: string }) {
               <p className='text-lg font-semibold text-amber-300'>Lesson complete: +{lesson.xp} XP</p>
             </div>
           )}
+          <ClaimCertificate lessonId={lesson.id} code={code} passed={completedIds.includes(lesson.id)} />
           <div className='flex gap-3'>
             <button
               type='button'
