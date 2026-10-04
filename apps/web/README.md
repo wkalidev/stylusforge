@@ -174,7 +174,19 @@ Progress is local first, so the reward is immediate and needs no wallet:
 - a passing check records the lesson in `localStorage` (`stylusforge:completed:v1`) and the lesson bar shows "Passed";
 - the code of each lesson is saved on every change (`stylusforge:code:v1:<id>`) and restored when the lesson is reopened; "Reset code" brings back the starter code;
 - the hints revealed for each lesson are saved too (`stylusforge:hints:v1:<id>`);
-- the XP meter sums the XP of the passed lessons and shows the rank: Apprentice from 0 XP, Smith from 250, Master Forger from 600.
+- the XP meter sums the XP of the passed lessons and shows the rank (`lib/progress/ranks.ts`). Its caption reads `<xp> / <next threshold> XP` (`<xp> XP · top rank` at the top) and its bar fills against the next threshold, so it never looks empty right after a rank-up.
+
+| Rank | From | Reached at |
+|---|---|---|
+| Apprentice | 0 XP | start |
+| Smith | 250 XP | lessons 1 and 2 |
+| Journeyman | 750 XP | end of Foundations (775 XP) |
+| Bladesmith | 1800 XP | end of Contract logic (1850 XP) |
+| Armorer | 3100 XP | end of Tokens (3150 XP) |
+| Master Forger | 4800 XP | Interoperability plus two Stylus specifics lessons (4850 XP) |
+| Forgemaster | 6000 XP | every lesson of the full curriculum |
+
+The thresholds are set for the full 21-lesson curriculum (6000 XP), so the upper ranks unlock as the modules ship. The lesson bar and the profile show progress within the current rank.
 
 The store (`lib/progress/storage.ts`) is read through `useSyncExternalStore`: empty during server rendering and hydration (no mismatch), synced across tabs through the `storage` event, and kept in memory for the page when `localStorage` is blocked. On-chain XP and certificates are shown on the profile page.
 
