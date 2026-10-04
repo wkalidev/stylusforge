@@ -50,6 +50,7 @@ apps/web/
 │  └─ Wallet/Providers.tsx      Wagmi, TanStack Query and RainbowKit providers
 ├─ lib/
 │  ├─ curriculum/lessons.ts     lesson list: curriculum/lessons.json + web content
+│  ├─ curriculum/modules.ts     lessons grouped by module (curriculum/modules.json)
 │  ├─ curriculum/validate.ts    static checks shared by client and server
 │  ├─ curriculum/solutions.ts   reference solutions (tests only)
 │  ├─ hooks/useMediaQuery.ts    media queries (reduced motion, constrained devices)
@@ -243,6 +244,6 @@ With a wallet connected, lessons whose certificate the wallet owns carry a quenc
 
 ## Lessons and checks
 
-Lesson ids, titles and XP come from [`curriculum/lessons.json`](../../curriculum/lessons.json); `lib/curriculum/lessons.ts` adds the slug, difficulty and exercise of each lesson and exports them as `LESSONS`, in curriculum order. The landing page, `/learn` and the lesson pages all read `LESSONS`.
+Lesson ids, titles and XP come from [`curriculum/lessons.json`](../../curriculum/lessons.json); `lib/curriculum/lessons.ts` adds the slug, difficulty and exercise of each lesson and exports them as `LESSONS`, in curriculum order. The landing page, `/learn` and the lesson pages all read `LESSONS`. `lib/curriculum/modules.ts` exports `MODULES`: the modules of [`curriculum/modules.json`](../../curriculum/modules.json), in order, each with its name, forge zone and lessons. The build fails if a lesson names an unknown module.
 
 "Check my code" runs `validateCode` from `lib/curriculum/validate.ts`: whitespace-insensitive snippet checks, with comments and string contents removed first. The code is not compiled. The format and the rules each lesson must satisfy are documented in the [curriculum README](../../curriculum/README.md#validation-rules).

@@ -6,8 +6,8 @@ import { SOLUTIONS } from "./solutions";
 import { evaluateChecks, validateCode } from "./validate";
 
 describe("LESSONS", () => {
-  it("follows curriculum/lessons.json for ids, names, XP and availability", () => {
-    expect(LESSONS.map(({ id, title, xp, available }) => ({ id, name: title, xp, available }))).toEqual(curriculum);
+  it("follows curriculum/lessons.json for ids, names, XP, availability and modules", () => {
+    expect(LESSONS.map(({ id, title, xp, available, module }) => ({ id, name: title, xp, available, module }))).toEqual(curriculum);
   });
 
   it("has unique slugs that resolve with getLesson", () => {

@@ -6,7 +6,8 @@
   "scripts": {
     "test": "hardhat test",
     "chain": "hardhat node",
-    "deploy:local": "hardhat run scripts/deploy-local.ts --network localhost"
+    "deploy:local": "hardhat run scripts/deploy-local.ts --network localhost",
+    "register:lessons": "hardhat run scripts/register-lessons.ts"
   },
   "keywords": [],
   "author": "",

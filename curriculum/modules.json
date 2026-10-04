@@ -1,0 +1,7 @@
+[
+  { "id": "foundations", "name": "Foundations", "zone": "The Hearth" },
+  { "id": "contract-logic", "name": "Contract logic", "zone": "The Anvil" },
+  { "id": "tokens", "name": "Tokens", "zone": "The Mint" },
+  { "id": "interoperability", "name": "Interoperability", "zone": "The Bellows" },
+  { "id": "stylus-specifics", "name": "Stylus specifics", "zone": "The Quench" }
+]

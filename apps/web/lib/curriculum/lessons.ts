@@ -1,4 +1,5 @@
 import curriculum from '../../../../curriculum/lessons.json';
+import modules from '../../../../curriculum/modules.json';
 import type { LessonQuiz } from './steps';
 import type { LessonCheck } from './validate';
 
@@ -18,6 +19,8 @@ interface LessonBase {
   title: string;
   difficulty: string;
   xp: number;
+  /** Id of the module (curriculum/modules.json) the lesson belongs to. */
+  module: string;
 }
 
 /** Available lessons have an exercise; unavailable ones are listed as coming soon. */
@@ -519,12 +522,15 @@ const CONTENT: Record<number, LessonContent> = {
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
-export const LESSONS: Lesson[] = curriculum.map(({ id, name, xp, available }): Lesson => {
+export const LESSONS: Lesson[] = curriculum.map(({ id, name, xp, available, module }): Lesson => {
   const content = CONTENT[id];
   if (!content) {
     throw new Error(`Lesson ${id} is in curriculum/lessons.json but has no web content`);
   }
-  const base = { id, slug: content.slug, title: name, difficulty: content.difficulty, xp };
+  if (!modules.some((entry) => entry.id === module)) {
+    throw new Error(`Lesson ${id} belongs to an unknown module: ${module}`);
+  }
+  const base = { id, slug: content.slug, title: name, difficulty: content.difficulty, xp, module };
   if (!available) {
     return { ...base, available: false };
   }

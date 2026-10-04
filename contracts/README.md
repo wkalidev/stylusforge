@@ -18,15 +18,18 @@ contracts/
 ├─ scripts/deploy-local.ts        local node deployment, writes the web dev env
 ├─ scripts/deploy-certificate.ts  shared deploy steps (deploy, lessons, signer)
 ├─ scripts/set-uri.ts             points the metadata URI at the deployed web app
+├─ scripts/register-lessons.ts    registers new lessons on a deployed contract
+├─ scripts/lesson-registration.ts compares the curriculum with the registered lessons
 ├─ scripts/metadata-uri.ts        builds <base>/api/metadata/{id}
 ├─ scripts/config-variables.ts    reads configuration variables (environment, then keystore)
-├─ scripts/lessons.ts             loads and validates ../curriculum/lessons.json
-├─ test/StylusForgeNFT.ts         tests (node:test + viem)
+├─ scripts/lessons.ts             loads and validates ../curriculum/lessons.json and modules.json
+├─ test/StylusForgeNFT.ts         contract tests (node:test + viem)
+├─ test/lessonRegistration.ts     registration diffing tests
 ├─ hardhat.config.ts
 └─ .env.example                   configuration variable names
 ```
 
-Lesson ids, names and XP come from [`curriculum/lessons.json`](../curriculum/lessons.json), the single source of truth shared with the web app. The deploy scripts and the tests read it through `scripts/lessons.ts`, which returns only the lessons marked `"available": true`: an unavailable lesson is never registered, since a registered lesson cannot change.
+Lesson ids, names and XP come from [`curriculum/lessons.json`](../curriculum/lessons.json), the single source of truth shared with the web app. The deploy scripts and the tests read it through `scripts/lessons.ts`, which returns only the lessons marked `"available": true`: an unavailable lesson is never registered, since a registered lesson cannot change. The loader also checks that every lesson belongs to a module of [`curriculum/modules.json`](../curriculum/modules.json) and that lessons are listed module by module.
 
 ## Commands
 
@@ -39,6 +42,7 @@ Install dependencies from the repository root with `pnpm install`. Then, from `c
 | `pnpm hardhat test nodejs` | Run only the TypeScript tests |
 | `pnpm chain` | Start a local Hardhat node on `http://127.0.0.1:8545` (chain id 31337); also available from the root |
 | `pnpm deploy:local` | Deploy to that node and write `apps/web/.env.development.local`; also available from the root |
+| `pnpm register:lessons --network <name>` | Register the available lessons missing on a deployed contract ([below](#registering-new-lessons)); also available from the root |
 
 ## Configuration variables
 
@@ -50,7 +54,7 @@ The `arbitrumSepolia` network and contract verification read their settings thro
 | `DEPLOYER_PRIVATE_KEY` | `hardhat.config.ts` | Private key of the deployer account (0x-prefixed) |
 | `CLAIM_SIGNER_ADDRESS` | `scripts/deploy.ts` | Public address of the backend key that signs claim vouchers |
 | `ETHERSCAN_API_KEY` | `hardhat.config.ts` (`verify`) | Etherscan API V2 key, used to verify the contract on Arbiscan |
-| `NFT_CONTRACT_ADDRESS` | `scripts/set-uri.ts` | Address of the deployed `StylusForgeNFT` |
+| `NFT_CONTRACT_ADDRESS` | `scripts/set-uri.ts`, `scripts/register-lessons.ts` | Address of the deployed `StylusForgeNFT` |
 | `METADATA_BASE_URL` | `scripts/set-uri.ts` | Base URL of the deployed web app (https) |
 
 Hardhat 3 does not load `.env` files. A variable is read from the environment first, then from the encrypted Hardhat keystore. `.env.example` only lists the names.
@@ -163,6 +167,21 @@ pnpm hardhat run scripts/set-uri.ts --network arbitrumSepolia
 ```
 
 The script sets the URI to `<METADATA_BASE_URL>/api/metadata/{id}`. It refuses non-https bases (http is accepted for localhost), stops if the connected account is not the contract owner, and does nothing when the URI is already set, so it is safe to run again.
+
+### Registering new lessons
+
+Lessons published after the deployment are added with `addLesson`, without redeploying. Once a lesson is written and marked `"available": true` in `curriculum/lessons.json`, run from the owner account:
+
+```bash
+pnpm hardhat keystore set NFT_CONTRACT_ADDRESS   # if not set yet
+pnpm register:lessons --network arbitrumSepolia
+```
+
+The script reads every registered lesson (`getLessonIds`, then `lessons(id)`), compares them with the available lessons of the curriculum (`scripts/lesson-registration.ts`) and registers the missing ones in curriculum order. It is safe to run again: it does nothing when every lesson is registered.
+
+Registered lessons are immutable, so the script stops before sending any transaction when a registered lesson has a different name or XP in the curriculum, or is no longer an available lesson; it lists every conflict and never changes a registered lesson. It also stops if the connected account is not the contract owner.
+
+On the local node, use `--network localhost` with `NFT_CONTRACT_ADDRESS` set to the address printed by `pnpm deploy:local`.
 
 ## Verification on Arbiscan
 
