@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Editor from '@monaco-editor/react';
 import { getLesson } from '@/lib/curriculum/lessons';
 import { validateCode } from '@/lib/curriculum/validate';
+import { LessonMarkdown } from './LessonMarkdown';
 
 export function LessonLayout({ slug }: { slug: string }) {
   const lesson = getLesson(slug);
@@ -39,13 +40,7 @@ export function LessonLayout({ slug }: { slug: string }) {
       </div>
       <div className='flex flex-1 overflow-hidden'>
         <div className='w-1/2 overflow-y-auto p-8 border-r border-gray-800'>
-          {exercise.explanation.split('\n').map((line, i) => {
-            if (line.startsWith('## ')) return <h2 key={i} className='text-2xl font-bold mt-6 mb-4'>{line.slice(3)}</h2>;
-            if (line.startsWith('### ')) return <h3 key={i} className='text-lg font-bold mt-4 mb-2'>{line.slice(4)}</h3>;
-            if (line.startsWith("'") && line.endsWith("'")) return <code key={i} className='block bg-gray-800 text-green-400 font-mono text-sm p-2 rounded mb-2'>{line.slice(1, -1)}</code>;
-            if (line.trim() === '') return <br key={i} />;
-            return <p key={i} className='text-gray-300 mb-2'>{line}</p>;
-          })}
+          <LessonMarkdown>{exercise.explanation}</LessonMarkdown>
         </div>
         <div className='w-1/2 flex flex-col p-4 gap-4'>
           <div className='flex-1 rounded-lg overflow-hidden border border-gray-700'>
