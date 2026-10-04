@@ -200,7 +200,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
           className={`${tab === 'learn' ? 'block' : 'hidden'} p-6 sm:p-8 lg:block lg:w-1/2 lg:overflow-y-auto lg:border-r lg:border-steel-800 xl:px-12`}
         >
           <div className='mx-auto max-w-2xl'>
-            <Objectives results={liveResults} variant='panel' />
+            <Objectives lessonId={lesson.id} results={liveResults} variant='panel' />
             <ExplanationSteps explanation={exercise.explanation} quizzes={exercise.quizzes} onOpenEditor={openEditor} />
           </div>
         </article>
@@ -212,7 +212,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
           className={`${tab === 'code' ? 'flex' : 'hidden'} ${tab === 'try' ? 'lg:hidden' : 'lg:flex'} flex-col gap-4 p-4 sm:p-5 lg:w-1/2 lg:overflow-y-auto`}
         >
           <RightPaneSwitch active={tab} onChange={setTab} />
-          <Objectives results={liveResults} variant='compact' />
+          <Objectives lessonId={lesson.id} results={liveResults} variant='compact' />
           <div className='flex h-[60vh] min-h-72 flex-col overflow-hidden rounded-[var(--radius-forge)] border border-steel-700 bg-steel-950 lg:h-auto lg:flex-1'>
             <div className='ember-edge flex items-center justify-between gap-3 border-b border-steel-800 bg-steel-900 px-4 py-2'>
               {compare.open ? (
