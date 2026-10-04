@@ -2,6 +2,7 @@ import { network } from "hardhat";
 import { getAddress, isAddress } from "viem";
 
 import { readConfigVariable } from "./config-variables.js";
+import { confirm } from "./confirm.js";
 import { metadataUri } from "./metadata-uri.js";
 
 /**
@@ -32,7 +33,14 @@ if (current === uri) {
   console.log(`Metadata URI on ${networkName} is already ${uri}: nothing to do.`);
 } else {
   console.log(`Setting the metadata URI on ${networkName}:\n  from: ${current || "(empty)"}\n  to:   ${uri}`);
-  const hash = await nft.write.setURI([uri]);
-  await publicClient.waitForTransactionReceipt({ hash });
-  console.log(`Done (transaction ${hash}).`);
+  // Clients replace {id}: token 1 would read its metadata from this URL.
+  console.log(`  (token 1: ${uri.replace("{id}", "1")})`);
+  if (await confirm(`Send setURI("${uri}") to ${nft.address}?`)) {
+    const hash = await nft.write.setURI([uri]);
+    await publicClient.waitForTransactionReceipt({ hash });
+    console.log(`Done (transaction ${hash}).`);
+  } else {
+    console.log("Not confirmed, nothing was sent. Answer y in an interactive terminal to send it.");
+    process.exitCode = 1;
+  }
 }
