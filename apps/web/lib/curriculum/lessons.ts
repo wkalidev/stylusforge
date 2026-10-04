@@ -1040,6 +1040,22 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn remove_last(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Length and appending",
+          question: "Why does count() wrap the length in U256::from(...)?",
+          options: ["len() returns a usize, and the method returns a U256", "len() returns the length in bytes", "Lengths over 255 would overflow otherwise"],
+          answer: 0,
+          explanation: "len() returns a Rust usize. Public methods use U256 for uint256, so the length is converted with U256::from.",
+        },
+        {
+          afterStep: "Reading by index",
+          question: "A vector holds 3 elements. What does get(3) return?",
+          options: ["The last element", "None", "U256::ZERO"],
+          answer: 1,
+          explanation: "Indexes start at 0, so a vector of 3 elements has indexes 0 to 2. Past the end, get returns None instead of a zero value.",
+        },
+      ],
     },
   },
 };
