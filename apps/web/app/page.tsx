@@ -5,9 +5,9 @@ import { LESSONS } from '@/lib/curriculum/lessons';
 export default function HomePage() {
   return (
     <main className='relative'>
-      <section className='heat-glow flex min-h-[calc(100dvh-3.5rem)] flex-col items-start justify-center px-4 sm:px-6'>
-        <div className='mx-auto w-full max-w-7xl'>
-          <h1 className='font-display text-6xl font-extrabold leading-[0.95] text-steel-100 sm:text-8xl'>
+      <section className='heat-glow flex min-h-[calc(100dvh-3.5rem)] flex-col justify-center'>
+        <div className='forge-container'>
+          <h1 className='font-display text-6xl font-extrabold leading-none text-steel-100 sm:text-8xl'>
             Forge your first Rust smart contract
           </h1>
           <p className='mt-6 max-w-xl text-lg text-steel-300'>
