@@ -1,13 +1,14 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import Editor from '@monaco-editor/react';
+import Editor, { type OnMount } from '@monaco-editor/react';
 import { ClaimCertificate } from '@/components/claim/ClaimCertificate';
 import { SparkBurst } from '@/components/feedback/SparkBurst';
 import { LessonXpBar } from '@/components/progress/LessonXpBar';
 import { buttonClasses } from '@/components/ui/button';
 import { LESSONS, type Lesson } from '@/lib/curriculum/lessons';
 import { validateCode } from '@/lib/curriculum/validate';
+import { useIsApplePlatform } from '@/lib/hooks/usePlatform';
 import { resetCode, saveCode, useSavedCode } from '@/lib/progress/code';
 import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progress';
 import { playAnvilStrike } from '@/lib/sound/anvil';
@@ -43,6 +44,27 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
       }
     }
   };
+
+  // Ctrl+Enter / Cmd+Enter checks the code, from the editor or anywhere on the page.
+  const checkRef = useRef(checkCode);
+  useEffect(() => {
+    checkRef.current = checkCode;
+  });
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.defaultPrevented) {
+        event.preventDefault();
+        checkRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+  const onEditorMount: OnMount = (editor, monaco) => {
+    // Overrides Monaco's own Ctrl+Enter ("insert line below").
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => checkRef.current());
+  };
+  const apple = useIsApplePlatform();
 
   const resetToStarter = () => {
     resetCode(lesson.id);
@@ -101,6 +123,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
                 language='rust'
                 theme={FORGE_EDITOR_THEME}
                 beforeMount={defineForgeEditorTheme}
+                onMount={onEditorMount}
                 value={code}
                 onChange={(val) => saveCode(lesson.id, val ?? '')}
                 options={{
@@ -148,8 +171,16 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
               Reset code
             </button>
             <div className='relative flex-1'>
-              <button type='button' onClick={checkCode} className={buttonClasses('heat', 'lg', 'w-full')}>
-                Check my code
+              <button
+                type='button'
+                onClick={checkCode}
+                aria-keyshortcuts='Control+Enter Meta+Enter'
+                className={buttonClasses('heat', 'lg', 'w-full')}
+              >
+                <span>Check my code</span>
+                <kbd className='hidden rounded border border-steel-950/30 px-1.5 py-0.5 font-sans text-xs font-medium text-steel-950/70 sm:inline'>
+                  {apple ? '⌘ Enter' : 'Ctrl Enter'}
+                </kbd>
               </button>
               <SparkBurst trigger={strikes} />
             </div>
