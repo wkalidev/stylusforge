@@ -1,4 +1,4 @@
-import { checkedAdd, deleteMapping, readMapping, writeMapping, type LessonSimulation, type SimAccount } from './simulation';
+import { checkedAdd, deleteMapping, readMapping, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -217,7 +217,54 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  8: {
+    contract: 'TodoList',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ tasks: [] }),
+    functions: [
+      {
+        name: 'add_task',
+        abiName: 'addTask',
+        view: false,
+        params: [{ name: 'title', type: 'string' }],
+        // grow() appends a task with every field at zero, then the title is set.
+        run: (state, args) => ({ state: { ...state, tasks: [...(state.tasks as Task[]), { title: args.title, done: false }] } }),
+      },
+      {
+        name: 'task',
+        abiName: 'task',
+        view: true,
+        params: [{ name: 'id', type: 'uint256' }],
+        returns: ['string', 'bool'],
+        run: (state, args) => {
+          const task = findTask(state, args.id as bigint);
+          return 'revert' in task ? task : { returns: [task.title, task.done] };
+        },
+      },
+      {
+        name: 'complete',
+        abiName: 'complete',
+        view: false,
+        params: [{ name: 'id', type: 'uint256' }],
+        run: (state, args) => {
+          const task = findTask(state, args.id as bigint);
+          if ('revert' in task) return task;
+          const tasks = (state.tasks as Task[]).map((entry, index) => (BigInt(index) === args.id ? { ...entry, done: true } : entry));
+          return { state: { ...state, tasks } };
+        },
+      },
+    ],
+  },
 };
+
+/** A task of the lesson 8 to-do list. */
+type Task = { title: string; done: boolean };
+
+/** The task at `id`, or the UnknownTask revert of getter(id) and setter(id) past the end. */
+function findTask(state: SimState, id: bigint): Task | { revert: { error: string; args: { id: bigint } } } {
+  const tasks = state.tasks as Task[];
+  return id < BigInt(tasks.length) ? tasks[Number(id)] : { revert: { error: 'UnknownTask', args: { id } } };
+}
 
 export function getSimulation(lessonId: number): LessonSimulation | null {
   return SIMULATIONS[lessonId] ?? null;
