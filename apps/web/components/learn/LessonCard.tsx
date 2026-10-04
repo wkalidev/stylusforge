@@ -21,8 +21,35 @@ function details(node: SkillNode): string {
   return parts.join(' · ');
 }
 
+/**
+ * The certificate state of a passed lesson: claimed (owned by the connected wallet) or unclaimed
+ * (registered and not owned, or unknown without a wallet). Null for lessons not passed.
+ */
+export type CertificateState = 'claimed' | 'unclaimed' | null;
+
+function CertificateBadge({ state }: { state: CertificateState }) {
+  if (state === 'claimed') {
+    return (
+      <span className='inline-flex items-center gap-1.5 rounded-[var(--radius-forge)] border border-quench-500/60 px-2 py-0.5 text-xs font-semibold text-quench-300 quench-edge'>
+        <svg viewBox='0 0 12 12' className='h-3 w-3' aria-hidden='true'>
+          <path d='M2.5 6.2 5 8.5l4.5-5' fill='none' stroke='currentColor' strokeWidth='1.6' strokeLinecap='round' strokeLinejoin='round' />
+        </svg>
+        Certificate on-chain
+      </span>
+    );
+  }
+  if (state === 'unclaimed') {
+    return (
+      <span className='rounded-[var(--radius-forge)] border border-dashed border-quench-500/60 px-2 py-0.5 text-xs font-semibold text-quench-300'>
+        Claim your certificate
+      </span>
+    );
+  }
+  return null;
+}
+
 /** A lesson on the path: what you build, how long it takes and where you stand. */
-export function LessonCard({ node, badges }: { node: SkillNode; badges?: React.ReactNode }) {
+export function LessonCard({ node, certificate = null }: { node: SkillNode; certificate?: CertificateState }) {
   const { lesson, state } = node;
   const tone =
     state === 'completed'
@@ -48,7 +75,7 @@ export function LessonCard({ node, badges }: { node: SkillNode; badges?: React.R
         >
           {statusText(node)}
         </span>
-        {badges}
+        <CertificateBadge state={certificate} />
       </div>
     </>
   );

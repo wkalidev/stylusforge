@@ -6,7 +6,7 @@ import { forgePath, type Heat, type PathZone, type RowHeat } from '@/lib/progres
 import { useCompletedLessons } from '@/lib/progress/progress';
 import { skillTree, type SkillNode } from '@/lib/progress/skillTree';
 import { useClaimedLessons } from '@/lib/useClaimedLessons';
-import { LessonCard, statusText } from './LessonCard';
+import { LessonCard, statusText, type CertificateState } from './LessonCard';
 
 function LockIcon() {
   return (
@@ -127,6 +127,12 @@ export function SkillTree() {
   const passed = useCompletedLessons();
   const onChain = useClaimedLessons();
   const zones = forgePath(MODULES, skillTree(LESSONS, passed));
+  // Passed lessons not known to be claimed get a reminder: unclaimed on-chain, or unknown without a wallet.
+  const certificate = (node: SkillNode): CertificateState => {
+    if (node.state !== 'completed') return null;
+    if (onChain?.claimed.has(node.lesson.id)) return 'claimed';
+    return !onChain || onChain.unclaimed.has(node.lesson.id) ? 'unclaimed' : null;
+  };
 
   return (
     <div className='mt-10'>
@@ -139,16 +145,7 @@ export function SkillTree() {
                 <Spine heat={heat} />
                 <Knot node={node} />
                 <span className='sr-only'>{`Lesson ${node.lesson.id}: ${statusText(node)}.`}</span>
-                <LessonCard
-                  node={node}
-                  badges={
-                    onChain?.claimed.has(node.lesson.id) && (
-                      <span className='rounded-[var(--radius-forge)] border border-quench-500/60 px-2 py-0.5 text-xs font-semibold text-quench-300'>
-                        Certificate on-chain
-                      </span>
-                    )
-                  }
-                />
+                <LessonCard node={node} certificate={certificate(node)} />
               </li>
             ))}
           </ol>
