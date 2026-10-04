@@ -2,15 +2,16 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Editor from '@monaco-editor/react';
-import { LESSONS } from '@/lib/curriculum/lessons';
+import { getLesson } from '@/lib/curriculum/lessons';
 
 export function LessonLayout({ slug }: { slug: string }) {
-  const lesson = LESSONS[slug];
-  const [code, setCode] = useState(lesson?.starterCode ?? '');
+  const lesson = getLesson(slug);
+  const exercise = lesson?.exercise;
+  const [code, setCode] = useState(exercise?.starterCode ?? '');
   const [completed, setCompleted] = useState(false);
   const [hints, setHints] = useState<string[]>([]);
 
-  if (!lesson) {
+  if (!lesson || !exercise) {
     return (
       <div className='min-h-screen bg-gray-950 text-white flex items-center justify-center'>
         <p className='text-gray-400'>Lesson not found</p>
@@ -20,7 +21,7 @@ export function LessonLayout({ slug }: { slug: string }) {
 
   const checkCode = () => {
     const h: string[] = [];
-    for (const check of lesson.checks) {
+    for (const check of exercise.checks) {
       if (!code.includes(check.code)) {
         h.push(check.hint);
       }
@@ -47,7 +48,7 @@ export function LessonLayout({ slug }: { slug: string }) {
       </div>
       <div className='flex flex-1 overflow-hidden'>
         <div className='w-1/2 overflow-y-auto p-8 border-r border-gray-800'>
-          {lesson.explanation.split('\n').map((line, i) => {
+          {exercise.explanation.split('\n').map((line, i) => {
             if (line.startsWith('## ')) return <h2 key={i} className='text-2xl font-bold mt-6 mb-4'>{line.slice(3)}</h2>;
             if (line.startsWith('### ')) return <h3 key={i} className='text-lg font-bold mt-4 mb-2'>{line.slice(4)}</h3>;
             if (line.startsWith("'") && line.endsWith("'")) return <code key={i} className='block bg-gray-800 text-green-400 font-mono text-sm p-2 rounded mb-2'>{line.slice(1, -1)}</code>;
