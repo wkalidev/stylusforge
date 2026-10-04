@@ -118,6 +118,32 @@ describe("lesson simulations", () => {
     expect(removed).toMatchObject({ ok: true, state: { prices: [] } });
   });
 
+  it("lesson 8 adds tasks in order and completes them by id", () => {
+    const results = run(getSimulation(8)!, [
+      ["add_task", { title: "Write the lesson" }, alice],
+      ["add_task", { title: "Review it" }, bob],
+      ["complete", { id: "1" }, alice],
+      ["task", { id: "0" }, bob],
+      ["task", { id: "1" }, bob],
+    ]);
+    expect(results[2].state.tasks).toEqual([
+      { title: "Write the lesson", done: false },
+      { title: "Review it", done: true },
+    ]);
+    expect(results[3].returns).toEqual(["Write the lesson", false]);
+    expect(results[4].returns).toEqual(["Review it", true]);
+  });
+
+  it("lesson 8 reverts with UnknownTask past the end, for reads and writes", () => {
+    const [, read, write] = run(getSimulation(8)!, [
+      ["add_task", { title: "Only task" }, alice],
+      ["task", { id: "1" }, alice],
+      ["complete", { id: "5" }, alice],
+    ]);
+    expect(read).toMatchObject({ ok: false, error: { error: "UnknownTask", args: { id: 1n } } });
+    expect(write).toMatchObject({ ok: false, error: { error: "UnknownTask", args: { id: 5n } }, state: { tasks: [{ title: "Only task", done: false }] } });
+  });
+
   it("lesson 4 behaves like an ERC-20 transfer", () => {
     const results = run(getSimulation(4)!, [
       ["transfer", { to: "Bob", value: "400" }, alice],

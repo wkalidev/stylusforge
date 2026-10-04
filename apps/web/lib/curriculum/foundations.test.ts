@@ -65,3 +65,30 @@ describe("lesson 7: Storage vectors", () => {
     expect(result.objectives).toEqual(["Revert when the index is past the end of the list"]);
   });
 });
+
+describe("lesson 8: Nested structs", () => {
+  it("accepts the task fields in either order and a borrowed title", () => {
+    expect(variant(8, "string title;\n        bool done;", "bool done;\n        string title;").passed).toBe(true);
+    expect(variant(8, "task.title.set_str(title);", "task.title.set_str(&title);").passed).toBe(true);
+  });
+
+  it("refuses task fields declared in the contract instead of in Task", () => {
+    const moved = SOLUTIONS[8]
+      .replace("        string title;\n        bool done;\n", "")
+      .replace("        Task[] tasks;", "        Task[] tasks;\n        string title;");
+    const lesson = LESSONS.find((candidate) => candidate.id === 8)!;
+    expect(validateCode(moved, lesson.available ? lesson.exercise.checks : []).objectives).toEqual([
+      "Give every task a title and a done flag",
+    ]);
+  });
+
+  it("refuses a vector of addresses or a mapping of tasks", () => {
+    expect(variant(8, "Task[] tasks;", "address[] tasks;").passed).toBe(false);
+    expect(variant(8, "Task[] tasks;", "mapping(uint256 => Task) tasks;").passed).toBe(false);
+  });
+
+  it("refuses a complete that does not set the flag", () => {
+    const result = variant(8, "task.done.set(true);", "task.done.set(false);");
+    expect(result.objectives).toEqual(["Mark the task as done"]);
+  });
+});
