@@ -1,12 +1,5 @@
 import Link from 'next/link';
-
-const lessons = [
-  { id: 1, title: 'Hello World Stylus', difficulty: 'Beginner', xp: 100 },
-  { id: 2, title: 'Storage and State', difficulty: 'Beginner', xp: 150 },
-  { id: 3, title: 'Events and Errors', difficulty: 'Intermediate', xp: 200 },
-  { id: 4, title: 'ERC-20 Token', difficulty: 'Intermediate', xp: 300 },
-  { id: 5, title: 'DeFi Interaction', difficulty: 'Advanced', xp: 500 },
-];
+import { LESSONS } from '@/lib/curriculum/lessons';
 
 export default function HomePage() {
   return (
@@ -25,7 +18,7 @@ export default function HomePage() {
       <section className='max-w-4xl mx-auto py-20 px-4'>
         <h2 className='text-3xl font-bold mb-8'>Curriculum</h2>
         <div className='space-y-4'>
-          {lessons.map((lesson) => (
+          {LESSONS.map((lesson) => (
             <div key={lesson.id} className='flex items-center justify-between bg-gray-900 rounded-xl p-6 border border-gray-800'>
               <div className='flex items-center gap-4'>
                 <span className='text-3xl font-black text-gray-700'>

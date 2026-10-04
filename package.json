@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
-    "test": "pnpm --filter contracts test",
+    "test": "pnpm --filter contracts test && pnpm --filter web test",
     "lint": "pnpm --filter web lint",
     "chain": "pnpm --filter contracts chain",
     "deploy:local": "pnpm --filter contracts deploy:local"

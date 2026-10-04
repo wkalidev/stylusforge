@@ -23,7 +23,7 @@ contracts/
 └─ .env.example                   configuration variable names
 ```
 
-Lesson ids, names and XP come from [`curriculum/lessons.json`](../curriculum/lessons.json), the single source of truth shared with the web app. Both `scripts/deploy.ts` and the tests read it through `scripts/lessons.ts`.
+Lesson ids, names and XP come from [`curriculum/lessons.json`](../curriculum/lessons.json), the single source of truth shared with the web app. The deploy scripts and the tests read it through `scripts/lessons.ts`, which returns only the lessons marked `"available": true`: an unavailable lesson is never registered, since a registered lesson cannot change.
 
 ## Commands
 
@@ -117,7 +117,7 @@ Custom errors: `InvalidLesson`, `LessonAlreadyExists`, `AlreadyCompleted`, `Soul
 With `pnpm chain` running, `pnpm deploy:local` runs `scripts/deploy-local.ts` on the built-in `localhost` network:
 
 1. stops unless it is connected to a running node with chain id 31337 (the in-process network also uses 31337 but vanishes when the script exits);
-2. deploys from Hardhat account #0, registers the lessons and sets Hardhat account #1 as the claim signer;
+2. deploys from Hardhat account #0, registers the available lessons and sets Hardhat account #1 as the claim signer;
 3. writes `apps/web/.env.development.local` (`NEXT_PUBLIC_CHAIN_ID`, `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS`, `CLAIM_SIGNER_PRIVATE_KEY`), overwriting it on every run. It writes no other file.
 
 Both keys are the public Hardhat test keys; no configuration variable is needed. The node keeps its state in memory, so run `pnpm deploy:local` again after restarting it. The full local workflow, including MetaMask, is in the [root README](../README.md#local-development).
@@ -128,7 +128,7 @@ Both keys are the public Hardhat test keys; no configuration variable is needed.
 
 1. reads `CLAIM_SIGNER_ADDRESS` (environment or keystore) and stops before connecting if it is missing or invalid;
 2. deploys `StylusForgeNFT` from the deployer account;
-3. registers every lesson of `curriculum/lessons.json` with its name and XP;
+3. registers every available lesson of `curriculum/lessons.json` with its name and XP;
 4. sets the claim signer;
 5. prints the variables to add to `apps/web/.env.local`.
 
