@@ -45,20 +45,32 @@ export function snippetPattern(snippet: string): RegExp {
   return new RegExp(start + source + end);
 }
 
+/** Replaces every character except newlines with a space, keeping positions and lines. */
+function blank(segment: string): string {
+  return segment.replace(/[^\n]/g, " ");
+}
+
+/** A string literal emptied in place: same length, quotes at both ends, contents blanked. */
+function emptyLiteral(literal: string): string {
+  return literal.length < 2 ? blank(literal) : `"${blank(literal.slice(1, -1))}"`;
+}
+
 /**
  * Removes what a check must never match: line comments, (nested) block comments and the
- * contents of string literals, including raw strings. Comments become a space so the tokens
- * around them stay separated; strings keep their quotes and lose their contents.
+ * contents of string literals, including raw strings. Positions are preserved: removed
+ * characters become spaces (newlines stay), so an index in the result is the same index in the
+ * original code and matches map back to lines.
  */
 export function stripCommentsAndStrings(code: string): string {
   let out = "";
   let i = 0;
   while (i < code.length) {
+    const start = i;
     const rest = code.slice(i);
     if (rest.startsWith("//")) {
       const end = code.indexOf("\n", i);
       i = end === -1 ? code.length : end;
-      out += " ";
+      out += blank(code.slice(start, i));
     } else if (rest.startsWith("/*")) {
       let depth = 1;
       i += 2;
@@ -73,21 +85,21 @@ export function stripCommentsAndStrings(code: string): string {
           i += 1;
         }
       }
-      out += " ";
+      out += blank(code.slice(start, i));
     } else if (/^b?r#*"/.test(rest) && !/[A-Za-z0-9_]/.test(code[i - 1] ?? "")) {
       // Raw string r"..." / r#"..."#: ends at a quote followed by the same number of hashes.
       const opening = rest.match(/^b?r(#*)"/)!;
       const closing = `"${opening[1]}`;
       const end = code.indexOf(closing, i + opening[0].length);
       i = end === -1 ? code.length : end + closing.length;
-      out += '""';
+      out += emptyLiteral(code.slice(start, i));
     } else if (code[i] === '"') {
       i += 1;
       while (i < code.length && code[i] !== '"') {
         i += code[i] === "\\" ? 2 : 1;
       }
-      i += 1;
-      out += '""';
+      i = Math.min(i + 1, code.length);
+      out += emptyLiteral(code.slice(start, i));
     } else {
       out += code[i];
       i += 1;
