@@ -22,6 +22,15 @@ export interface PathZone {
   index: number;
   header: RowHeat;
   nodes: PathNode[];
+  /** Lessons of the module passed in this browser. */
+  passed: number;
+  /** Lessons of the module, written or not. */
+  total: number;
+  /**
+   * complete: every lesson passed; open: at least one lesson passed or available;
+   * locked: nothing to start yet (or no lesson listed).
+   */
+  state: 'complete' | 'open' | 'locked';
 }
 
 interface ModuleInput {
@@ -57,12 +66,22 @@ export function forgePath(modules: readonly ModuleInput[], nodes: readonly Skill
     return { in: link(i - 1), out: link(i) };
   };
 
-  return zones.map(({ module, index, header, lessonRows }) => ({
-    id: module.id,
-    name: module.name,
-    zone: module.zone,
-    index,
-    header: heatOf(header),
-    nodes: lessonRows.map((row) => ({ node: row.node as SkillNode, ...heatOf(row) })),
-  }));
+  return zones.map(({ module, index, header, lessonRows }) => {
+    const moduleNodes = lessonRows.map((row) => row.node as SkillNode);
+    const passed = moduleNodes.filter((node) => node.state === 'completed').length;
+    const total = moduleNodes.length;
+    const state =
+      total > 0 && passed === total ? 'complete' : moduleNodes.some((node) => node.state !== 'locked') ? 'open' : 'locked';
+    return {
+      id: module.id,
+      name: module.name,
+      zone: module.zone,
+      index,
+      header: heatOf(header),
+      nodes: moduleNodes.map((node, i) => ({ node, ...heatOf(lessonRows[i]) })),
+      passed,
+      total,
+      state,
+    };
+  });
 }

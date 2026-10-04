@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { LESSONS } from '@/lib/curriculum/lessons';
 import { MODULES } from '@/lib/curriculum/modules';
-import { forgePath, type Heat, type RowHeat } from '@/lib/progress/forgePath';
+import { forgePath, type Heat, type PathZone, type RowHeat } from '@/lib/progress/forgePath';
 import { useCompletedLessons } from '@/lib/progress/progress';
 import { skillTree, type SkillNode } from '@/lib/progress/skillTree';
 import { useClaimedLessons } from '@/lib/useClaimedLessons';
@@ -118,6 +118,64 @@ function Spine({ heat }: { heat: RowHeat }) {
   );
 }
 
+function zoneStatus(zone: PathZone): string {
+  if (zone.total === 0) return 'Lessons coming soon';
+  if (zone.state === 'complete') return `All ${zone.total} lessons passed`;
+  const firstLocked = zone.nodes[0]?.node;
+  if (zone.state === 'locked') {
+    return firstLocked?.unlockedBy ? `Pass ${firstLocked.unlockedBy.title} to enter` : 'Lessons coming soon';
+  }
+  return `${zone.passed} of ${zone.total} lessons passed`;
+}
+
+/** A zone header: zone and module names, with the module's progress and completion state. */
+function ZoneHeader({ zone }: { zone: PathZone }) {
+  const fraction = zone.total ? zone.passed / zone.total : 0;
+  return (
+    <div className='relative pt-8 pb-4 pl-16'>
+      <Spine heat={zone.header} />
+      <span
+        aria-hidden='true'
+        className={
+          'absolute top-[calc(50%+0.5rem)] left-6 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 border ' +
+          (zone.state === 'complete'
+            ? 'border-amber-300 bg-gradient-to-b from-amber-300 to-molten-500 shadow-[0_0_14px_var(--color-molten-500)]'
+            : zone.state === 'open'
+              ? 'border-amber-300/80 bg-steel-900'
+              : 'border-steel-600 bg-steel-850')
+        }
+      />
+      <div className={zone.state === 'locked' ? 'opacity-55' : undefined}>
+        <div className='flex flex-wrap items-end justify-between gap-x-6 gap-y-2'>
+          <div>
+            <p className='text-xs font-semibold tracking-[0.2em] text-amber-300/90 uppercase'>
+              Zone {zone.index} · {zone.zone}
+            </p>
+            <h2 id={`zone-${zone.id}`} className='font-display text-3xl font-bold leading-tight text-steel-100'>
+              {zone.name}
+            </h2>
+          </div>
+          {zone.state === 'complete' ? (
+            <span className='rounded-[var(--radius-forge)] bg-molten-500/15 px-2.5 py-1 text-xs font-semibold text-amber-300'>
+              Zone complete
+            </span>
+          ) : (
+            zone.total > 0 && (
+              <span aria-hidden='true' className='h-1.5 w-28 overflow-hidden rounded-full bg-steel-800'>
+                <span
+                  className='block h-full rounded-full bg-gradient-to-r from-ember-500 via-molten-500 to-amber-300'
+                  style={{ width: `${fraction * 100}%` }}
+                />
+              </span>
+            )
+          )}
+        </div>
+        <p className='mt-1 text-sm text-steel-400'>{zoneStatus(zone)}</p>
+      </div>
+    </div>
+  );
+}
+
 /** The curriculum as one path through the forge zones, heated along the lessons already passed. */
 export function SkillTree() {
   const passed = useCompletedLessons();
@@ -128,20 +186,8 @@ export function SkillTree() {
     <div className='mt-10'>
       {zones.map((zone) => (
         <section key={zone.id} aria-labelledby={`zone-${zone.id}`}>
-          <div className='relative pt-8 pb-4 pl-16'>
-            <Spine heat={zone.header} />
-            <span
-              aria-hidden='true'
-              className='absolute top-[calc(50%+1rem)] left-6 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-amber-300/70 bg-steel-900'
-            />
-            <p className='text-xs font-semibold tracking-[0.2em] text-amber-300/90 uppercase'>
-              Zone {zone.index} · {zone.zone}
-            </p>
-            <h2 id={`zone-${zone.id}`} className='font-display text-3xl font-bold leading-tight text-steel-100'>
-              {zone.name}
-            </h2>
-          </div>
-          <ol aria-label={`${zone.name} lessons`}>
+          <ZoneHeader zone={zone} />
+          <ol aria-label={`${zone.name} lessons`} className={zone.state === 'locked' ? 'opacity-70' : undefined}>
             {zone.nodes.map(({ node, ...heat }) => (
               <li key={node.lesson.id} className='relative py-3 pl-16'>
                 <Spine heat={heat} />
