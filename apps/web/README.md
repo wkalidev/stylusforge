@@ -35,6 +35,7 @@ apps/web/
 │  ├─ claim/UnclaimedPrompt.tsx bar listing passed lessons whose certificate is not claimed
 │  ├─ profile/ProfileView.tsx   rank, XP and certificates read on-chain
 │  ├─ layout/SiteHeader.tsx     shared header (logo, navigation, player controls slot)
+│  ├─ layout/SiteFooter.tsx     footer: copyright, links, network badge
 │  ├─ layout/HeaderControls.tsx XP meter, anvil sound toggle and wallet button in the header
 │  ├─ layout/WalletButton.tsx   RainbowKit flows behind compact forge buttons
 │  ├─ feedback/SparkBurst.tsx   spark burst on a passing check
@@ -60,6 +61,7 @@ apps/web/
 │  ├─ claimErrors.ts            claim errors in plain words
 │  ├─ certificate/              token id parsing, ERC-1155 metadata, SVG certificate
 │  ├─ explorer.ts               block explorer links (none on the local chain)
+│  ├─ site.ts                   footer facts: handles, links, first commit date
 │  ├─ server/claimSigner.ts     server-only: loads CLAIM_SIGNER_PRIVATE_KEY
 │  └─ wagmi.ts                  wagmi config for the selected chain
 ├─ eslint.config.mjs
@@ -126,6 +128,10 @@ Loading and performance:
 - The frame loop stops while the hero is off-screen (IntersectionObserver).
 - Measured at 60 fps (16.7 ms average, 16.9 ms p95 frame time) on an integrated AMD Radeon laptop GPU at 1440×900.
 
+## Footer
+
+Every page ends with the footer (`components/layout/SiteFooter.tsx`): "© <years> StylusForge", where the start year comes from the first commit (2026-09-27, stored in `lib/site.ts` because deployment builds use shallow clones) and the current year is computed at render time (build time for static pages), shown as a single year while they match; "Est. September 2026"; links to the source, wkalidev.com and the MIT license; a network badge (Arbitrum Sepolia or Local chain); and "Built with ♥ by wkalidev". Only handles are used, never real names.
+
 ## Scripts
 
 Run them from the repository root (`pnpm dev`, `pnpm build`, `pnpm lint`) or from this directory:
@@ -170,11 +176,11 @@ The store (`lib/progress/storage.ts`) is read through `useSyncExternalStore`: em
 
 ## Claim flow
 
-1. The student passes a lesson; the claim panel appears under the editor.
+1. The student passes a lesson; a compact result bar appears under the editor ("Forged: +XP", the claim action and the next lesson), so the editor keeps its height.
 2. Without a wallet it offers to connect one; on another network it offers to switch to the app's chain.
 3. "Claim certificate" posts `{ address, lessonId, code }` to `/api/claim`. The route validates the input, runs the lesson checks again on the server, and signs an EIP-712 voucher `Claim(student, lessonId, deadline)` valid for 15 minutes with `CLAIM_SIGNER_PRIVATE_KEY`.
 4. The panel simulates `claim(lessonId, deadline, signature)` (so contract errors are explained before the wallet opens), sends it with wagmi from the student's wallet, waits for the receipt and refreshes every on-chain read.
-5. When `completed(student, lessonId)` is true the panel shows "Certificate owned", with an explorer link to the transaction (Arbiscan on Arbitrum Sepolia; the hash only on the local chain).
+5. When `completed(student, lessonId)` is true the bar shows "Certificate owned", with an explorer link to the transaction (Arbiscan on Arbitrum Sepolia; the hash only on the local chain).
 
 With a wallet connected, a bar under the header lists the lessons passed in this browser whose certificate the wallet does not own yet, so local and on-chain progress converge.
 
@@ -188,7 +194,7 @@ With a wallet connected, a bar under the header lists the lessons passed in this
 | 422 | `{ error, hints }` | Code fails the lesson checks |
 | 503 | `{ error }` | Contract address or signer key not configured |
 
-`CLAIM_SIGNER_PRIVATE_KEY` is only read in `lib/server/claimSigner.ts`, which imports `server-only`: importing it from a Client Component fails the build. Its address must be the contract's `signer`; `pnpm deploy:local` sets both for the local chain.
+`CLAIM_SIGNER_PRIVATE_KEY` is only read in `lib/server/claimSigner.ts`, which imports `server-only`: importing it from a Client Component fails the build. The reference solutions (`lib/curriculum/solutions.ts`) are guarded the same way; vitest maps `server-only` to an empty module (`test/server-only.ts`). Its address must be the contract's `signer`; `pnpm deploy:local` sets both for the local chain.
 
 ## Profile and metadata
 
