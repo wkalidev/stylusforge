@@ -3,13 +3,18 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
-contract StylusForgeNFT is ERC1155, Ownable {
+contract StylusForgeNFT is ERC1155, Ownable, EIP712 {
     struct Lesson {
         string name;
         uint256 xp;
         bool exists;
     }
+
+    bytes32 public constant CLAIM_TYPEHASH =
+        keccak256("Claim(address student,uint256 lessonId,uint256 deadline)");
 
     mapping(uint256 => Lesson) public lessons;
     uint256[] private _lessonIds;
@@ -27,8 +32,10 @@ contract StylusForgeNFT is ERC1155, Ownable {
     error AlreadyCompleted(address student, uint256 lessonId);
     error SoulBound();
     error InvalidSigner();
+    error InvalidSignature();
+    error ClaimExpired(uint256 deadline);
 
-    constructor() ERC1155("") Ownable(msg.sender) {}
+    constructor() ERC1155("") Ownable(msg.sender) EIP712("StylusForge", "1") {}
 
     function addLesson(uint256 lessonId, string calldata name, uint256 xp) external onlyOwner {
         if (lessonId == 0) revert InvalidLesson(lessonId);
@@ -48,7 +55,21 @@ contract StylusForgeNFT is ERC1155, Ownable {
         return _lessonIds;
     }
 
+    /// @notice Claims the certificate of `lessonId` for the caller with a voucher signed by `signer`.
+    /// @dev The voucher is the EIP-712 typed data Claim(student, lessonId, deadline), where student is msg.sender.
+    function claim(uint256 lessonId, uint256 deadline, bytes calldata signature) external {
+        if (block.timestamp > deadline) revert ClaimExpired(deadline);
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(CLAIM_TYPEHASH, msg.sender, lessonId, deadline)));
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
+        if (err != ECDSA.RecoverError.NoError || recovered != signer) revert InvalidSignature();
+        _complete(msg.sender, lessonId);
+    }
+
     function mintCertificate(address student, uint256 lessonId) external onlyOwner {
+        _complete(student, lessonId);
+    }
+
+    function _complete(address student, uint256 lessonId) private {
         if (!lessons[lessonId].exists) revert InvalidLesson(lessonId);
         if (completed[student][lessonId]) revert AlreadyCompleted(student, lessonId);
         completed[student][lessonId] = true;
