@@ -18,11 +18,13 @@ export function Objectives({ results, variant }: { results: CheckResult[]; varia
           <span
             aria-hidden='true'
             className={
-              'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ' +
-              (result.passed ? 'bg-molten-500' : 'border border-steel-600')
+              'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border transition-[background-color,border-color,box-shadow] duration-500 motion-reduce:transition-none ' +
+              (result.passed
+                ? 'border-amber-300 bg-gradient-to-b from-amber-300 to-molten-500 shadow-[0_0_10px_var(--color-molten-500)]'
+                : 'border-steel-600 bg-steel-850')
             }
           />
-          <span className={result.passed ? 'text-steel-100' : 'text-steel-400'}>
+          <span className={'transition-colors duration-500 motion-reduce:transition-none ' + (result.passed ? 'text-steel-100' : 'text-steel-400')}>
             <span className='sr-only'>{result.passed ? 'Done: ' : 'To do: '}</span>
             {result.check.hint}
           </span>
@@ -30,11 +32,18 @@ export function Objectives({ results, variant }: { results: CheckResult[]; varia
       ))}
     </ul>
   );
+  const fraction = results.length ? met / results.length : 0;
   const heading = (
-    <span className='flex items-center gap-2'>
+    <span className='flex items-center gap-3'>
       <span className='font-display text-xl font-bold text-steel-100'>Objectives</span>
-      <span className='text-sm text-steel-400 tabular-nums' aria-live='polite'>
+      <span className={'text-sm tabular-nums ' + (met === results.length ? 'text-amber-300' : 'text-steel-400')} aria-live='polite'>
         {met}/{results.length}
+      </span>
+      <span aria-hidden='true' className='h-1 flex-1 overflow-hidden rounded-full bg-steel-800'>
+        <span
+          className='block h-full rounded-full bg-gradient-to-r from-ember-500 via-molten-500 to-amber-300 transition-[width] duration-500 motion-reduce:transition-none'
+          style={{ width: `${fraction * 100}%` }}
+        />
       </span>
     </span>
   );
