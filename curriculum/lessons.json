@@ -1,0 +1,6 @@
+[
+  { "id": 1, "name": "Hello World Stylus", "xp": 100 },
+  { "id": 2, "name": "Storage and State", "xp": 150 },
+  { "id": 3, "name": "Events and Errors", "xp": 200 },
+  { "id": 4, "name": "ERC-20 Token", "xp": 300 }
+]

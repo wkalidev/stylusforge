@@ -2,12 +2,9 @@ import { hooks, network } from "hardhat";
 import { configVariable } from "hardhat/config";
 import { getAddress, isAddress } from "viem";
 
-const LESSONS = [
-  { id: 1n, name: "Hello World Stylus", xp: 100n },
-  { id: 2n, name: "Storage and State", xp: 150n },
-  { id: 3n, name: "Events and Errors", xp: 200n },
-  { id: 4n, name: "ERC-20 Token", xp: 300n },
-];
+import { loadLessons } from "./lessons.js";
+
+const LESSONS = loadLessons();
 
 /**
  * Resolves a Hardhat configuration variable the same way the config does:
