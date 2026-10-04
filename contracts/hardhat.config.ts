@@ -20,4 +20,10 @@ export default defineConfig({
       chainId: 421614,
     },
   },
+  verify: {
+    etherscan: {
+      // Etherscan API V2 key: one key covers every Etherscan-family explorer, including Arbiscan
+      apiKey: configVariable("ETHERSCAN_API_KEY"),
+    },
+  },
 });
