@@ -172,6 +172,51 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  7: {
+    contract: 'PriceLog',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ prices: [] }),
+    functions: [
+      {
+        name: 'length',
+        abiName: 'length',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: BigInt((state.prices as bigint[]).length) }),
+      },
+      {
+        name: 'record',
+        abiName: 'record',
+        view: false,
+        params: [{ name: 'price', type: 'uint256' }],
+        run: (state, args) => ({ state: { ...state, prices: [...(state.prices as bigint[]), args.price as bigint] } }),
+      },
+      {
+        name: 'price_at',
+        abiName: 'priceAt',
+        view: true,
+        params: [{ name: 'index', type: 'uint256' }],
+        returns: 'uint256',
+        run: (state, args) => {
+          const prices = state.prices as bigint[];
+          const index = args.index as bigint;
+          if (index >= BigInt(prices.length)) {
+            return { revert: { error: 'IndexOutOfBounds', args: { index, length: BigInt(prices.length) } } };
+          }
+          return { returns: prices[Number(index)] };
+        },
+      },
+      {
+        name: 'remove_last',
+        abiName: 'removeLast',
+        view: false,
+        params: [],
+        // Like pop() on an empty vector: nothing to remove, and no revert.
+        run: (state) => ({ state: { ...state, prices: (state.prices as bigint[]).slice(0, -1) } }),
+      },
+    ],
+  },
 };
 
 export function getSimulation(lessonId: number): LessonSimulation | null {
