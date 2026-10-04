@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import curriculum from "../../../../curriculum/lessons.json";
 import { LESSONS, getLesson } from "./lessons";
 import { SOLUTIONS } from "./solutions";
-import { validateCode } from "./validate";
+import { evaluateChecks, validateCode } from "./validate";
 
 describe("LESSONS", () => {
   it("follows curriculum/lessons.json for ids, names, XP and availability", () => {
@@ -28,6 +28,13 @@ describe.each(available)("lesson $id: $title", (lesson) => {
 
   it("has a reference solution", () => {
     expect(solution).toBeTypeOf("string");
+  });
+
+  it("anchors every check to a line of the starter code", () => {
+    for (const result of evaluateChecks(starterCode, checks)) {
+      expect(result.check.anchor, result.check.hint).toBeTypeOf("string");
+      expect(result.line, `anchor not found: ${result.check.anchor}`).toBeGreaterThan(0);
+    }
   });
 
   it("fails every check on the starter code", () => {

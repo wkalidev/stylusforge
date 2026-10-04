@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { snippetPattern, stripCommentsAndStrings, validateCode } from "./validate";
+import { evaluateChecks, snippetPattern, stripCommentsAndStrings, validateCode } from "./validate";
 
 describe("snippetPattern", () => {
   it("ignores whitespace around punctuation", () => {
@@ -60,6 +60,37 @@ describe("stripCommentsAndStrings", () => {
   it("keeps every line where it was", () => {
     const code = 'a /* one\ntwo */ b\n// three\n"four\nfive" c';
     expect(strip(code).split("\n")).toHaveLength(code.split("\n").length);
+  });
+});
+
+describe("evaluateChecks", () => {
+  const checks = [
+    { anyOf: ["uint256 count;"], hint: "declare count", anchor: "pub struct Counter {" },
+    { anyOf: ["self.count.get()"], hint: "read count", anchor: "pub fn get(&self)" },
+    { anyOf: ["U256::ZERO"], hint: "no anchor" },
+  ];
+  const code = [
+    "// pub fn get(&self) in a comment does not count",
+    "sol_storage! {",
+    "    pub struct Counter {",
+    "        uint256 count;",
+    "    }",
+    "}",
+    "pub fn get(&self) -> U256 {",
+    "    U256::from(0)",
+    "}",
+  ].join("\n");
+
+  it("reports each check with the line of its anchor", () => {
+    expect(evaluateChecks(code, checks).map(({ passed, line }) => ({ passed, line }))).toEqual([
+      { passed: true, line: 3 },
+      { passed: false, line: 7 },
+      { passed: false, line: null },
+    ]);
+  });
+
+  it("returns a null line when the anchor is missing", () => {
+    expect(evaluateChecks("fn main() {}", checks)[0].line).toBeNull();
   });
 });
 
