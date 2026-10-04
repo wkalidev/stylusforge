@@ -20,6 +20,8 @@ apps/web/
 │  ├─ layout.tsx            root layout, wraps the app in the wallet providers
 │  ├─ page.tsx              landing page with the curriculum preview
 │  ├─ api/claim/route.ts    POST /api/claim: re-validates code, signs claim vouchers
+│  ├─ api/metadata/[id]/    ERC-1155 metadata JSON (route.ts) and SVG image (image/route.ts)
+│  ├─ profile/page.tsx      on-chain certificates and XP of the connected wallet
 │  └─ learn/
 │     ├─ page.tsx           curriculum list
 │     └─ [slug]/page.tsx    lesson page (prerendered per available lesson, 404 otherwise)
@@ -27,6 +29,7 @@ apps/web/
 │  ├─ brand/ForgeMark.tsx       StylusForge mark and logo
 │  ├─ claim/ClaimCertificate.tsx claim panel of a passed lesson
 │  ├─ claim/UnclaimedPrompt.tsx bar listing passed lessons whose certificate is not claimed
+│  ├─ profile/ProfileView.tsx   rank, XP and certificates read on-chain
 │  ├─ layout/SiteHeader.tsx     shared header (logo, navigation, player controls slot)
 │  ├─ layout/HeaderControls.tsx XP meter and wallet button in the header
 │  ├─ progress/XpMeter.tsx      local rank, XP and progress to the next rank
@@ -44,6 +47,7 @@ apps/web/
 │  ├─ contract.ts               StylusForgeNFT ABI (checked against the artifact) and address
 │  ├─ claim.ts                  EIP-712 voucher types and signing (shared)
 │  ├─ claimErrors.ts            claim errors in plain words
+│  ├─ certificate/              token id parsing, ERC-1155 metadata, SVG certificate
 │  ├─ explorer.ts               block explorer links (none on the local chain)
 │  ├─ server/claimSigner.ts     server-only: loads CLAIM_SIGNER_PRIVATE_KEY
 │  └─ wagmi.ts                  wagmi config for the selected chain
@@ -146,6 +150,19 @@ With a wallet connected, a bar under the header lists the lessons passed in this
 | 503 | `{ error }` | Contract address or signer key not configured |
 
 `CLAIM_SIGNER_PRIVATE_KEY` is only read in `lib/server/claimSigner.ts`, which imports `server-only`: importing it from a Client Component fails the build. Its address must be the contract's `signer`; `pnpm deploy:local` sets both for the local chain.
+
+## Profile and metadata
+
+`/profile` shows what is on-chain for the connected wallet, not local progress: the claimed certificates (rendered with the certificate SVG) and the XP they carry (`getTotalXP`), with the rank that XP reaches. The header XP meter stays local, so both views can differ until every passed lesson is claimed.
+
+The contract's metadata URI is `<app origin>/api/metadata/{id}` (`pnpm deploy:local` sets `http://localhost:3000/api/metadata/{id}`):
+
+| Route | Returns |
+|---|---|
+| `GET /api/metadata/[id]` | ERC-1155 JSON: `name`, `description`, `image`, `external_url`, `attributes` (lesson, XP, difficulty, transferable) |
+| `GET /api/metadata/[id]/image` | The SVG certificate (`image/svg+xml`) |
+
+`[id]` is the decimal id or the 64-hex-digit form clients substitute for `{id}`. Unknown and unavailable lessons return 404. Both responses are cacheable for an hour. The SVG is standalone (no external resources) so wallets and marketplaces can display it.
 
 ## Lessons and checks
 
