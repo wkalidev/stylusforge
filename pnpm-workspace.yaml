@@ -1,9 +1,14 @@
 packages:
   - 'apps/*'
   - 'contracts'
+onlyBuiltDependencies:
+  - esbuild
 ignoredBuiltDependencies:
+  - bufferutil
+  - keccak
   - sharp
   - unrs-resolver
+  - utf-8-validate
 overrides:
   # cdp-sdk >=1.53 statically imports optional @x402/* peers that break the Next.js build
   '@coinbase/cdp-sdk': 1.52.0
