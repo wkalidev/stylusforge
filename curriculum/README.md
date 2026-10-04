@@ -118,6 +118,7 @@ A check has:
 | Field | Description |
 |---|---|
 | `anyOf` | Snippets; the check passes when the code contains any of them. |
+| `alsoAnyOf` | Optional groups of snippets for further parts of the same goal: the check also needs one snippet of every group. Use it to merge steps of one idea (grow a vector, then set the new element's title) instead of writing one check per line. |
 | `objective` | The goal in plain words, never the expected code: "Increment the count by 1", not "write `self.count.set(...)`". Plain text, no backticks. |
 | `hints` | Two or more hints, revealed one at a time, from a nudge to the exact code. Only the last one gives the expected code. Inline code goes between backticks. |
 | `anchor` | A snippet locating the line the check is about (a struct, a function signature, the `sol!` block). |
@@ -143,5 +144,5 @@ Every lesson must satisfy, and `apps/web/lib/curriculum/lessons.test.ts` enforce
 3. the reference solution passes every check;
 4. the solution still passes when reformatted;
 5. the solution pasted in comments or a raw string fails;
-6. no objective and no `### Your task` step contains the expected code of a check, and objectives contain no backticks;
-7. each check has at least two non-empty hints, and only the last one contains the expected code.
+6. no objective and no `### Your task` step contains any expected snippet of a check, and objectives contain no backticks;
+7. each check has at least two non-empty hints, and only the last one contains the expected code: every part of it for a check with `alsoAnyOf`, none of it in the hints before.
