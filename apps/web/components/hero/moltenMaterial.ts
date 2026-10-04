@@ -62,6 +62,9 @@ void main() {
 
 const fragmentShader = /* glsl */ `
 uniform float uTime;
+uniform float uHeat;
+uniform vec3 uSteel;
+uniform vec3 uRed;
 uniform vec3 uCrust;
 uniform vec3 uMolten;
 uniform vec3 uAmber;
@@ -86,10 +89,19 @@ void main() {
   );
   crack *= smoothstep(0.25, 0.7, heat);
 
-  vec3 color = mix(uCrust, uMolten, smoothstep(0.55, 0.95, heat) * 0.85);
-  color = mix(color, uAmber, crack);
+  // uHeat: 0 = cold steel, then dull red, 1 = molten. At 1 every term below is the full-heat look.
+  float h = clamp(uHeat, 0.0, 1.0);
+  vec3 molten = mix(uRed, uMolten, smoothstep(0.35, 1.0, h));
+  vec3 amber = mix(uRed, uAmber, smoothstep(0.6, 1.0, h));
+  vec3 crust = mix(uSteel, uCrust, smoothstep(0.0, 0.35, h));
+  float glow = smoothstep(0.05, 0.6, h);
+
+  vec3 color = mix(crust, molten, smoothstep(0.55, 0.95, heat) * 0.85 * glow);
+  color = mix(color, amber, crack * glow);
   // The core shows through at grazing angles: molten at the rim, amber at the very edge.
-  color += mix(uMolten, uAmber, fresnel) * pow(fresnel, 1.3) * 1.4;
+  color += mix(molten, amber, fresnel) * pow(fresnel, 1.3) * 1.4 * glow;
+  // Cold metal keeps a faint steel rim so it still reads as an ingot.
+  color += uSteel * fresnel * 0.8 * (1.0 - glow);
   color *= 0.92 + 0.08 * sin(uTime * 1.2);
 
   gl_FragColor = vec4(color, 1.0);
@@ -98,11 +110,17 @@ void main() {
 }
 `;
 
-/** Hot metal that glows from inside: animated heat, cracks in the crust, a molten rim. */
-export function createMoltenMaterial() {
+/**
+ * Hot metal that glows from inside: animated heat, cracks in the crust, a molten rim.
+ * `heat` (uniform uHeat) runs from 0, cold steel, through dull red to 1, fully molten.
+ */
+export function createMoltenMaterial(heat = 1) {
   return new ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
+      uHeat: { value: heat },
+      uSteel: { value: new Color('#4a5361') },
+      uRed: { value: new Color('#8f1a08') },
       uCrust: { value: new Color('#2a0d06') },
       uMolten: { value: new Color('#ff6a10') },
       uAmber: { value: new Color('#ffd27a') },
