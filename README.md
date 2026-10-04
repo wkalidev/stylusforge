@@ -139,6 +139,7 @@ For local development `pnpm deploy:local` writes the last three to `apps/web/.en
 | `DEPLOYER_PRIVATE_KEY` | `arbitrumSepolia` network |
 | `CLAIM_SIGNER_ADDRESS` | `scripts/deploy.ts` |
 | `ETHERSCAN_API_KEY` | `hardhat verify` (Arbiscan) |
+| `NFT_CONTRACT_ADDRESS`, `METADATA_BASE_URL` | `scripts/set-uri.ts` |
 
 ## Root scripts
 
@@ -180,7 +181,7 @@ Never set the local values written to `apps/web/.env.development.local` (chain 3
 
 After the first deployment:
 
-1. Point the token metadata at the deployed app (owner account): `setURI("https://<your-domain>/api/metadata/{id}")`.
+1. Point the token metadata at the deployed app from the owner account: `pnpm hardhat run scripts/set-uri.ts --network arbitrumSepolia` in `contracts/` ([contracts/README.md](contracts/README.md#metadata-uri)).
 2. Verify the contract on Arbiscan ([contracts/README.md](contracts/README.md#verification-on-arbiscan)).
 
 ## Continuous integration

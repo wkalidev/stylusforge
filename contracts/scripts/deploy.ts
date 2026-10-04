@@ -1,26 +1,8 @@
-import { hooks, network } from "hardhat";
-import { configVariable } from "hardhat/config";
+import { network } from "hardhat";
 import { getAddress, isAddress } from "viem";
 
+import { readConfigVariable } from "./config-variables.js";
 import { deployCertificate } from "./deploy-certificate.js";
-
-/**
- * Resolves a Hardhat configuration variable the same way the config does:
- * environment variable first, then the keystore.
- */
-async function readConfigVariable(name: string): Promise<string> {
-  if (process.env[name] !== undefined) {
-    return process.env[name];
-  }
-  return hooks.runHandlerChain(
-    "configurationVariables",
-    "fetchValue",
-    [configVariable(name)],
-    async (_context, variable) => {
-      throw new Error(`Configuration variable ${variable.name} is not set (environment or keystore)`);
-    },
-  );
-}
 
 const claimSignerValue = await readConfigVariable("CLAIM_SIGNER_ADDRESS");
 if (!isAddress(claimSignerValue)) {
