@@ -52,7 +52,7 @@ This is a pnpm workspace with a single lockfile (`pnpm-lock.yaml`) at the root.
 stylusforge/
 ├─ apps/web/      Next.js app (lessons, editor, wallet)
 ├─ contracts/     Hardhat 3 project (StylusForgeNFT certificate contract)
-├─ curriculum/    lessons.json (lesson ids, names, XP) and lesson rules
+├─ curriculum/    lessons.json (lesson ids, names, XP, modules), modules.json and lesson rules
 └─ docs/          Architecture overview
 ```
 
@@ -139,7 +139,7 @@ For local development `pnpm deploy:local` writes the last three to `apps/web/.en
 | `DEPLOYER_PRIVATE_KEY` | `arbitrumSepolia` network |
 | `CLAIM_SIGNER_ADDRESS` | `scripts/deploy.ts` |
 | `ETHERSCAN_API_KEY` | `hardhat verify` (Arbiscan) |
-| `NFT_CONTRACT_ADDRESS`, `METADATA_BASE_URL` | `scripts/set-uri.ts` |
+| `NFT_CONTRACT_ADDRESS`, `METADATA_BASE_URL` | `scripts/set-uri.ts` (`NFT_CONTRACT_ADDRESS` also for `scripts/register-lessons.ts`) |
 
 ## Root scripts
 
@@ -151,6 +151,7 @@ For local development `pnpm deploy:local` writes the last three to `apps/web/.en
 | `pnpm test` | `hardhat test` in `contracts`, then `vitest run` in `apps/web` |
 | `pnpm chain` | `hardhat node` in `contracts`: local chain on port 8545 |
 | `pnpm deploy:local` | Deploys to the local node and writes `apps/web/.env.development.local` |
+| `pnpm register:lessons --network <name>` | Registers the available lessons missing on a deployed contract, from the owner account |
 
 ## Testnet contract
 
