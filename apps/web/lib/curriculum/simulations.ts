@@ -1,4 +1,4 @@
-import { wrappingAdd, deleteMapping, readMapping, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
+import { deleteMapping, readMapping, wrappingAdd, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
