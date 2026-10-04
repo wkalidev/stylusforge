@@ -6,6 +6,7 @@ import { buttonClasses } from '@/components/ui/button';
 import { getLesson } from '@/lib/curriculum/lessons';
 import { validateCode } from '@/lib/curriculum/validate';
 import { LessonMarkdown } from './LessonMarkdown';
+import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 
 export function LessonLayout({ slug }: { slug: string }) {
   const lesson = getLesson(slug);
@@ -48,10 +49,12 @@ export function LessonLayout({ slug }: { slug: string }) {
             <Editor
               height="100%"
               language="rust"
-              theme="vs-dark"
+              theme={FORGE_EDITOR_THEME}
+              beforeMount={defineForgeEditorTheme}
               value={code}
               onChange={(val) => setCode(val ?? '')}
               options={{
+                fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
                 fontSize: 13,
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
