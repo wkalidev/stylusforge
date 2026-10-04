@@ -66,6 +66,14 @@ Each available lesson also has a reference solution in `apps/web/lib/curriculum/
 
 Content targets the current `stylus-sdk` (0.10): `sol_storage!` with Solidity field syntax, `#[entrypoint]` and `#[public]`, events emitted with `self.vm().log(...)`, errors declared in `sol!` and wrapped in an enum deriving `SolidityError`, and `self.vm().msg_sender()` for the caller.
 
+## Simulations
+
+After a pass, the lesson page offers "Try it": a JavaScript model of the lesson's contract (`apps/web/lib/curriculum/simulations.ts`, format in `simulation.ts`). It is labelled as a simulation and never runs the student's Rust.
+
+A simulation has a `contract` name, an optional `note` on its starting state (for example a seeded balance), `accounts` (Alice, Bob, Carol), an `initialState()` and `functions`. Each function has its Rust `name`, its ABI `abiName`, `view` or not, typed `params` (`uint256`, `address`, `string`), an optional `returns`, and a pure `run(state, args, caller)` that returns `{ state, returns, events }` or `{ revert: { error, args } }`.
+
+The engine parses arguments by type (uint256 within range, addresses by hex or account name), runs the function on a copy of the state, and leaves the state unchanged on a revert, an invalid argument or an arithmetic error (`checkedAdd` / `checkedSub`). Model the same order of operations as the reference solution. Tests require a simulation for every available lesson, with the same functions as its reference solution, and a scenario per lesson.
+
 ## Glossary
 
 `apps/web/lib/curriculum/glossary.ts` explains Stylus tokens on hover in the lesson editor: `sol_storage!`, `sol!`, `#[entrypoint]`, `#[public]`, the `no_main` `cfg_attr`, `extern crate alloc`, the prelude, `SolidityError`, `self.vm()`, `msg_sender()`, `vm().log`, `get_string`, `set_str`, `setter`, `mapping`, `uint256`, `U256` and `Address`.
