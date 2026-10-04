@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { ClaimCertificate } from '@/components/claim/ClaimCertificate';
@@ -7,13 +7,15 @@ import { SparkBurst } from '@/components/feedback/SparkBurst';
 import { LessonXpBar } from '@/components/progress/LessonXpBar';
 import { buttonClasses } from '@/components/ui/button';
 import { LESSONS, type Lesson } from '@/lib/curriculum/lessons';
-import { validateCode } from '@/lib/curriculum/validate';
+import { evaluateChecks, validateCode } from '@/lib/curriculum/validate';
+import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { useIsApplePlatform } from '@/lib/hooks/usePlatform';
 import { resetCode, saveCode, useSavedCode } from '@/lib/progress/code';
 import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progress';
 import { playAnvilStrike } from '@/lib/sound/anvil';
 import { isSoundEnabled } from '@/lib/sound/preference';
 import { LessonMarkdown } from './LessonMarkdown';
+import { Objectives } from './Objectives';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 import { WorkspaceTabs, tabId, tabPanelId, type WorkspaceTab } from './WorkspaceTabs';
 
@@ -29,6 +31,9 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const [strikes, setStrikes] = useState(0);
   const [tab, setTab] = useState<WorkspaceTab>('learn');
   const completedIds = useCompletedLessons();
+  // Live objectives: the checks re-run on the code once typing pauses.
+  const debouncedCode = useDebouncedValue(code, 300);
+  const liveResults = useMemo(() => evaluateChecks(debouncedCode, exercise.checks), [debouncedCode, exercise.checks]);
 
   const passed = completedIds.includes(lesson.id);
   const index = LESSONS.findIndex((candidate) => candidate.id === lesson.id);
@@ -116,6 +121,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
           className={`${tab === 'learn' ? 'block' : 'hidden'} p-6 sm:p-8 lg:block lg:w-1/2 lg:overflow-y-auto lg:border-r lg:border-steel-800 xl:px-12`}
         >
           <div className='mx-auto max-w-2xl'>
+            <Objectives results={liveResults} variant='panel' />
             <LessonMarkdown>{exercise.explanation}</LessonMarkdown>
             <button
               type='button'
@@ -136,6 +142,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
           aria-labelledby={tabId('code')}
           className={`${tab === 'code' ? 'flex' : 'hidden'} flex-col gap-4 p-4 sm:p-5 lg:flex lg:w-1/2 lg:overflow-y-auto`}
         >
+          <Objectives results={liveResults} variant='compact' />
           <div className='flex h-[60vh] min-h-72 flex-col overflow-hidden rounded-[var(--radius-forge)] border border-steel-700 bg-steel-950 lg:h-auto lg:flex-1'>
             <div className='ember-edge flex items-center justify-between border-b border-steel-800 bg-steel-900 px-4 py-2'>
               <span className='font-mono text-xs text-steel-300'>src/lib.rs</span>
