@@ -1,0 +1,42 @@
+import { describe, expect, it } from "vitest";
+
+import { LESSONS } from "@/lib/curriculum/lessons";
+import { certificateLesson, certificateMetadata, parseTokenId } from "./metadata";
+
+describe("parseTokenId", () => {
+  it("accepts decimal ids", () => {
+    expect(parseTokenId("1")).toBe(1);
+    expect(parseTokenId("42")).toBe(42);
+  });
+
+  it("accepts the 64-hex-digit {id} substitution", () => {
+    expect(parseTokenId("0000000000000000000000000000000000000000000000000000000000000004")).toBe(4);
+    expect(parseTokenId("000000000000000000000000000000000000000000000000000000000000000A")).toBe(10);
+  });
+
+  it.each(["", "0", "-1", "1.5", "0x1", "abc", "1e3", "0".repeat(63) + "g", "9".repeat(16)])(
+    "rejects %j",
+    (raw) => {
+      expect(parseTokenId(raw)).toBeNull();
+    },
+  );
+});
+
+describe("certificateLesson", () => {
+  it("returns available lessons only", () => {
+    expect(certificateLesson(1)?.slug).toBe("hello-world");
+    expect(certificateLesson(5)).toBeNull();
+    expect(certificateLesson(99)).toBeNull();
+  });
+});
+
+describe("certificateMetadata", () => {
+  it("describes the lesson with absolute URLs", () => {
+    const lesson = LESSONS[0];
+    const metadata = certificateMetadata(lesson, "https://stylusforge.example");
+    expect(metadata.name).toContain(lesson.title);
+    expect(metadata.image).toBe(`https://stylusforge.example/api/metadata/${lesson.id}/image`);
+    expect(metadata.external_url).toBe(`https://stylusforge.example/learn/${lesson.slug}`);
+    expect(metadata.attributes).toContainEqual({ trait_type: "XP", value: lesson.xp, display_type: "number" });
+  });
+});
