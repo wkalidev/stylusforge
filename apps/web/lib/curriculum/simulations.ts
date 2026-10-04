@@ -1,4 +1,4 @@
-import type { LessonSimulation, SimAccount } from './simulation';
+import { checkedAdd, type LessonSimulation, type SimAccount } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -28,6 +28,35 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
         view: false,
         params: [{ name: 'greeting', type: 'string' }],
         run: (state, args) => ({ state: { ...state, greeting: args.greeting } }),
+      },
+    ],
+  },
+  2: {
+    contract: 'Counter',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ count: 0n }),
+    functions: [
+      {
+        name: 'get',
+        abiName: 'get',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.count as bigint }),
+      },
+      {
+        name: 'increment',
+        abiName: 'increment',
+        view: false,
+        params: [],
+        run: (state) => ({ state: { ...state, count: checkedAdd(state.count as bigint, 1n) } }),
+      },
+      {
+        name: 'reset',
+        abiName: 'reset',
+        view: false,
+        params: [],
+        run: (state) => ({ state: { ...state, count: 0n } }),
       },
     ],
   },
