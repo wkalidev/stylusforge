@@ -4,11 +4,20 @@ export interface Rank {
   minXp: number;
 }
 
-/** Ranks in ascending order. Lessons 1 to 4 total 750 XP, so finishing them makes a Master Forger. */
+/**
+ * Ranks in ascending order, for the full curriculum (6000 XP). Each new rank lands on the last
+ * lesson of a module: Journeyman ends Foundations (775 XP), Bladesmith Contract logic (1850),
+ * Armorer Tokens (3150); Master Forger needs two lessons of Stylus specifics (4850) and
+ * Forgemaster every lesson.
+ */
 export const RANKS: readonly Rank[] = [
   { name: 'Apprentice', minXp: 0 },
   { name: 'Smith', minXp: 250 },
-  { name: 'Master Forger', minXp: 600 },
+  { name: 'Journeyman', minXp: 750 },
+  { name: 'Bladesmith', minXp: 1800 },
+  { name: 'Armorer', minXp: 3100 },
+  { name: 'Master Forger', minXp: 4800 },
+  { name: 'Forgemaster', minXp: 6000 },
 ];
 
 export interface RankProgress {
