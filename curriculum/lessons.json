@@ -1,7 +1,7 @@
 [
-  { "id": 1, "name": "Hello World Stylus", "xp": 100, "available": true },
-  { "id": 2, "name": "Storage and State", "xp": 150, "available": true },
-  { "id": 3, "name": "Events and Errors", "xp": 200, "available": true },
-  { "id": 4, "name": "ERC-20 Token", "xp": 300, "available": true },
-  { "id": 5, "name": "DeFi Interaction", "xp": 500, "available": false }
+  { "id": 1, "name": "Hello World Stylus", "xp": 100, "available": true, "module": "foundations" },
+  { "id": 2, "name": "Storage and State", "xp": 150, "available": true, "module": "foundations" },
+  { "id": 3, "name": "Events and Errors", "xp": 200, "available": true, "module": "contract-logic" },
+  { "id": 4, "name": "ERC-20 Token", "xp": 300, "available": true, "module": "tokens" },
+  { "id": 5, "name": "DeFi Interaction", "xp": 500, "available": false, "module": "interoperability" }
 ]
