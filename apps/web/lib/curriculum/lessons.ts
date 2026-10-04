@@ -1,10 +1,14 @@
 import curriculum from '../../../../curriculum/lessons.json';
+import type { LessonQuiz } from './steps';
 import type { LessonCheck } from './validate';
 
 export interface LessonExercise {
+  /** Markdown; its `###` sections become the steps of the explanation (see steps.ts). */
   explanation: string;
   starterCode: string;
   checks: LessonCheck[];
+  /** Optional questions shown between steps. */
+  quizzes?: LessonQuiz[];
 }
 
 interface LessonBase {
@@ -106,6 +110,15 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn set_greeting(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Anatomy of a Stylus contract",
+          question: "How do you declare a string field called greeting inside sol_storage!?",
+          options: ["greeting: String,", "string greeting;", "let greeting: String;"],
+          answer: 1,
+          explanation: "sol_storage! uses Solidity field syntax: the type, then the name, then a semicolon. Rust struct syntax does not work inside it.",
+        },
+      ],
     },
   },
   2: {
@@ -191,6 +204,15 @@ const CONTENT: Record<number, LessonContent> = {
           anyOf: ['self.count.set(U256::ZERO)', 'self.count.set(U256::from(0))'],
           hint: 'In reset, write self.count.set(U256::ZERO)',
           anchor: 'pub fn reset(',
+        },
+      ],
+      quizzes: [
+        {
+          afterStep: "Storage and State",
+          question: "Which line writes a new value to a uint256 field called count?",
+          options: ["self.count = value;", "self.count.write(value);", "self.count.set(value);"],
+          answer: 2,
+          explanation: "Storage fields are accessors, not plain values: read with get() and write with set(value).",
         },
       ],
     },
@@ -320,6 +342,22 @@ const CONTENT: Record<number, LessonContent> = {
           anyOf: ['self.vm().log(Transfer {'],
           hint: 'Emit the event with self.vm().log(Transfer { from, to, value: amount })',
           anchor: 'Ok(())',
+        },
+      ],
+      quizzes: [
+        {
+          afterStep: "Events",
+          question: "How does a stylus-sdk 0.10 method emit a Transfer event?",
+          options: ["self.vm().log(Transfer { from, to, value })", "evm::log(Transfer { from, to, value })", "emit Transfer(from, to, value);"],
+          answer: 0,
+          explanation: "Events go through the host with self.vm().log(...). The evm module, and evm::log with it, was removed in stylus-sdk 0.10.",
+        },
+        {
+          afterStep: "Errors",
+          question: "What does returning Err(...) from a #[public] method do?",
+          options: ["It logs the error and the call succeeds", "It reverts the call with the ABI-encoded error", "It panics and consumes all the gas"],
+          answer: 1,
+          explanation: "With an error enum deriving SolidityError, Err(...) reverts the call and callers can decode the error, like a Solidity custom error.",
         },
       ],
     },
@@ -454,6 +492,22 @@ const CONTENT: Record<number, LessonContent> = {
           anyOf: ['Ok(true)'],
           hint: 'Return Ok(true) once the transfer is done',
           anchor: 'pub fn transfer(',
+        },
+      ],
+      quizzes: [
+        {
+          afterStep: "Interface",
+          question: "Under which name does the Rust method balance_of appear in the contract ABI?",
+          options: ["balance_of", "BalanceOf", "balanceOf"],
+          answer: 2,
+          explanation: "Stylus exports snake_case Rust methods under camelCase Solidity names, so wallets see the standard ERC-20 balanceOf.",
+        },
+        {
+          afterStep: "Storage",
+          question: "How do you write the new balance of to in the balances mapping?",
+          options: ["self.balances.setter(to).set(new_balance)", "self.balances.get(to).set(new_balance)", "self.balances[to] = new_balance"],
+          answer: 0,
+          explanation: "get(key) returns a copy of the value; setter(key) returns a writable handle to the entry, and set(value) stores it.",
         },
       ],
     },
