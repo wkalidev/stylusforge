@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { LESSONS } from '@/lib/curriculum/lessons';
+import { MODULES } from '@/lib/curriculum/modules';
+import { forgePath, type Heat, type RowHeat } from '@/lib/progress/forgePath';
 import { useCompletedLessons } from '@/lib/progress/progress';
 import { skillTree, type SkillNode } from '@/lib/progress/skillTree';
 import { useClaimedLessons } from '@/lib/useClaimedLessons';
@@ -18,7 +20,7 @@ function LockIcon() {
 /** The node on the spine: molten when passed, a live amber ring when next, cold steel when locked. */
 function Knot({ node }: { node: SkillNode }) {
   const base =
-    'absolute top-1/2 left-6 z-10 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-display text-2xl font-extrabold md:left-1/2';
+    'absolute top-1/2 left-6 z-10 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-display text-2xl font-extrabold';
   if (node.state === 'completed') {
     return (
       <span
@@ -98,39 +100,59 @@ function NodeCard({ node, claimed }: { node: SkillNode; claimed: boolean }) {
   );
 }
 
-/** The curriculum as a path of connected nodes, heated along the lessons already passed. */
+const SEGMENT = 'absolute left-6 -translate-x-1/2';
+
+function segmentClass(heat: Exclude<Heat, null>): string {
+  return heat === 'hot'
+    ? 'w-1 bg-gradient-to-b from-molten-500 to-amber-300 shadow-[0_0_12px_var(--color-molten-500)]'
+    : 'w-0 border-l-2 border-dashed border-steel-700';
+}
+
+/** The path through a row: from its top to its middle (in) and from its middle to its bottom (out). */
+function Spine({ heat }: { heat: RowHeat }) {
+  return (
+    <>
+      {heat.in && <span aria-hidden='true' className={`${SEGMENT} top-0 h-1/2 ${segmentClass(heat.in)}`} />}
+      {heat.out && <span aria-hidden='true' className={`${SEGMENT} top-1/2 bottom-0 ${segmentClass(heat.out)}`} />}
+    </>
+  );
+}
+
+/** The curriculum as one path through the forge zones, heated along the lessons already passed. */
 export function SkillTree() {
   const passed = useCompletedLessons();
   const onChain = useClaimedLessons();
-  const nodes = skillTree(LESSONS, passed);
+  const zones = forgePath(MODULES, skillTree(LESSONS, passed));
 
   return (
-    <div>
-      <ol aria-label='Skill tree' className='relative mt-10'>
-        {nodes.map((node, index) => {
-          const next = nodes[index + 1];
-          const hot = node.state === 'completed' && next && next.state !== 'locked';
-          const side = index % 2 === 0 ? 'md:pr-[calc(50%+2.5rem)]' : 'md:pl-[calc(50%+2.5rem)]';
-          return (
-            <li key={node.lesson.id} className={`relative py-5 pl-14 md:pl-0 ${side}`}>
-              {next && (
-                <span
-                  aria-hidden='true'
-                  className={
-                    'absolute top-1/2 left-6 h-full -translate-x-1/2 md:left-1/2 ' +
-                    (hot
-                      ? 'w-1 rounded-full bg-gradient-to-b from-molten-500 to-amber-300 shadow-[0_0_12px_var(--color-molten-500)]'
-                      : 'w-0 border-l-2 border-dashed border-steel-700')
-                  }
-                />
-              )}
-              <Knot node={node} />
-              <span className='sr-only'>{`Lesson ${node.lesson.id}: ${statusText(node)}.`}</span>
-              <NodeCard node={node} claimed={Boolean(onChain?.claimed.has(node.lesson.id))} />
-            </li>
-          );
-        })}
-      </ol>
+    <div className='mt-10'>
+      {zones.map((zone) => (
+        <section key={zone.id} aria-labelledby={`zone-${zone.id}`}>
+          <div className='relative pt-8 pb-4 pl-16'>
+            <Spine heat={zone.header} />
+            <span
+              aria-hidden='true'
+              className='absolute top-[calc(50%+1rem)] left-6 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-amber-300/70 bg-steel-900'
+            />
+            <p className='text-xs font-semibold tracking-[0.2em] text-amber-300/90 uppercase'>
+              Zone {zone.index} · {zone.zone}
+            </p>
+            <h2 id={`zone-${zone.id}`} className='font-display text-3xl font-bold leading-tight text-steel-100'>
+              {zone.name}
+            </h2>
+          </div>
+          <ol aria-label={`${zone.name} lessons`}>
+            {zone.nodes.map(({ node, ...heat }) => (
+              <li key={node.lesson.id} className='relative py-3 pl-16'>
+                <Spine heat={heat} />
+                <Knot node={node} />
+                <span className='sr-only'>{`Lesson ${node.lesson.id}: ${statusText(node)}.`}</span>
+                <NodeCard node={node} claimed={Boolean(onChain?.claimed.has(node.lesson.id))} />
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
     </div>
   );
 }
