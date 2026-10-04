@@ -71,5 +71,56 @@ describe("StylusForgeNFT", async function () {
       assert.equal(await nft.read.completed([student, 1n]), true);
       assert.equal(await nft.read.balanceOf([owner.account.address, 1n]), 0n);
     });
+
+    it("rejects a voucher signed by another key", async function () {
+      const { nft } = await networkHelpers.loadFixture(deployFixture);
+      const impostor = privateKeyToAccount(generatePrivateKey());
+      const deadline = await deadlineIn(3600);
+      const signature = await signClaim(impostor, nft.address, alice.account.address, 1n, deadline);
+
+      await viem.assertions.revertWithCustomError(
+        nft.write.claim([1n, deadline, signature], { account: alice.account }),
+        nft,
+        "InvalidSignature",
+      );
+    });
+
+    it("rejects a voucher issued to another student", async function () {
+      const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
+      const deadline = await deadlineIn(3600);
+      const signature = await signClaim(claimSigner, nft.address, owner.account.address, 1n, deadline);
+
+      await viem.assertions.revertWithCustomError(
+        nft.write.claim([1n, deadline, signature], { account: alice.account }),
+        nft,
+        "InvalidSignature",
+      );
+    });
+
+    it("rejects a voucher for a different lesson", async function () {
+      const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
+      const deadline = await deadlineIn(3600);
+      const signature = await signClaim(claimSigner, nft.address, alice.account.address, 1n, deadline);
+
+      await viem.assertions.revertWithCustomError(
+        nft.write.claim([2n, deadline, signature], { account: alice.account }),
+        nft,
+        "InvalidSignature",
+      );
+    });
+
+    it("rejects a voucher after its deadline", async function () {
+      const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
+      const deadline = await deadlineIn(60);
+      const signature = await signClaim(claimSigner, nft.address, alice.account.address, 1n, deadline);
+      await networkHelpers.time.increaseTo(deadline + 1n);
+
+      await viem.assertions.revertWithCustomErrorWithArgs(
+        nft.write.claim([1n, deadline, signature], { account: alice.account }),
+        nft,
+        "ClaimExpired",
+        [deadline],
+      );
+    });
   });
 });
