@@ -84,7 +84,7 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
           }
           // Same order as the lesson: debit the sender, then read and credit the recipient.
           let next = writeMapping(state, 'balances', from, available - amount);
-          next = writeMapping(next, 'balances', to, checkedAdd(readMapping(next, 'balances', to), amount));
+          next = writeMapping(next, 'balances', to, wrappingAdd(readMapping(next, 'balances', to), amount));
           return { state: next, events: [{ name: 'Transfer', args: { from, to, value: amount } }] };
         },
       },
