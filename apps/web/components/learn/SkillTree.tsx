@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { LESSONS } from '@/lib/curriculum/lessons';
 import { MODULES } from '@/lib/curriculum/modules';
-import { forgePath, type Heat, type PathZone, type RowHeat } from '@/lib/progress/forgePath';
+import { forgePath, zoneStatus, type Heat, type PathZone, type RowHeat } from '@/lib/progress/forgePath';
 import { useCompletedLessons } from '@/lib/progress/progress';
 import { skillTree, type SkillNode } from '@/lib/progress/skillTree';
 import { useUnlockingLessons } from '@/lib/progress/unlocks';
@@ -83,17 +83,6 @@ function Spine({ heat }: { heat: RowHeat }) {
       )}
     </>
   );
-}
-
-function zoneStatus(zone: PathZone): string {
-  if (zone.total === 0) return 'Lessons coming soon';
-  const lessons = (count: number) => `${count} ${count === 1 ? 'lesson' : 'lessons'}`;
-  if (zone.state === 'complete') return zone.total === 1 ? 'Lesson passed' : `All ${lessons(zone.total)} passed`;
-  const firstLocked = zone.nodes[0]?.node;
-  if (zone.state === 'locked') {
-    return firstLocked?.unlockedBy ? `Pass ${firstLocked.unlockedBy.title} to enter` : 'Lessons coming soon';
-  }
-  return `${zone.passed} of ${lessons(zone.total)} passed`;
 }
 
 /** A zone header: zone and module names, with the module's progress and completion state. */
