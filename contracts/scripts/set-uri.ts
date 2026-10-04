@@ -33,8 +33,9 @@ if (current === uri) {
   console.log(`Metadata URI on ${networkName} is already ${uri}: nothing to do.`);
 } else {
   console.log(`Setting the metadata URI on ${networkName}:\n  from: ${current || "(empty)"}\n  to:   ${uri}`);
-  // Clients replace {id}: token 1 would read its metadata from this URL.
-  console.log(`  (token 1: ${uri.replace("{id}", "1")})`);
+  // ERC-1155 clients replace {id} with the token id in lowercase hex, zero-padded to 64 digits
+  // (the web app also accepts the decimal id).
+  console.log(`  (token 1: ${uri.replace("{id}", "1".padStart(64, "0"))})`);
   if (await confirm(`Send setURI("${uri}") to ${nft.address}?`)) {
     const hash = await nft.write.setURI([uri]);
     await publicClient.waitForTransactionReceipt({ hash });
