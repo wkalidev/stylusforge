@@ -842,6 +842,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  7: {
+    slug: 'storage-vectors',
+    difficulty: 'Beginner',
+    preview: 'A price log you can append to, read by index and trim from the end.',
+    minutes: 15,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
