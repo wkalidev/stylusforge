@@ -23,7 +23,11 @@ apps/web/
 │     ├─ page.tsx           curriculum list
 │     └─ [slug]/page.tsx    lesson page (prerendered per available lesson, 404 otherwise)
 ├─ components/
+│  ├─ brand/ForgeMark.tsx       StylusForge mark and logo
+│  ├─ layout/SiteHeader.tsx     shared header (logo, navigation, player controls slot)
+│  ├─ ui/button.ts              button styles (heat, steel, quench)
 │  ├─ Lesson/LessonLayout.tsx   explanation, editor, hints and code check
+│  ├─ Lesson/forgeEditorTheme.ts Monaco theme matching the tokens
 │  ├─ Lesson/LessonMarkdown.tsx markdown rendering of the explanation
 │  └─ Wallet/Providers.tsx      Wagmi, TanStack Query and RainbowKit providers
 ├─ lib/
@@ -35,6 +39,38 @@ apps/web/
 ├─ eslint.config.mjs
 └─ vitest.config.mts
 ```
+
+## Design system
+
+The forge identity: Rust as oxidized metal, learning as forging. Tokens live in `app/globals.css` (Tailwind 4 `@theme`), so every color is a utility such as `bg-steel-900` or `text-molten-500`.
+
+| Family | Tokens | Meaning |
+|---|---|---|
+| Steel | `steel-950` … `steel-100` | Base surfaces and text: blackened steel with a cool cast |
+| Heat | `molten-*`, `amber-*`, `ember-*` | Action and energy: primary buttons, progress, XP, local success |
+| Quench | `quench-*` (Arbitrum blue `#28A0F0`) | Cooled and final: on-chain state, claimed certificates |
+
+Keep the meaning: hot colors for what the student is doing, blue only for what is on-chain.
+
+| Role | Face | Utility |
+|---|---|---|
+| Display (headings, numbers) | Big Shoulders, condensed display optical size | `font-display` |
+| Text | Geist Sans | `font-sans` (default) |
+| Code | Geist Mono | `font-mono` |
+
+Font roles use `@theme inline` because `next/font` defines its variables on `<body>`, not on `:root`.
+
+Utilities:
+
+| Utility | Use |
+|---|---|
+| `forge-container` | Page width and gutters shared by the header and sections |
+| `steel-surface` | Panel with a brushed sheen and a hairline border |
+| `heat-glow` | Warm glow rising from the bottom edge (hero, highlights) |
+| `ember-edge` | Hot top edge for the element in progress |
+| `quench-edge` | Blue edge and glow for on-chain, finished items |
+
+A fixed steel-grain overlay covers the page at 5% opacity and never intercepts input. Textures are static; motion is reserved for the hero and feedback moments, and respects `prefers-reduced-motion`. Buttons come from `buttonClasses(variant, size)` in `components/ui/button.ts` (`heat`, `steel`, `quench`). Focus is always visible as an amber outline.
 
 ## Scripts
 

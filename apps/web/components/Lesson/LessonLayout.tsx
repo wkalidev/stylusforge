@@ -2,9 +2,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Editor from '@monaco-editor/react';
+import { buttonClasses } from '@/components/ui/button';
 import { getLesson } from '@/lib/curriculum/lessons';
 import { validateCode } from '@/lib/curriculum/validate';
 import { LessonMarkdown } from './LessonMarkdown';
+import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 
 export function LessonLayout({ slug }: { slug: string }) {
   const lesson = getLesson(slug);
@@ -15,8 +17,8 @@ export function LessonLayout({ slug }: { slug: string }) {
 
   if (!lesson || !exercise) {
     return (
-      <div className='min-h-screen bg-gray-950 text-white flex items-center justify-center'>
-        <p className='text-gray-400'>Lesson not found</p>
+      <div className='flex min-h-[50vh] items-center justify-center'>
+        <p className='text-steel-400'>Lesson not found</p>
       </div>
     );
   }
@@ -28,29 +30,31 @@ export function LessonLayout({ slug }: { slug: string }) {
   };
 
   return (
-    <div className='min-h-screen bg-gray-950 text-white flex flex-col'>
-      <div className='border-b border-gray-800 px-6 py-4 flex items-center justify-between'>
-        <div className='flex items-center gap-4'>
-          <Link href='/learn' className='text-gray-400 hover:text-white text-sm'>← Back</Link>
-          <span className='text-gray-600'>|</span>
-          <h1 className='font-bold'>{lesson.title}</h1>
-          <span className='text-xs bg-gray-800 px-2 py-1 rounded text-gray-400'>{lesson.difficulty}</span>
+    <div className='flex flex-col lg:h-[calc(100dvh-3.5rem)]'>
+      <div className='flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-steel-800 px-4 py-3 sm:px-6'>
+        <div className='flex flex-wrap items-center gap-x-3 gap-y-1'>
+          <Link href='/learn' className='text-sm text-steel-400 hover:text-steel-100'>Lessons</Link>
+          <span aria-hidden='true' className='text-steel-600'>/</span>
+          <h1 className='font-display text-2xl font-bold'>{lesson.title}</h1>
+          <span className='rounded-[var(--radius-forge)] bg-steel-800 px-2 py-0.5 text-xs text-steel-300'>{lesson.difficulty}</span>
         </div>
-        <span className='text-yellow-400 font-bold'>⚡ {lesson.xp} XP</span>
+        <span className='font-semibold text-amber-300'>{lesson.xp} XP</span>
       </div>
-      <div className='flex flex-1 overflow-hidden'>
-        <div className='w-1/2 overflow-y-auto p-8 border-r border-gray-800'>
+      <div className='flex flex-1 flex-col lg:flex-row lg:overflow-hidden'>
+        <div className='border-b border-steel-800 p-6 sm:p-8 lg:w-1/2 lg:overflow-y-auto lg:border-r lg:border-b-0'>
           <LessonMarkdown>{exercise.explanation}</LessonMarkdown>
         </div>
-        <div className='w-1/2 flex flex-col p-4 gap-4'>
-          <div className='flex-1 rounded-lg overflow-hidden border border-gray-700'>
+        <div className='flex flex-col gap-4 p-4 lg:w-1/2'>
+          <div className='h-[60vh] overflow-hidden rounded-[var(--radius-forge)] border border-steel-700 lg:h-auto lg:flex-1'>
             <Editor
               height="100%"
               language="rust"
-              theme="vs-dark"
+              theme={FORGE_EDITOR_THEME}
+              beforeMount={defineForgeEditorTheme}
               value={code}
               onChange={(val) => setCode(val ?? '')}
               options={{
+                fontFamily: 'var(--font-geist-mono), ui-monospace, monospace',
                 fontSize: 13,
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
@@ -59,20 +63,19 @@ export function LessonLayout({ slug }: { slug: string }) {
             />
           </div>
           {hints.length > 0 && (
-            <div className='bg-yellow-900/30 border border-yellow-600 rounded p-4'>
-              <p className='text-yellow-400 font-bold mb-2'>💡 Hints</p>
-              {hints.map((h, i) => <p key={i} className='text-yellow-200 text-sm'>→ {h}</p>)}
+            <div role='status' className='steel-surface ember-edge p-4'>
+              <p className='mb-2 font-semibold text-amber-300'>Not there yet</p>
+              <ul className='space-y-1 text-sm text-steel-300'>
+                {hints.map((h) => <li key={h}>{h}</li>)}
+              </ul>
             </div>
           )}
           {completed && (
-            <div className='bg-green-900/30 border border-green-600 rounded p-4 text-center'>
-              <p className='text-green-400 font-bold text-lg'>✅ Lesson completed! +{lesson.xp} XP</p>
+            <div role='status' className='steel-surface ember-edge p-4 text-center'>
+              <p className='text-lg font-semibold text-amber-300'>Lesson complete: +{lesson.xp} XP</p>
             </div>
           )}
-          <button
-            onClick={checkCode}
-            className='bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition'
-          >
+          <button onClick={checkCode} className={buttonClasses('heat', 'lg')}>
             Check my code
           </button>
         </div>

@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Big_Shoulders, Geist, Geist_Mono } from "next/font/google";
+import { SiteHeader } from "@/components/layout/SiteHeader";
 import { Providers } from "@/components/Wallet/Providers";
 import "./globals.css";
+
+const bigShoulders = Big_Shoulders({
+  variable: "--font-big-shoulders",
+  subsets: ["latin"],
+  axes: ["opsz"],
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,8 +32,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-950 text-white`}>
+      <body className={`${bigShoulders.variable} ${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
+          <SiteHeader />
           {children}
         </Providers>
       </body>
