@@ -91,4 +91,16 @@ describe("lesson 8: Nested structs", () => {
     const result = variant(8, "task.done.set(true);", "task.done.set(false);");
     expect(result.objectives).toEqual(["Mark the task as done"]);
   });
+
+  it("keeps six checks, each failing when one of its parts is missing", () => {
+    const lesson = LESSONS.find((candidate) => candidate.id === 8)!;
+    expect(lesson.available && lesson.exercise.checks).toHaveLength(6);
+    expect(variant(8, "        task.title.set_str(title);\n", "").objectives).toEqual(["Add a task with the given title at the end of the list"]);
+    // Without any revert (the error is matched anywhere in the code, so remove it from both functions).
+    const noRevert = SOLUTIONS[8].replaceAll(".ok_or(TodoError::UnknownTask(UnknownTask { id }))?", ".unwrap()");
+    expect(validateCode(noRevert, lesson.available ? lesson.exercise.checks : []).objectives).toEqual([
+      "Look a task up by its id, and revert when there is no such task",
+    ]);
+    expect(variant(8, "task.done.get()", "false").objectives).toEqual(["Return the title of the task and whether it is done"]);
+  });
 });
