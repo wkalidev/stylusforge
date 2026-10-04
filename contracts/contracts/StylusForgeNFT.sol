@@ -51,6 +51,11 @@ contract StylusForgeNFT is ERC1155, Ownable, EIP712 {
         signer = newSigner;
     }
 
+    /// @notice Sets the ERC-1155 metadata URI template (clients replace {id} with the hex token id).
+    function setURI(string calldata newUri) external onlyOwner {
+        _setURI(newUri);
+    }
+
     function getLessonIds() external view returns (uint256[] memory) {
         return _lessonIds;
     }
