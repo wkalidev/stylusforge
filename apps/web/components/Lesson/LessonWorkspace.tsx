@@ -15,6 +15,7 @@ import { playAnvilStrike } from '@/lib/sound/anvil';
 import { isSoundEnabled } from '@/lib/sound/preference';
 import { LessonMarkdown } from './LessonMarkdown';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
+import { WorkspaceTabs, tabId, tabPanelId, type WorkspaceTab } from './WorkspaceTabs';
 
 export type AvailableLesson = Extract<Lesson, { available: true }>;
 
@@ -26,6 +27,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const [completed, setCompleted] = useState(false);
   const [hints, setHints] = useState<string[]>([]);
   const [strikes, setStrikes] = useState(0);
+  const [tab, setTab] = useState<WorkspaceTab>('learn');
   const completedIds = useCompletedLessons();
 
   const passed = completedIds.includes(lesson.id);
@@ -104,14 +106,36 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
         </div>
       </div>
 
+      <WorkspaceTabs active={tab} onChange={setTab} />
+
       <div className='flex flex-1 flex-col lg:flex-row lg:overflow-hidden'>
-        <article className='border-b border-steel-800 p-6 sm:p-8 lg:w-1/2 lg:overflow-y-auto lg:border-r lg:border-b-0 xl:px-12'>
+        <article
+          id={tabPanelId('learn')}
+          role='tabpanel'
+          aria-labelledby={tabId('learn')}
+          className={`${tab === 'learn' ? 'block' : 'hidden'} p-6 sm:p-8 lg:block lg:w-1/2 lg:overflow-y-auto lg:border-r lg:border-steel-800 xl:px-12`}
+        >
           <div className='mx-auto max-w-2xl'>
             <LessonMarkdown>{exercise.explanation}</LessonMarkdown>
+            <button
+              type='button'
+              onClick={() => {
+                setTab('code');
+                window.scrollTo({ top: 0 });
+              }}
+              className={buttonClasses('heat', 'lg', 'mt-4 w-full lg:hidden')}
+            >
+              Open the editor
+            </button>
           </div>
         </article>
 
-        <div className='flex flex-col gap-4 p-4 sm:p-5 lg:w-1/2 lg:overflow-y-auto'>
+        <div
+          id={tabPanelId('code')}
+          role='tabpanel'
+          aria-labelledby={tabId('code')}
+          className={`${tab === 'code' ? 'flex' : 'hidden'} flex-col gap-4 p-4 sm:p-5 lg:flex lg:w-1/2 lg:overflow-y-auto`}
+        >
           <div className='flex h-[60vh] min-h-72 flex-col overflow-hidden rounded-[var(--radius-forge)] border border-steel-700 bg-steel-950 lg:h-auto lg:flex-1'>
             <div className='ember-edge flex items-center justify-between border-b border-steel-800 bg-steel-900 px-4 py-2'>
               <span className='font-mono text-xs text-steel-300'>src/lib.rs</span>
@@ -132,6 +156,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
                   minimap: { enabled: false },
                   scrollBeyondLastLine: false,
                   wordWrap: 'on',
+                  automaticLayout: true,
                   padding: { top: 12 },
                 }}
               />
