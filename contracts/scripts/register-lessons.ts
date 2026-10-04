@@ -40,6 +40,9 @@ if (plan.toAdd.length === 0) {
 }
 for (const lesson of plan.toAdd) {
   const hash = await nft.write.addLesson([lesson.id, lesson.name, lesson.xp]);
-  await publicClient.waitForTransactionReceipt({ hash });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success") {
+    throw new Error(`Registering lesson ${lesson.id} reverted (transaction ${hash}); later lessons were not sent`);
+  }
   console.log(`Registered lesson ${lesson.id}: ${lesson.name} (${lesson.xp} XP)`);
 }
