@@ -17,7 +17,9 @@ export function WalletButton() {
         if (!account || !chain) {
           return (
             <button type='button' data-testid='connect-wallet' onClick={openConnectModal} className={buttonClasses('heat', 'md', 'h-9 px-3')}>
-              Connect<span className='hidden sm:inline'>&nbsp;wallet</span>
+              <span>
+                Connect<span className='hidden sm:inline'> wallet</span>
+              </span>
             </button>
           );
         }
