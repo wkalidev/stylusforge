@@ -1,4 +1,8 @@
-export default {
+import hardhatToolboxViemPlugin from "@nomicfoundation/hardhat-toolbox-viem";
+import { configVariable, defineConfig } from "hardhat/config";
+
+export default defineConfig({
+  plugins: [hardhatToolboxViemPlugin],
   solidity: {
     version: "0.8.28",
     settings: {
@@ -11,9 +15,9 @@ export default {
   networks: {
     arbitrumSepolia: {
       type: "http",
-      url: process.env.ALCHEMY_RPC_URL ?? "https://sepolia-rollup.arbitrum.io/rpc",
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      url: configVariable("ARBITRUM_SEPOLIA_RPC_URL"),
+      accounts: [configVariable("DEPLOYER_PRIVATE_KEY")],
       chainId: 421614,
     },
   },
-};
+});
