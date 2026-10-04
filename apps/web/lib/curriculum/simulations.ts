@@ -90,6 +90,56 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  4: {
+    contract: 'Erc20',
+    note: 'The model starts with a supply of 1,000 tokens, all held by Alice.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({
+      total_supply: 1000n,
+      balances: { [SIM_ACCOUNTS[0].address]: 1000n },
+      allowances: {},
+    }),
+    functions: [
+      {
+        name: 'total_supply',
+        abiName: 'totalSupply',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.total_supply as bigint }),
+      },
+      {
+        name: 'balance_of',
+        abiName: 'balanceOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'balances', args.account as string) }),
+      },
+      {
+        name: 'transfer',
+        abiName: 'transfer',
+        view: false,
+        params: [
+          { name: 'to', type: 'address' },
+          { name: 'value', type: 'uint256' },
+        ],
+        returns: 'bool',
+        run: (state, args, caller) => {
+          const from = caller.address;
+          const to = args.to as string;
+          const value = args.value as bigint;
+          const have = readMapping(state, 'balances', from);
+          if (have < value) {
+            return { revert: { error: 'InsufficientBalance', args: { from, have, want: value } } };
+          }
+          let next = writeMapping(state, 'balances', from, have - value);
+          next = writeMapping(next, 'balances', to, checkedAdd(readMapping(next, 'balances', to), value));
+          return { state: next, returns: true, events: [{ name: 'Transfer', args: { from, to, value } }] };
+        },
+      },
+    ],
+  },
 };
 
 export function getSimulation(lessonId: number): LessonSimulation | null {
