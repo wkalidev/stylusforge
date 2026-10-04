@@ -1,10 +1,11 @@
 'use client';
 
-export type WorkspaceTab = 'learn' | 'code';
+export type WorkspaceTab = 'learn' | 'code' | 'try';
 
 const TABS: { id: WorkspaceTab; label: string }[] = [
   { id: 'learn', label: 'Learn' },
   { id: 'code', label: 'Code' },
+  { id: 'try', label: 'Try' },
 ];
 
 export const tabPanelId = (tab: WorkspaceTab) => `lesson-panel-${tab}`;
@@ -52,6 +53,32 @@ export function WorkspaceTabs({ active, onChange }: { active: WorkspaceTab; onCh
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * From lg the explanation is always visible and the right column switches between the editor
+ * and the "Try it" simulation.
+ */
+export function RightPaneSwitch({ active, onChange }: { active: WorkspaceTab; onChange: (tab: WorkspaceTab) => void }) {
+  const current = active === 'try' ? 'try' : 'code';
+  return (
+    <div role='group' aria-label='Right pane' className='hidden gap-1 rounded-[var(--radius-forge)] bg-steel-900 p-1 lg:flex'>
+      {(['code', 'try'] as const).map((tab) => (
+        <button
+          key={tab}
+          type='button'
+          aria-pressed={current === tab}
+          onClick={() => onChange(tab)}
+          className={
+            'flex-1 rounded-[var(--radius-forge)] px-3 py-1.5 text-sm font-semibold transition-colors ' +
+            (current === tab ? 'bg-steel-700 text-amber-300' : 'text-steel-400 hover:text-steel-100')
+          }
+        >
+          {tab === 'code' ? 'Code' : 'Try it'}
+        </button>
+      ))}
     </div>
   );
 }
