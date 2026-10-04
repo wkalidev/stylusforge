@@ -1,3 +1,4 @@
+import { ContinueButton } from '@/components/learn/ContinueButton';
 import { ProgressHero } from '@/components/learn/ProgressHero';
 import { SkillTree } from '@/components/learn/SkillTree';
 
@@ -8,7 +9,9 @@ export default function LearnPage() {
       <p className='mt-2 mb-8 max-w-xl text-steel-300'>
         Each lesson builds on the one before. Pass a lesson to heat up the path and open the next one.
       </p>
-      <ProgressHero />
+      <ProgressHero>
+        <ContinueButton />
+      </ProgressHero>
       <SkillTree />
     </main>
   );

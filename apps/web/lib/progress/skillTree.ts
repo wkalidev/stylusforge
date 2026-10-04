@@ -30,3 +30,28 @@ export function skillTree(lessons: readonly Lesson[], passedIds: readonly number
     return { lesson, state: 'locked', unlockedBy: previous };
   });
 }
+
+export interface ContinueTarget {
+  lesson: Lesson;
+  /** resume: the unfinished lesson opened last; next: the next lesson to start; start: nothing opened yet. */
+  kind: 'resume' | 'next' | 'start';
+}
+
+/**
+ * Where "Continue where you left off" leads: the lesson opened last if it is not passed yet,
+ * otherwise the next available lesson (after the last one opened, else the first in the tree).
+ * Null once every written lesson is passed.
+ */
+export function continueTarget(nodes: readonly SkillNode[], lastLessonId: number | null): ContinueTarget | null {
+  const lastIndex = nodes.findIndex((node) => node.lesson.id === lastLessonId && node.lesson.available);
+  const last = lastIndex === -1 ? null : nodes[lastIndex];
+  if (last && last.state !== 'completed') {
+    return { lesson: last.lesson, kind: 'resume' };
+  }
+  const available = nodes.filter((node) => node.state === 'available');
+  const next = available.find((node) => nodes.indexOf(node) > lastIndex) ?? available[0];
+  if (!next) {
+    return null;
+  }
+  return { lesson: next.lesson, kind: last ? 'next' : 'start' };
+}
