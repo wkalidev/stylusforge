@@ -7,6 +7,10 @@ const components: Components = {
   p: ({ children }) => <p className='text-steel-300 leading-relaxed mb-4'>{children}</p>,
   ul: ({ children }) => <ul className='list-disc pl-6 mb-4 space-y-1 text-steel-300'>{children}</ul>,
   ol: ({ children }) => <ol className='list-decimal pl-6 mb-4 space-y-1 text-steel-300'>{children}</ol>,
+  // `> **Note:** ...` lines: a short aside, such as the overflow note of lesson 2.
+  blockquote: ({ children }) => (
+    <blockquote className='mb-4 border-l-2 border-amber-300 bg-steel-900/60 py-3 pl-4 pr-3 [&_p]:mb-0'>{children}</blockquote>
+  ),
   pre: ({ children }) => (
     <pre className='bg-steel-950 border border-steel-700 rounded-[var(--radius-forge)] p-4 mb-4 overflow-x-auto text-sm leading-relaxed'>
       {children}
