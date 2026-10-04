@@ -9,6 +9,7 @@ import { buttonClasses } from '@/components/ui/button';
 import { chain } from '@/lib/chain';
 import type { ClaimErrorResponse, ClaimResponse } from '@/lib/claim';
 import { describeClaimError, VoucherRequestError } from '@/lib/claimErrors';
+import { suggestClaimFees } from '@/lib/claimFees';
 import { nftContractAddress, stylusForgeNftAbi } from '@/lib/contract';
 import { explorerName, transactionUrl } from '@/lib/explorer';
 
@@ -102,6 +103,10 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
         args,
       });
 
+      // Explicit fees with a margin over the base fee, so a slightly higher next block does not
+      // reject the transaction. Null leaves them to the wallet.
+      const fees = await suggestClaimFees(publicClient);
+
       setPhase('wallet');
       const hash = await writeContractAsync({
         address: nftContractAddress,
@@ -109,6 +114,7 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
         functionName: 'claim',
         args,
         chainId: chain.id,
+        ...(fees ?? {}),
       });
       setTxHash(hash);
 
