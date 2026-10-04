@@ -14,6 +14,7 @@ import { resetCode, saveCode, useSavedCode } from '@/lib/progress/code';
 import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progress';
 import { playAnvilStrike } from '@/lib/sound/anvil';
 import { isSoundEnabled } from '@/lib/sound/preference';
+import { LessonIngot } from './LessonIngot';
 import { LessonMarkdown } from './LessonMarkdown';
 import { Objectives } from './Objectives';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
@@ -34,6 +35,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   // Live objectives: the checks re-run on the code once typing pauses.
   const debouncedCode = useDebouncedValue(code, 300);
   const liveResults = useMemo(() => evaluateChecks(debouncedCode, exercise.checks), [debouncedCode, exercise.checks]);
+  const metCount = liveResults.filter((result) => result.passed).length;
 
   const passed = completedIds.includes(lesson.id);
   const index = LESSONS.findIndex((candidate) => candidate.id === lesson.id);
@@ -135,7 +137,13 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
               </span>
             )}
           </div>
-          <LessonXpBar lessonId={lesson.id} lessonXp={lesson.xp} />
+          <div className='flex items-center gap-3'>
+            <LessonIngot
+              heat={metCount / liveResults.length}
+              label={`Forge heat: ${metCount} of ${liveResults.length} objectives met`}
+            />
+            <LessonXpBar lessonId={lesson.id} lessonXp={lesson.xp} />
+          </div>
         </div>
       </div>
 
