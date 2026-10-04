@@ -11,6 +11,9 @@ contract StylusForgeNFT is ERC1155, Ownable {
 
     event LessonCompleted(address indexed student, uint256 indexed lessonId);
 
+    error InvalidLesson(uint256 lessonId);
+    error AlreadyCompleted(address student, uint256 lessonId);
+
     constructor() ERC1155("") Ownable(msg.sender) {
         lessonNames[1] = "Hello World Stylus";
         lessonNames[2] = "Storage and State";
@@ -20,8 +23,8 @@ contract StylusForgeNFT is ERC1155, Ownable {
     }
 
     function mintCertificate(address student, uint256 lessonId) external onlyOwner {
-        require(lessonId >= 1 && lessonId <= 5, "Invalid lesson");
-        require(!completed[student][lessonId], "Already completed");
+        if (lessonId < 1 || lessonId > 5) revert InvalidLesson(lessonId);
+        if (completed[student][lessonId]) revert AlreadyCompleted(student, lessonId);
         completed[student][lessonId] = true;
         _mint(student, lessonId, 1, "");
         emit LessonCompleted(student, lessonId);
