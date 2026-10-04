@@ -122,5 +122,69 @@ describe("StylusForgeNFT", async function () {
         [deadline],
       );
     });
+
+    it("rejects replaying a voucher that was already used", async function () {
+      const { nft, claimSigner } = await networkHelpers.loadFixture(deployFixture);
+      const student = alice.account.address;
+      const deadline = await deadlineIn(3600);
+      const signature = await signClaim(claimSigner, nft.address, student, 1n, deadline);
+      await nft.write.claim([1n, deadline, signature], { account: alice.account });
+
+      await viem.assertions.revertWithCustomErrorWithArgs(
+        nft.write.claim([1n, deadline, signature], { account: alice.account }),
+        nft,
+        "AlreadyCompleted",
+        [student, 1n],
+      );
+      assert.equal(await nft.read.balanceOf([student, 1n]), 1n);
+    });
+  });
+
+  describe("soul-bound", function () {
+    async function claimedFixture() {
+      const { nft, claimSigner } = await deployFixture();
+      const deadline = await deadlineIn(3600);
+      const signature = await signClaim(claimSigner, nft.address, alice.account.address, 1n, deadline);
+      await nft.write.claim([1n, deadline, signature], { account: alice.account });
+      return { nft };
+    }
+
+    it("rejects safeTransferFrom", async function () {
+      const { nft } = await networkHelpers.loadFixture(claimedFixture);
+
+      await viem.assertions.revertWithCustomError(
+        nft.write.safeTransferFrom(
+          [alice.account.address, owner.account.address, 1n, 1n, "0x"],
+          { account: alice.account },
+        ),
+        nft,
+        "SoulBound",
+      );
+    });
+
+    it("rejects safeBatchTransferFrom", async function () {
+      const { nft } = await networkHelpers.loadFixture(claimedFixture);
+
+      await viem.assertions.revertWithCustomError(
+        nft.write.safeBatchTransferFrom(
+          [alice.account.address, owner.account.address, [1n], [1n], "0x"],
+          { account: alice.account },
+        ),
+        nft,
+        "SoulBound",
+      );
+    });
+
+    it("rejects transfers by an approved operator", async function () {
+      const { nft } = await networkHelpers.loadFixture(claimedFixture);
+      await nft.write.setApprovalForAll([owner.account.address, true], { account: alice.account });
+
+      await viem.assertions.revertWithCustomError(
+        nft.write.safeTransferFrom([alice.account.address, owner.account.address, 1n, 1n, "0x"]),
+        nft,
+        "SoulBound",
+      );
+      assert.equal(await nft.read.balanceOf([alice.account.address, 1n]), 1n);
+    });
   });
 });
