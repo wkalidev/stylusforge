@@ -6,10 +6,10 @@ import { usePrefersReducedMotion } from '@/lib/hooks/useMediaQuery';
 const COLORS = ['#ffe2a0', '#ffd27a', '#ffbe4a', '#ff9238', '#ff7a1a'];
 
 /**
- * A burst of sparks from the center of its parent, like a hammer striking hot metal. Each change
+ * A burst of sparks from the top edge of its parent, like a hammer striking hot metal. Each change
  * of `trigger` (except the initial 0) fires one burst. Nothing happens with reduced motion.
  */
-export function SparkBurst({ trigger, count = 32 }: { trigger: number; count?: number }) {
+export function SparkBurst({ trigger, count = 44 }: { trigger: number; count?: number }) {
   const layer = useRef<HTMLDivElement>(null);
   const reducedMotion = usePrefersReducedMotion();
 
@@ -21,12 +21,12 @@ export function SparkBurst({ trigger, count = 32 }: { trigger: number; count?: n
     const sparks: HTMLSpanElement[] = [];
     for (let i = 0; i < count; i += 1) {
       const spark = document.createElement('span');
-      const size = 2 + Math.random() * 4;
+      const size = 3 + Math.random() * 5;
       const color = COLORS[Math.floor(Math.random() * COLORS.length)];
       Object.assign(spark.style, {
         position: 'absolute',
         left: '50%',
-        top: '50%',
+        top: '0',
         width: `${size}px`,
         height: `${size}px`,
         borderRadius: '9999px',
@@ -38,7 +38,7 @@ export function SparkBurst({ trigger, count = 32 }: { trigger: number; count?: n
 
       // Mostly upwards and sideways, then pulled down: a ballistic arc.
       const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.4;
-      const distance = 60 + Math.random() * 140;
+      const distance = 80 + Math.random() * 180;
       const dx = Math.cos(angle) * distance;
       const dy = Math.sin(angle) * distance;
       const fall = 40 + Math.random() * 80;
@@ -56,5 +56,5 @@ export function SparkBurst({ trigger, count = 32 }: { trigger: number; count?: n
     return () => sparks.forEach((spark) => spark.remove());
   }, [trigger, count, reducedMotion]);
 
-  return <div ref={layer} aria-hidden='true' className='pointer-events-none absolute inset-0 overflow-visible' />;
+  return <div ref={layer} aria-hidden='true' className='pointer-events-none absolute inset-0 z-20 overflow-visible' />;
 }
