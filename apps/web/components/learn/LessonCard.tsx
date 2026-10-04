@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { usePrefersReducedMotion } from '@/lib/hooks/useMediaQuery';
 import type { SkillNode } from '@/lib/progress/skillTree';
 import { useCardTilt } from './useCardTilt';
 
@@ -49,6 +51,61 @@ function CertificateBadge({ state }: { state: CertificateState }) {
   return null;
 }
 
+const SHAKE: Keyframe[] = [
+  { transform: 'translateX(0)' },
+  { transform: 'translateX(-7px)' },
+  { transform: 'translateX(6px)' },
+  { transform: 'translateX(-4px)' },
+  { transform: 'translateX(3px)' },
+  { transform: 'translateX(0)' },
+];
+
+/** The message of a locked card once clicked. */
+function lockedMessage(node: SkillNode): string {
+  return node.unlockedBy ? `Pass ${node.unlockedBy.title} first` : 'Coming soon: this lesson is being written';
+}
+
+/**
+ * A locked lesson: a click shakes the card (unless reduced motion) and says what to do first.
+ * The lesson page itself stays reachable by URL.
+ */
+function LockedCard({
+  node,
+  className,
+  renderBody,
+}: {
+  node: SkillNode;
+  className: string;
+  renderBody: (message: string | null) => React.ReactNode;
+}) {
+  const reducedMotion = usePrefersReducedMotion();
+  const [nudged, setNudged] = useState(0);
+
+  useEffect(() => {
+    if (nudged === 0) return;
+    const timer = window.setTimeout(() => setNudged(0), 2600);
+    return () => window.clearTimeout(timer);
+  }, [nudged]);
+
+  return (
+    <button
+      type='button'
+      onClick={(event) => {
+        if (!reducedMotion) {
+          event.currentTarget.animate(SHAKE, { duration: 420, easing: 'ease-out' });
+        }
+        setNudged((count) => count + 1);
+      }}
+      className={`${className} w-full cursor-not-allowed text-left`}
+    >
+      {renderBody(nudged > 0 ? lockedMessage(node) : null)}
+      <span role='status' className='sr-only'>
+        {nudged > 0 ? lockedMessage(node) : ''}
+      </span>
+    </button>
+  );
+}
+
 /** A lesson on the path: what you build, how long it takes and where you stand. */
 export function LessonCard({ node, certificate = null }: { node: SkillNode; certificate?: CertificateState }) {
   const { lesson, state } = node;
@@ -59,7 +116,7 @@ export function LessonCard({ node, certificate = null }: { node: SkillNode; cert
       : state === 'available'
         ? 'steel-surface border-amber-300/70 shadow-[0_18px_50px_-28px_var(--color-molten-500)]'
         : 'steel-surface opacity-75';
-  const body = (
+  const renderBody = (message: string | null = null) => (
     <>
       <div className='flex items-baseline justify-between gap-4'>
         <h3 className='font-display text-2xl font-bold leading-tight text-steel-100'>{lesson.title}</h3>
@@ -70,18 +127,27 @@ export function LessonCard({ node, certificate = null }: { node: SkillNode; cert
       <p className='mt-1 text-sm text-steel-300'>{lesson.preview}</p>
       <p className='mt-2 text-xs text-steel-400'>{details(node)}</p>
       <div className='mt-4 flex flex-wrap items-center gap-2 text-sm'>
-        <span
-          className={
-            state === 'completed' ? 'font-semibold text-amber-300' : state === 'available' ? 'font-semibold text-steel-100' : 'text-steel-400'
-          }
-        >
-          {statusText(node)}
-        </span>
+        {message ? (
+          <span className='font-semibold text-molten-300'>{message}</span>
+        ) : (
+          <span
+            className={
+              state === 'completed' ? 'font-semibold text-amber-300' : state === 'available' ? 'font-semibold text-steel-100' : 'text-steel-400'
+            }
+          >
+            {statusText(node)}
+          </span>
+        )}
         <CertificateBadge state={certificate} />
       </div>
     </>
   );
   const className = `${tone} block p-5 transition-colors`;
+  if (state === 'locked') {
+    return (
+      <LockedCard node={node} className={className} renderBody={renderBody} />
+    );
+  }
   return lesson.available ? (
     <div className='[perspective:900px]'>
       <Link
@@ -94,10 +160,10 @@ export function LessonCard({ node, certificate = null }: { node: SkillNode; cert
             : '')
         }
       >
-        {body}
+        {renderBody()}
       </Link>
     </div>
   ) : (
-    <div className={className}>{body}</div>
+    <div className={className}>{renderBody()}</div>
   );
 }
