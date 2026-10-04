@@ -48,4 +48,11 @@ describe("rankProgress", () => {
     expect(rankProgress(-10).rank.name).toBe("Apprentice");
     expect(rankProgress(-10).fraction).toBe(0);
   });
+
+  it("measures XP against the next threshold, without resetting on a rank-up", () => {
+    expect(rankProgress(0).thresholdFraction).toBe(0);
+    expect(rankProgress(250).thresholdFraction).toBeCloseTo(250 / 750);
+    expect(rankProgress(750).thresholdFraction).toBeCloseTo(750 / 1800);
+    expect(rankProgress(6000).thresholdFraction).toBe(1);
+  });
 });
