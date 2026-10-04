@@ -8,6 +8,18 @@ export interface LessonCheck {
   anyOf: string[];
   /** Shown to the student when the check fails. */
   hint: string;
+  /**
+   * Optional snippet locating where the check belongs (a struct, a function signature): when the
+   * check fails, the editor underlines the line where this snippet starts.
+   */
+  anchor?: string;
+}
+
+export interface CheckResult {
+  check: LessonCheck;
+  passed: boolean;
+  /** 1-based line of the check's anchor in the code, or null without an anchor match. */
+  line: number | null;
 }
 
 export interface ValidationResult {
@@ -108,14 +120,33 @@ export function stripCommentsAndStrings(code: string): string {
   return out;
 }
 
+/** 1-based line of a character index. */
+function lineAt(code: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index; i += 1) {
+    if (code.charCodeAt(i) === 10) line += 1;
+  }
+  return line;
+}
+
 /**
  * Runs every check against the code, with comments and string contents removed so a check
- * cannot be passed by writing the expected snippet in a comment or a string.
+ * cannot be passed by writing the expected snippet in a comment or a string. Each result
+ * carries the line of the check's anchor, for editor diagnostics.
  */
-export function validateCode(code: string, checks: LessonCheck[]): ValidationResult {
+export function evaluateChecks(code: string, checks: LessonCheck[]): CheckResult[] {
   const source = stripCommentsAndStrings(code);
-  const hints = checks
-    .filter((check) => !check.anyOf.some((snippet) => snippetPattern(snippet).test(source)))
-    .map((check) => check.hint);
+  return checks.map((check) => {
+    const passed = check.anyOf.some((snippet) => snippetPattern(snippet).test(source));
+    const anchor = check.anchor ? snippetPattern(check.anchor).exec(source) : null;
+    return { check, passed, line: anchor ? lineAt(source, anchor.index) : null };
+  });
+}
+
+/** The verdict of "Check my code": passed when every check passes, with the failed hints. */
+export function validateCode(code: string, checks: LessonCheck[]): ValidationResult {
+  const hints = evaluateChecks(code, checks)
+    .filter((result) => !result.passed)
+    .map((result) => result.check.hint);
   return { passed: hints.length === 0, hints };
 }
