@@ -1,4 +1,4 @@
-import { checkedAdd, wrappingAdd, deleteMapping, readMapping, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
+import { wrappingAdd, deleteMapping, readMapping, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -159,7 +159,7 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
         view: false,
         params: [{ name: 'points', type: 'uint256' }],
         run: (state, args, caller) => {
-          const total = checkedAdd(readMapping(state, 'scores', caller.address), args.points as bigint);
+          const total = wrappingAdd(readMapping(state, 'scores', caller.address), args.points as bigint);
           return { state: writeMapping(state, 'scores', caller.address, total) };
         },
       },

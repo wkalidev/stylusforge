@@ -82,12 +82,12 @@ describe("lesson simulations", () => {
     expect(results[5].state.scores).toEqual({ [bob.address]: 7n });
   });
 
-  it("lesson 6 keeps the score when the sum overflows", () => {
+  it("lesson 6 wraps the score around when the sum overflows, like U256", () => {
     const [, overflow] = run(getSimulation(6)!, [
-      ["record", { points: "1" }, alice],
+      ["record", { points: "2" }, alice],
       ["record", { points: ((1n << 256n) - 1n).toString() }, alice],
     ]);
-    expect(overflow).toMatchObject({ ok: false, error: { error: "Arithmetic overflow" } });
+    expect(overflow.ok).toBe(true);
     expect(readMapping(overflow.state, "scores", alice.address)).toBe(1n);
   });
 
