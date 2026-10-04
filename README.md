@@ -4,7 +4,7 @@
 
 Learn Arbitrum Stylus smart contracts in Rust, in the browser, and earn a soul-bound certificate on-chain for every lesson you finish.
 
-**Status:** MVP, live on Arbitrum Sepolia: <https://stylusforge-drab.vercel.app>. The full flow also runs on a local chain.
+**Status:** MVP, live on Arbitrum Sepolia: <https://stylusforge.wkalidev.com>. The full flow also runs on a local chain.
 
 <!-- MARKEE -->
 
@@ -159,7 +159,7 @@ For local development `pnpm deploy:local` writes the last three to `apps/web/.en
 |---|---|
 | Arbitrum Sepolia (421614) | [`0xf7f027a6af8d2f99a9b8f466983f4515522daa8d`](https://sepolia.arbiscan.io/address/0xf7f027a6af8d2f99a9b8f466983f4515522daa8d#code) (verified) |
 
-Live app: <https://stylusforge-drab.vercel.app>
+Live app: <https://stylusforge.wkalidev.com>
 
 Deployment and verification steps: [contracts/README.md](contracts/README.md#deployment).
 

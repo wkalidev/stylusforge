@@ -6,7 +6,7 @@ import { metadataUri } from "../scripts/metadata-uri.js";
 describe("metadataUri", function () {
   it("appends the metadata route to a bare https domain", function () {
     assert.equal(metadataUri("https://stylusforge.example"), "https://stylusforge.example/api/metadata/{id}");
-    assert.equal(metadataUri("https://stylusforge-drab.vercel.app"), "https://stylusforge-drab.vercel.app/api/metadata/{id}");
+    assert.equal(metadataUri("https://stylusforge.wkalidev.com"), "https://stylusforge.wkalidev.com/api/metadata/{id}");
   });
 
   it("accepts http only for localhost, with a port", function () {
