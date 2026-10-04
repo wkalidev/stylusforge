@@ -1,29 +1,36 @@
 import { recoverTypedDataAddress } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CLAIM_TYPES, claimDomain } from "@/lib/claim";
 import { LESSONS } from "@/lib/curriculum/lessons";
 import { SOLUTIONS } from "@/lib/curriculum/solutions";
+import { POST } from "./route";
 
 const CONTRACT = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 const STUDENT = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+const NOW = new Date("2026-10-04T12:00:00Z");
 const signerKey = generatePrivateKey();
 
-/** Loads the route with the given environment (module-level config is read at import). */
-async function loadRoute(env: Record<string, string | undefined>) {
-  vi.resetModules();
-  for (const [name, value] of Object.entries(env)) {
-    vi.stubEnv(name, value);
-  }
-  return import("./route");
-}
+/**
+ * The chain and the contract address are read from the environment when their modules load.
+ * They are mocked instead, so the route is imported once, outside any test: re-importing it in
+ * every test made the first one pay for loading viem and the curriculum, and time out under load.
+ * The signer key is read on each request, so tests set it with `vi.stubEnv`.
+ */
+const config = vi.hoisted(() => ({ contract: null as string | null }));
+vi.mock("@/lib/chain", async () => ({ chain: (await import("viem/chains")).hardhat }));
+vi.mock("@/lib/contract", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/contract")>()),
+  get nftContractAddress() {
+    return config.contract;
+  },
+}));
 
-const configured = {
-  NEXT_PUBLIC_CHAIN_ID: "31337",
-  NEXT_PUBLIC_NFT_CONTRACT_ADDRESS: CONTRACT,
-  CLAIM_SIGNER_PRIVATE_KEY: signerKey,
-};
+function configure({ contract = CONTRACT, signer = signerKey }: { contract?: string | null; signer?: string } = {}) {
+  config.contract = contract;
+  vi.stubEnv("CLAIM_SIGNER_PRIVATE_KEY", signer);
+}
 
 function post(body: unknown) {
   return new Request("http://localhost/api/claim", {
@@ -34,19 +41,24 @@ function post(body: unknown) {
 }
 
 describe("POST /api/claim", () => {
-  afterEach(() => vi.unstubAllEnvs());
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    configure();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
 
   it("signs a voucher for a passing solution", async () => {
-    const { POST } = await loadRoute(configured);
-    const before = Math.floor(Date.now() / 1000);
-
     const response = await POST(post({ address: STUDENT.toLowerCase(), lessonId: 1, code: SOLUTIONS[1] }));
     expect(response.status).toBe(200);
     const voucher = await response.json();
 
     expect(voucher.lessonId).toBe("1");
     const deadline = BigInt(voucher.deadline);
-    expect(Number(deadline) - before).toBeGreaterThanOrEqual(15 * 60 - 1);
+    expect(deadline).toBe(BigInt(NOW.getTime() / 1000 + 15 * 60));
     const recovered = await recoverTypedDataAddress({
       domain: claimDomain(31337, CONTRACT),
       types: CLAIM_TYPES,
@@ -58,7 +70,6 @@ describe("POST /api/claim", () => {
   });
 
   it("re-validates the code and returns the objectives it misses", async () => {
-    const { POST } = await loadRoute(configured);
     const response = await POST(post({ address: STUDENT, lessonId: 1, code: "// string greeting;" }));
     expect(response.status).toBe(422);
     const body = await response.json();
@@ -74,18 +85,17 @@ describe("POST /api/claim", () => {
     ["an unknown lesson", { address: STUDENT, lessonId: 99, code: "" }, 404],
     ["an unavailable lesson", { address: STUDENT, lessonId: 5, code: "" }, 404],
   ])("rejects %s", async (_label, body, status) => {
-    const { POST } = await loadRoute(configured);
     const response = await POST(post(body));
     expect(response.status).toBe(status);
     expect((await response.json()).error).toBeTypeOf("string");
   });
 
   it.each([
-    ["the signer key is missing", { ...configured, CLAIM_SIGNER_PRIVATE_KEY: "" }],
-    ["the signer key is malformed", { ...configured, CLAIM_SIGNER_PRIVATE_KEY: "0x1234" }],
-    ["the contract address is missing", { ...configured, NEXT_PUBLIC_NFT_CONTRACT_ADDRESS: "" }],
-  ])("answers 503 when %s", async (_label, env) => {
-    const { POST } = await loadRoute(env);
+    ["the signer key is missing", { signer: "" }],
+    ["the signer key is malformed", { signer: "0x1234" }],
+    ["the contract address is missing", { contract: null }],
+  ])("answers 503 when %s", async (_label, setup) => {
+    configure(setup);
     const response = await POST(post({ address: STUDENT, lessonId: 1, code: SOLUTIONS[1] }));
     expect(response.status).toBe(503);
   });
