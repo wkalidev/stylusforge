@@ -87,4 +87,15 @@ describe.each(available)("lesson $id: $title", (lesson) => {
       expect(givesCode(task!.body, check), `the task step gives the code of "${check.objective}"`).toBe(false);
     }
   });
+
+  it("has at least two hints per check, and only the last one gives the code", () => {
+    for (const check of checks) {
+      expect(check.hints.length, check.objective).toBeGreaterThanOrEqual(2);
+      check.hints.forEach((hint, index) => {
+        expect(hint.trim(), `empty hint for "${check.objective}"`).not.toBe("");
+        const last = index === check.hints.length - 1;
+        expect(givesCode(hint, check), `hint ${index + 1} of "${check.objective}"`).toBe(last);
+      });
+    }
+  });
 });
