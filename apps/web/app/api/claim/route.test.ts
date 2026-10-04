@@ -3,6 +3,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CLAIM_TYPES, claimDomain } from "@/lib/claim";
+import { LESSONS } from "@/lib/curriculum/lessons";
 import { SOLUTIONS } from "@/lib/curriculum/solutions";
 
 const CONTRACT = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
@@ -56,12 +57,13 @@ describe("POST /api/claim", () => {
     expect(recovered).toBe(privateKeyToAccount(signerKey).address);
   });
 
-  it("re-validates the code and returns the hints", async () => {
+  it("re-validates the code and returns the objectives it misses", async () => {
     const { POST } = await loadRoute(configured);
     const response = await POST(post({ address: STUDENT, lessonId: 1, code: "// string greeting;" }));
     expect(response.status).toBe(422);
     const body = await response.json();
-    expect(body.hints.length).toBeGreaterThan(0);
+    expect(body.objectives).toEqual(LESSONS[0].exercise!.checks.map((check) => check.objective));
+    expect(body.hints).toBeUndefined();
   });
 
   it.each([

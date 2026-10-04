@@ -173,6 +173,7 @@ Progress is local first, so the reward is immediate and needs no wallet:
 
 - a passing check records the lesson in `localStorage` (`stylusforge:completed:v1`) and the lesson bar shows "Passed";
 - the code of each lesson is saved on every change (`stylusforge:code:v1:<id>`) and restored when the lesson is reopened; "Reset code" brings back the starter code;
+- the hints revealed for each lesson are saved too (`stylusforge:hints:v1:<id>`);
 - the XP meter sums the XP of the passed lessons and shows the rank: Apprentice from 0 XP, Smith from 250, Master Forger from 600.
 
 The store (`lib/progress/storage.ts`) is read through `useSyncExternalStore`: empty during server rendering and hydration (no mismatch), synced across tabs through the `storage` event, and kept in memory for the page when `localStorage` is blocked. On-chain XP and certificates are shown on the profile page.
@@ -194,7 +195,7 @@ With a wallet connected, a bar under the header lists the lessons passed in this
 | 200 | `{ lessonId, deadline, signature }` (uint256 as decimal strings) | Code passes; voucher signed |
 | 400 | `{ error }` | Body is not JSON, invalid address, non-integer lesson id, code over 50,000 characters |
 | 404 | `{ error }` | Unknown or unavailable lesson |
-| 422 | `{ error, hints }` | Code fails the lesson checks |
+| 422 | `{ error, objectives }` | Code fails the lesson checks; `objectives` lists the unmet objectives, never the expected code |
 | 503 | `{ error }` | Contract address or signer key not configured |
 
 `CLAIM_SIGNER_PRIVATE_KEY` is only read in `lib/server/claimSigner.ts`, which imports `server-only`: importing it from a Client Component fails the build. The reference solutions (`lib/curriculum/solutions.ts`) are guarded the same way; vitest maps `server-only` to an empty module (`test/server-only.ts`). Its address must be the contract's `signer`; `pnpm deploy:local` sets both for the local chain.
@@ -216,13 +217,14 @@ The contract's metadata URI is `<app origin>/api/metadata/{id}` (`pnpm deploy:lo
 
 The lesson page keeps its split layout from `lg` up: explanation on the left, editor on the right. Below `lg` it becomes **Learn / Code** tabs (an ARIA tablist; arrow keys switch tabs), and the explanation ends with an "Open the editor" button.
 
-- **Compare with reference**: after a pass, a read-only diff between the student's code and the reference solution replaces the editor until "Back to my code". The solution comes from `POST /api/solution` with `{ lessonId, code }`, which re-runs the checks and answers only for passing code (400 / 404 / 422 otherwise, never cached); solutions stay behind `server-only` and never reach the client bundle.
+- **Compare with reference**: after a pass, a read-only diff between the student's code and the reference solution replaces the editor until "Back to my code". The solution comes from `POST /api/solution` with `{ lessonId, code }`, which re-runs the checks and answers only for passing code (400 / 404 otherwise, 422 with the unmet `objectives`, never cached); solutions stay behind `server-only` and never reach the client bundle.
 - **Try it**: after a pass, a JavaScript simulation of the lesson's contract (labelled as such) lets the student pick a caller, call functions and see returns, events, reverts and storage change. It is a third **Try** tab below `lg`; from `lg` the right column switches between **Code** and **Try it**, so the editor keeps its height. See the [curriculum README](../../curriculum/README.md#simulations).
 - **Step by step**: the explanation is shown one step at a time with a segmented progress bar (each segment jumps to its step), previous / next (focus moves to the new step), optional "Quick check" quizzes between steps, and a "Show all steps" toggle. The last step opens the editor.
 - **Heating ingot**: a small version of the landing ingot sits in the lesson header (`LessonIngot`). Its heat is the share of live objectives met: cold steel, then dull red, then molten, eased over about a second. It follows the hero's rules: lazy chunk (`ssr: false`), gradient fallback while loading and without WebGL, still with reduced motion, paused off-screen. The molten shader takes a `uHeat` uniform (1 for the hero).
-- **Live objectives**: the lesson checks are listed as objectives and re-evaluated 300 ms after typing pauses: a card above the explanation from `lg`, a collapsible summary above the editor below `lg`. Met objectives light up from cold steel to molten, with a heat bar and a live count. They are guidance only; "Check my code" is the validation that records progress.
+- **Live objectives**: the lesson checks are listed as objectives and re-evaluated 300 ms after typing pauses: a card above the explanation from `lg`, a collapsible summary above the editor below `lg`. Met objectives light up from cold steel to molten, with a heat bar and a live count. They are guidance only; "Check my code" is the validation that records progress, and lists the objectives still missing when it fails.
+- **Progressive hints**: each objective states a goal, never the code. A failing objective has a "Show a hint" button that reveals its hints one at a time, from a nudge to the exact code ("Next hint (2/3)"). Hints render inline code and disappear once the objective is met. The number of revealed hints is saved per lesson in `localStorage` (`stylusforge:hints:v1:<id>`, `lib/progress/hints.ts`), so both objectives views and the editor stay in sync.
 - **Token tooltips**: hovering a Stylus token in the editor (`sol_storage!`, `#[public]`, `self.vm()`, ...) explains it, from the [glossary](../../curriculum/README.md#glossary).
-- **Inline diagnostics**: each failing check underlines the line of its `anchor` (see the [curriculum README](../../curriculum/README.md#validation-rules)) with an amber squiggle; hovering shows the hint.
+- **Inline diagnostics**: each failing check underlines the line of its `anchor` (see the [curriculum README](../../curriculum/README.md#validation-rules)) with an amber squiggle; hovering shows the objective and the hints revealed so far.
 - **Shortcut**: Ctrl+Enter (⌘ Enter on macOS) runs "Check my code" from the editor or anywhere on the page; inside the editor it replaces Monaco's own "insert line below". The button shows the shortcut and declares `aria-keyshortcuts`.
 
 - **XP bar**: the top bar shows the lesson's reward and a bar with the rank progress plus a ghost segment for that reward. It says when passing the lesson promotes the student, then fills once the lesson is passed.

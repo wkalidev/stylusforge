@@ -9,8 +9,8 @@ import { getClaimSigner } from '@/lib/server/claimSigner';
 /** Larger than any lesson solution by far; rejects abusive payloads before validation. */
 const MAX_CODE_LENGTH = 50_000;
 
-function error(status: number, message: string, hints?: string[]) {
-  return Response.json({ error: message, ...(hints ? { hints } : {}) } satisfies ClaimErrorResponse, { status });
+function error(status: number, message: string, objectives?: string[]) {
+  return Response.json({ error: message, ...(objectives ? { objectives } : {}) } satisfies ClaimErrorResponse, { status });
 }
 
 /**
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   const result = validateCode(code, lesson.exercise.checks);
   if (!result.passed) {
-    return error(422, 'The code does not pass the lesson checks yet.', result.hints);
+    return error(422, 'The code does not pass the lesson checks yet.', result.objectives);
   }
 
   const signer = getClaimSigner();

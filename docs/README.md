@@ -51,7 +51,7 @@ Browser                                   Next.js server                 Chain
 
 | State | Where | Read by |
 |---|---|---|
-| Passed lessons, saved code, sound preference | `localStorage` in the student's browser | header XP meter, skill tree, lesson page |
+| Passed lessons, saved code, revealed hints, sound preference | `localStorage` in the student's browser | header XP meter, skill tree, lesson page |
 | Certificates and on-chain XP | `StylusForgeNFT` (`completed`, `getCompletedLessons`, `getTotalXP`) | claim panel, unclaimed prompt, skill tree mark, profile |
 | Lesson metadata | `curriculum/lessons.json`, registered on-chain at deployment, later lessons with `pnpm register:lessons` | everything |
 

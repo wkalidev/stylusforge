@@ -65,9 +65,9 @@ describe("stripCommentsAndStrings", () => {
 
 describe("evaluateChecks", () => {
   const checks = [
-    { anyOf: ["uint256 count;"], hint: "declare count", anchor: "pub struct Counter {" },
-    { anyOf: ["self.count.get()"], hint: "read count", anchor: "pub fn get(&self)" },
-    { anyOf: ["U256::ZERO"], hint: "no anchor" },
+    { anyOf: ["uint256 count;"], objective: "declare count", hints: [], anchor: "pub struct Counter {" },
+    { anyOf: ["self.count.get()"], objective: "read count", hints: [], anchor: "pub fn get(&self)" },
+    { anyOf: ["U256::ZERO"], objective: "no anchor", hints: [] },
   ];
   const code = [
     "// pub fn get(&self) in a comment does not count",
@@ -96,17 +96,17 @@ describe("evaluateChecks", () => {
 
 describe("validateCode", () => {
   const checks = [
-    { anyOf: ["uint256 count;"], hint: "declare count" },
-    { anyOf: ["self.count.set(U256::ZERO)", "self.count.set(U256::from(0))"], hint: "reset" },
+    { anyOf: ["uint256 count;"], objective: "declare count", hints: [] },
+    { anyOf: ["self.count.set(U256::ZERO)", "self.count.set(U256::from(0))"], objective: "reset", hints: [] },
   ];
 
   it("passes when every check matches one of its snippets", () => {
     const result = validateCode("uint256 count; self.count.set(U256::from(0))", checks);
-    expect(result).toEqual({ passed: true, hints: [] });
+    expect(result).toEqual({ passed: true, objectives: [] });
   });
 
-  it("returns the hints of the failed checks in order", () => {
-    expect(validateCode("", checks)).toEqual({ passed: false, hints: ["declare count", "reset"] });
+  it("returns the objectives of the failed checks in order", () => {
+    expect(validateCode("", checks)).toEqual({ passed: false, objectives: ["declare count", "reset"] });
   });
 
   it("ignores snippets written in comments or strings", () => {

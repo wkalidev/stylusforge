@@ -13,6 +13,7 @@ import { evaluateChecks, validateCode } from '@/lib/curriculum/validate';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import { useIsApplePlatform } from '@/lib/hooks/usePlatform';
 import { resetCode, saveCode, useSavedCode } from '@/lib/progress/code';
+import { useRevealedHints } from '@/lib/progress/hints';
 import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progress';
 import { playAnvilStrike } from '@/lib/sound/anvil';
 import { isSoundEnabled } from '@/lib/sound/preference';
@@ -38,7 +39,8 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const savedCode = useSavedCode(lesson.id);
   const code = savedCode ?? exercise.starterCode;
   const [completed, setCompleted] = useState(false);
-  const [hints, setHints] = useState<string[]>([]);
+  // Objectives still missing after the last "Check my code".
+  const [missing, setMissing] = useState<string[]>([]);
   const [strikes, setStrikes] = useState(0);
   const [tab, setTab] = useState<WorkspaceTab>('learn');
   const completedIds = useCompletedLessons();
@@ -55,7 +57,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const checkCode = () => {
     const result = validateCode(code, exercise.checks);
     setCompleted(result.passed);
-    setHints(result.hints);
+    setMissing(result.objectives);
     if (result.passed) {
       markLessonCompleted(lesson.id);
       setStrikes((count) => count + 1);
@@ -91,19 +93,23 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
     setEditorReady(true);
   };
 
-  // Inline diagnostics: each failing check underlines its anchor line, with the hint on hover.
+  // Inline diagnostics: each failing check underlines its anchor line, with its objective and the
+  // hints revealed so far on hover.
+  const revealedHints = useRevealedHints(lesson.id);
   useEffect(() => {
     const monaco = monacoRef.current;
     const model = editorRef.current?.getModel();
     if (!editorReady || !monaco || !model) return;
     const markers = liveResults
-      .filter((result) => !result.passed && result.line !== null && result.line <= model.getLineCount())
-      .map((result) => {
+      .map((result, index) => ({ result, revealed: revealedHints[index] ?? 0 }))
+      .filter(({ result }) => !result.passed && result.line !== null && result.line <= model.getLineCount())
+      .map(({ result, revealed }) => {
         const line = result.line as number;
+        const hints = result.check.hints.slice(0, revealed).map((hint, index) => `Hint ${index + 1}: ${hint}`);
         return {
           severity: monaco.MarkerSeverity.Warning,
           source: 'Lesson check',
-          message: result.check.hint,
+          message: [result.check.objective, ...hints].join('\n'),
           startLineNumber: line,
           startColumn: model.getLineFirstNonWhitespaceColumn(line) || 1,
           endLineNumber: line,
@@ -111,7 +117,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
         };
       });
     monaco.editor.setModelMarkers(model, 'stylusforge-checks', markers);
-  }, [liveResults, editorReady]);
+  }, [liveResults, revealedHints, editorReady]);
   const apple = useIsApplePlatform();
 
   // The editor sits next to the explanation from lg; below it lives in the Code tab.
@@ -149,7 +155,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const resetToStarter = () => {
     resetCode(lesson.id);
     setCompleted(false);
-    setHints([]);
+    setMissing([]);
   };
 
   return (
@@ -200,7 +206,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
           className={`${tab === 'learn' ? 'block' : 'hidden'} p-6 sm:p-8 lg:block lg:w-1/2 lg:overflow-y-auto lg:border-r lg:border-steel-800 xl:px-12`}
         >
           <div className='mx-auto max-w-2xl'>
-            <Objectives results={liveResults} variant='panel' />
+            <Objectives lessonId={lesson.id} results={liveResults} variant='panel' />
             <ExplanationSteps explanation={exercise.explanation} quizzes={exercise.quizzes} onOpenEditor={openEditor} />
           </div>
         </article>
@@ -212,7 +218,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
           className={`${tab === 'code' ? 'flex' : 'hidden'} ${tab === 'try' ? 'lg:hidden' : 'lg:flex'} flex-col gap-4 p-4 sm:p-5 lg:w-1/2 lg:overflow-y-auto`}
         >
           <RightPaneSwitch active={tab} onChange={setTab} />
-          <Objectives results={liveResults} variant='compact' />
+          <Objectives lessonId={lesson.id} results={liveResults} variant='compact' />
           <div className='flex h-[60vh] min-h-72 flex-col overflow-hidden rounded-[var(--radius-forge)] border border-steel-700 bg-steel-950 lg:h-auto lg:flex-1'>
             <div className='ember-edge flex items-center justify-between gap-3 border-b border-steel-800 bg-steel-900 px-4 py-2'>
               {compare.open ? (
@@ -269,14 +275,15 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
             </div>
           </div>
 
-          {hints.length > 0 && (
+          {missing.length > 0 && (
             <div role='status' className='steel-surface ember-edge p-4'>
               <p className='mb-2 font-semibold text-amber-300'>Not there yet</p>
               <ul className='list-disc space-y-1 pl-5 text-sm text-steel-300'>
-                {hints.map((hint) => (
-                  <li key={hint}>{hint}</li>
+                {missing.map((objective) => (
+                  <li key={objective}>{objective}</li>
                 ))}
               </ul>
+              <p className='mt-2 text-xs text-steel-400'>Stuck? Reveal hints one at a time in the objectives list.</p>
             </div>
           )}
           {passed && (

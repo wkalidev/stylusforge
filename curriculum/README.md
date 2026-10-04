@@ -99,7 +99,22 @@ Each entry has an `id`, a `pattern` (a regular expression without the `g` or `y`
 
 Checks are static: the code is not compiled. `apps/web/lib/curriculum/validate.ts` runs them in the browser for instant feedback and again on the server before a certificate voucher is signed.
 
-A check is a list of snippets (`anyOf`), a hint and an `anchor`. It passes when the code contains any of its snippets. The anchor is a snippet locating the line the check is about (a struct, a function signature, the `sol!` block): when the check fails, the editor underlines that line and shows the hint on hover. Matching works on the code with comments and string contents blanked in place, so positions and lines are preserved.
+A check has:
+
+| Field | Description |
+|---|---|
+| `anyOf` | Snippets; the check passes when the code contains any of them. |
+| `objective` | The goal in plain words, never the expected code: "Increment the count by 1", not "write `self.count.set(...)`". Plain text, no backticks. |
+| `hints` | Two or more hints, revealed one at a time, from a nudge to the exact code. Only the last one gives the expected code. Inline code goes between backticks. |
+| `anchor` | A snippet locating the line the check is about (a struct, a function signature, the `sol!` block). |
+
+When a check fails, the editor underlines its anchor line and shows the objective, plus the hints revealed so far, on hover. Matching works on the code with comments and string contents blanked in place, so positions and lines are preserved.
+
+### Writing objectives and hints
+
+- The objective says what to achieve; the hints say how, one level at a time: first the idea (where the code goes, what to read or write), then the API or type to use, then the exact line.
+- The `### Your task` step follows the same rule: it describes the goals and names what the checks need (field and function names), but never shows the expected code. The explanation steps before it teach the syntax with other examples.
+- Failing objectives, not hints, are what `/api/claim` and `/api/solution` return for code that does not pass.
 
 Matching rules:
 
@@ -113,4 +128,6 @@ Every lesson must satisfy, and `apps/web/lib/curriculum/lessons.test.ts` enforce
 2. each check fails on the starter code (no check is passed for free);
 3. the reference solution passes every check;
 4. the solution still passes when reformatted;
-5. the solution pasted in comments or a raw string fails.
+5. the solution pasted in comments or a raw string fails;
+6. no objective and no `### Your task` step contains the expected code of a check, and objectives contain no backticks;
+7. each check has at least two non-empty hints, and only the last one contains the expected code.

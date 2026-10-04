@@ -26,7 +26,8 @@ export interface ClaimResponse {
 /** Body of a refused POST /api/claim. */
 export interface ClaimErrorResponse {
   error: string;
-  hints?: string[];
+  /** Objectives the submitted code does not meet yet (422 only). */
+  objectives?: string[];
 }
 
 export interface ClaimVoucher {
