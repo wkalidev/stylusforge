@@ -59,7 +59,7 @@ pnpm dev            # 3. web app on http://localhost:3000, connected to the loca
 `pnpm deploy:local`:
 
 - deploys `StylusForgeNFT` from Hardhat account #0 and registers the lessons of `curriculum/lessons.json`;
-- sets Hardhat account #1 as the claim signer;
+- sets Hardhat account #1 as the claim signer and points the metadata URI at `http://localhost:3000/api/metadata/{id}`;
 - writes `apps/web/.env.development.local` with `NEXT_PUBLIC_CHAIN_ID=31337`, `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` and `CLAIM_SIGNER_PRIVATE_KEY`. It writes no other file and never touches `apps/web/.env.local`.
 
 `next dev` loads `.env.development.local` on top of `.env.local`, so the app uses the local chain in development. `next build` / `next start` ignore it and use Arbitrum Sepolia.

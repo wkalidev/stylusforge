@@ -14,6 +14,9 @@ const LOCAL_CHAIN_ID = 31337;
  */
 const LOCAL_CLAIM_SIGNER_PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
 
+/** ERC-1155 metadata URI served by the web app's /api/metadata/[id] route under `pnpm dev`. */
+const LOCAL_METADATA_URI = "http://localhost:3000/api/metadata/{id}";
+
 /** The only file this script writes. Next.js loads it in `next dev` only. */
 const WEB_ENV_PATH = new URL("../../apps/web/.env.development.local", import.meta.url);
 
@@ -29,6 +32,12 @@ if (chainId !== LOCAL_CHAIN_ID) {
 
 const claimSigner = privateKeyToAccount(LOCAL_CLAIM_SIGNER_PRIVATE_KEY);
 const address = await deployCertificate(connection, claimSigner.address);
+
+// Point token metadata at the local web app (`pnpm dev`); clients substitute {id}.
+const nft = await connection.viem.getContractAt("StylusForgeNFT", address);
+const hash = await nft.write.setURI([LOCAL_METADATA_URI]);
+await (await connection.viem.getPublicClient()).waitForTransactionReceipt({ hash });
+console.log(`Metadata URI set to: ${LOCAL_METADATA_URI}`);
 
 writeFileSync(
   WEB_ENV_PATH,

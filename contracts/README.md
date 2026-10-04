@@ -118,7 +118,8 @@ With `pnpm chain` running, `pnpm deploy:local` runs `scripts/deploy-local.ts` on
 
 1. stops unless it is connected to a running node with chain id 31337 (the in-process network also uses 31337 but vanishes when the script exits);
 2. deploys from Hardhat account #0, registers the available lessons and sets Hardhat account #1 as the claim signer;
-3. writes `apps/web/.env.development.local` (`NEXT_PUBLIC_CHAIN_ID`, `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS`, `CLAIM_SIGNER_PRIVATE_KEY`), overwriting it on every run. It writes no other file.
+3. sets the metadata URI to `http://localhost:3000/api/metadata/{id}` (the web app's metadata route under `pnpm dev`);
+4. writes `apps/web/.env.development.local` (`NEXT_PUBLIC_CHAIN_ID`, `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS`, `CLAIM_SIGNER_PRIVATE_KEY`), overwriting it on every run. It writes no other file.
 
 Both keys are the public Hardhat test keys; no configuration variable is needed. The node keeps its state in memory, so run `pnpm deploy:local` again after restarting it. The full local workflow, including MetaMask, is in the [root README](../README.md#local-development).
 
