@@ -20,7 +20,7 @@ const components: Components = {
     ),
   table: ({ children }) => (
     <div className='overflow-x-auto mb-4'>
-      <table className='w-full text-sm border-collapse'>{children}</table>
+      <table className='w-full text-xs border-collapse'>{children}</table>
     </div>
   ),
   th: ({ children }) => <th className='text-left font-semibold border-b border-steel-600 px-3 py-2'>{children}</th>,
