@@ -35,7 +35,10 @@ apps/web/
 │  ├─ claim/UnclaimedPrompt.tsx bar listing passed lessons whose certificate is not claimed
 │  ├─ profile/ProfileView.tsx   rank, XP and certificates read on-chain
 │  ├─ layout/SiteHeader.tsx     shared header (logo, navigation, player controls slot)
-│  ├─ layout/HeaderControls.tsx XP meter and wallet button in the header
+│  ├─ layout/HeaderControls.tsx XP meter, anvil sound toggle and wallet button in the header
+│  ├─ layout/WalletButton.tsx   RainbowKit flows behind compact forge buttons
+│  ├─ feedback/SparkBurst.tsx   spark burst on a passing check
+│  ├─ progress/LessonXpBar.tsx  rank progress with the lesson's pending reward
 │  ├─ progress/XpMeter.tsx      local rank, XP and progress to the next rank
 │  ├─ ui/button.ts              button styles (heat, steel, quench)
 │  ├─ Lesson/LessonLayout.tsx   explanation, editor, hints and code check
@@ -48,6 +51,7 @@ apps/web/
 │  ├─ curriculum/solutions.ts   reference solutions (tests only)
 │  ├─ hooks/useMediaQuery.ts    media queries (reduced motion, constrained devices)
 │  ├─ highlightRust.ts          small Rust tokenizer for code snippets
+│  ├─ sound/                    synthesized anvil strike and the sound preference (muted by default)
 │  ├─ progress/                 local progress: storage, passed lessons, saved code, ranks, skill tree states
 │  ├─ useClaimedLessons.ts      on-chain claimed / unclaimed lessons of the connected wallet
 │  ├─ chain.ts                  chain selection from NEXT_PUBLIC_CHAIN_ID
@@ -154,7 +158,7 @@ See the [root README](../../README.md#local-development) to run the app against 
 
 ## Wallet and progress
 
-The header shows the player's controls on every page: the XP meter and RainbowKit's connect button, themed with the forge palette (avatar only on small screens).
+The header shows the player's controls on every page: the XP meter, the anvil sound toggle and the wallet button (RainbowKit's modals behind compact forge-styled buttons).
 
 Progress is local first, so the reward is immediate and needs no wallet:
 
@@ -198,6 +202,15 @@ The contract's metadata URI is `<app origin>/api/metadata/{id}` (`pnpm deploy:lo
 | `GET /api/metadata/[id]/image` | The SVG certificate (`image/svg+xml`) |
 
 `[id]` is the decimal id or the 64-hex-digit form clients substitute for `{id}`. Unknown and unavailable lessons return 404. Both responses are cacheable for an hour. The SVG is standalone (no external resources) so wallets and marketplaces can display it.
+
+## Lesson feedback
+
+The lesson page keeps its split layout: explanation on the left, editor on the right (stacked below `lg`).
+
+- **XP bar**: the top bar shows the lesson's reward and a bar with the rank progress plus a ghost segment for that reward. It says when passing the lesson promotes the student, then fills once the lesson is passed.
+- **Spark burst**: a passing check throws sparks from the check button (Web Animations API, no re-render). There is no burst with `prefers-reduced-motion`.
+- **Anvil sound**: an optional strike synthesized with the Web Audio API (`lib/sound/anvil.ts`, no audio file): a filtered noise impact plus five inharmonic, decaying partials. It is muted by default. The header toggle (`aria-pressed`) turns it on, plays one strike as a preview, and the choice is remembered in `localStorage`.
+- After a pass, "Forged: +XP" links to the next lesson.
 
 ## Skill tree
 

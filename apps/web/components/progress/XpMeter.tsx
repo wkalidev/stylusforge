@@ -23,7 +23,7 @@ export function XpMeter() {
           aria-valuemax={100}
           aria-valuenow={Math.round(fraction * 100)}
           aria-valuetext={label}
-          className='h-1.5 w-12 overflow-hidden rounded-full bg-steel-800 sm:w-24'
+          className='h-1.5 w-9 overflow-hidden rounded-full bg-steel-800 sm:w-24'
         >
           <div
             className='h-full rounded-full bg-gradient-to-r from-ember-500 via-molten-500 to-amber-300 transition-[width] duration-500 motion-reduce:transition-none'

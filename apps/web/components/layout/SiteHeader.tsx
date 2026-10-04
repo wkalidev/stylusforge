@@ -16,7 +16,7 @@ export function SiteHeader({ actions }: { actions?: React.ReactNode }) {
           </Link>
           <NavLinks />
         </div>
-        {actions ? <div className='flex items-center gap-2 sm:gap-3'>{actions}</div> : null}
+        {actions ? <div className='flex items-center gap-1.5 sm:gap-3'>{actions}</div> : null}
       </div>
     </header>
   );
