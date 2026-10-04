@@ -648,6 +648,12 @@ const CONTENT: Record<number, LessonContent> = {
     preview: 'A contract that calls into a DeFi protocol.',
     minutes: 25,
   },
+  6: {
+    slug: 'mappings',
+    difficulty: 'Beginner',
+    preview: 'A scoreboard that keeps a score per player and lets players clear their own.',
+    minutes: 15,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
