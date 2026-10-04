@@ -1,10 +1,14 @@
 import curriculum from '../../../../curriculum/lessons.json';
+import type { LessonQuiz } from './steps';
 import type { LessonCheck } from './validate';
 
 export interface LessonExercise {
+  /** Markdown; its `###` sections become the steps of the explanation (see steps.ts). */
   explanation: string;
   starterCode: string;
   checks: LessonCheck[];
+  /** Optional questions shown between steps. */
+  quizzes?: LessonQuiz[];
 }
 
 interface LessonBase {
