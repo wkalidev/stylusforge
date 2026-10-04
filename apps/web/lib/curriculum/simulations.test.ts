@@ -91,6 +91,33 @@ describe("lesson simulations", () => {
     expect(readMapping(overflow.state, "scores", alice.address)).toBe(1n);
   });
 
+  it("lesson 7 appends, reads by index and trims from the end", () => {
+    const results = run(getSimulation(7)!, [
+      ["record", { price: "100" }, alice],
+      ["record", { price: "105" }, bob],
+      ["record", { price: "98" }, alice],
+      ["length", {}, alice],
+      ["price_at", { index: "1" }, alice],
+      ["remove_last", {}, bob],
+      ["length", {}, alice],
+      ["price_at", { index: "2" }, alice],
+    ]);
+    expect(results[3].returns).toBe(3n);
+    expect(results[4].returns).toBe(105n);
+    expect(results[5].state.prices).toEqual([100n, 105n]);
+    expect(results[6].returns).toBe(2n);
+    expect(results[7]).toMatchObject({ ok: false, error: { error: "IndexOutOfBounds", args: { index: 2n, length: 2n } } });
+  });
+
+  it("lesson 7 reverts on an empty log and ignores remove_last when empty", () => {
+    const [read, removed] = run(getSimulation(7)!, [
+      ["price_at", { index: "0" }, alice],
+      ["remove_last", {}, alice],
+    ]);
+    expect(read).toMatchObject({ ok: false, error: { error: "IndexOutOfBounds", args: { index: 0n, length: 0n } } });
+    expect(removed).toMatchObject({ ok: true, state: { prices: [] } });
+  });
+
   it("lesson 4 behaves like an ERC-20 transfer", () => {
     const results = run(getSimulation(4)!, [
       ["transfer", { to: "Bob", value: "400" }, alice],
