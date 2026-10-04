@@ -8,6 +8,13 @@ export interface LessonCheck {
   anyOf: string[];
   /** Shown to the student when the check fails. */
   hint: string;
+  /** The goal of the check in plain words, never the expected code ("Increment the count by 1"). */
+  objective?: string;
+  /**
+   * Hints revealed one at a time, from a nudge to the exact code: only the last one gives the
+   * expected code. Inline code is written between backticks.
+   */
+  hints?: string[];
   /**
    * Optional snippet locating where the check belongs (a struct, a function signature): when the
    * check fails, the editor underlines the line where this snippet starts.
