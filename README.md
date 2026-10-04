@@ -25,7 +25,7 @@ This is a pnpm workspace with a single lockfile (`pnpm-lock.yaml`) at the root.
 stylusforge/
 ├─ apps/web/      Next.js app (lessons, editor, wallet)
 ├─ contracts/     Hardhat 3 project (StylusForgeNFT certificate contract)
-├─ curriculum/    Curriculum notes
+├─ curriculum/    lessons.json (lesson ids, names, XP) and lesson rules
 └─ docs/          Project documentation
 ```
 
@@ -94,7 +94,7 @@ The local node keeps its state in memory: after restarting `pnpm chain`, run `pn
 | `pnpm dev` | `next dev` in `apps/web` |
 | `pnpm build` | `next build` in `apps/web` |
 | `pnpm lint` | `eslint .` in `apps/web` |
-| `pnpm test` | `hardhat test` in `contracts` (Solidity and Node.js tests) |
+| `pnpm test` | `hardhat test` in `contracts`, then `vitest run` in `apps/web` |
 | `pnpm chain` | `hardhat node` in `contracts`: local chain on port 8545 |
 | `pnpm deploy:local` | Deploys to the local node and writes `apps/web/.env.development.local` |
 
