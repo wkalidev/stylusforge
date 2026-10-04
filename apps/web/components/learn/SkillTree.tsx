@@ -1,12 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { LESSONS } from '@/lib/curriculum/lessons';
 import { MODULES } from '@/lib/curriculum/modules';
 import { forgePath, type Heat, type PathZone, type RowHeat } from '@/lib/progress/forgePath';
 import { useCompletedLessons } from '@/lib/progress/progress';
 import { skillTree, type SkillNode } from '@/lib/progress/skillTree';
 import { useClaimedLessons } from '@/lib/useClaimedLessons';
+import { LessonCard, statusText } from './LessonCard';
 
 function LockIcon() {
   return (
@@ -43,60 +43,6 @@ function Knot({ node }: { node: SkillNode }) {
     <span aria-hidden='true' className={`${base} border border-steel-600 bg-steel-850 text-steel-400`}>
       <LockIcon />
     </span>
-  );
-}
-
-function statusText(node: SkillNode): string {
-  if (node.state === 'completed') return 'Passed';
-  if (node.state === 'available') return 'Ready to start';
-  return node.unlockedBy ? `Pass ${node.unlockedBy.title} to unlock` : 'Coming soon';
-}
-
-function NodeCard({ node, claimed }: { node: SkillNode; claimed: boolean }) {
-  const { lesson, state } = node;
-  const tone =
-    state === 'completed'
-      ? 'steel-surface ember-edge'
-      : state === 'available'
-        ? 'steel-surface border-amber-300/70 shadow-[0_18px_50px_-28px_var(--color-molten-500)]'
-        : 'steel-surface opacity-70';
-  const body = (
-    <>
-      <div className='flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1'>
-        <h2 className='font-display text-2xl font-bold leading-tight text-steel-100'>{lesson.title}</h2>
-        <span className={state === 'locked' ? 'text-sm text-steel-400' : 'text-sm font-semibold text-amber-300'}>
-          {lesson.xp} XP
-        </span>
-      </div>
-      <p className='mt-1 text-sm text-steel-400'>{lesson.difficulty}</p>
-      <div className='mt-4 flex flex-wrap items-center gap-2 text-sm'>
-        <span
-          className={
-            state === 'completed'
-              ? 'font-semibold text-amber-300'
-              : state === 'available'
-                ? 'font-semibold text-steel-100'
-                : 'text-steel-400'
-          }
-        >
-          {statusText(node)}
-        </span>
-        {claimed && (
-          <span className='rounded-[var(--radius-forge)] border border-quench-500/60 px-2 py-0.5 text-xs font-semibold text-quench-300'>
-            Certificate on-chain
-          </span>
-        )}
-      </div>
-    </>
-  );
-  const className = `${tone} block p-5 transition-colors`;
-  // Every written lesson stays reachable: the tree guides, it does not gate.
-  return lesson.available ? (
-    <Link href={`/learn/${lesson.slug}`} className={`${className} hover:border-molten-500`}>
-      {body}
-    </Link>
-  ) : (
-    <div className={className}>{body}</div>
   );
 }
 
@@ -193,7 +139,16 @@ export function SkillTree() {
                 <Spine heat={heat} />
                 <Knot node={node} />
                 <span className='sr-only'>{`Lesson ${node.lesson.id}: ${statusText(node)}.`}</span>
-                <NodeCard node={node} claimed={Boolean(onChain?.claimed.has(node.lesson.id))} />
+                <LessonCard
+                  node={node}
+                  badges={
+                    onChain?.claimed.has(node.lesson.id) && (
+                      <span className='rounded-[var(--radius-forge)] border border-quench-500/60 px-2 py-0.5 text-xs font-semibold text-quench-300'>
+                        Certificate on-chain
+                      </span>
+                    )
+                  }
+                />
               </li>
             ))}
           </ol>
