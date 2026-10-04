@@ -824,6 +824,22 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn clear(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Reading a mapping",
+          question: "What does self.deposits.get(account) return for an address that was never written?",
+          options: ["It reverts the call", "None", "U256::ZERO"],
+          answer: 2,
+          explanation: "Every key of a mapping exists and starts at the zero value, so get(key) on an unwritten key returns U256::ZERO (or false, or an empty value).",
+        },
+        {
+          afterStep: "Writing and deleting",
+          question: "Which call resets one entry of a mapping to zero?",
+          options: ["self.members.delete(account)", "self.members.remove(account)", "self.members.get(account).clear()"],
+          answer: 0,
+          explanation: "delete(key) resets the entry to its zero value. take(key) does the same and also returns the old value.",
+        },
+      ],
     },
   },
 };
