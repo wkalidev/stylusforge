@@ -73,8 +73,13 @@ function rawDetails(error: unknown, chain: unknown[]): string {
   if (root === error || root instanceof Error || typeof root !== 'object' || root === null) {
     return top;
   }
-  const json = JSON.stringify(root, (_key, value: unknown) => (typeof value === 'bigint' ? value.toString() : value), 2);
-  return `${top}\n\nWallet error:\n${json}`;
+  try {
+    const json = JSON.stringify(root, (_key, value: unknown) => (typeof value === 'bigint' ? value.toString() : value), 2);
+    return `${top}\n\nWallet error:\n${json}`;
+  } catch {
+    // A wallet error can hold circular references: the details must never hide the message.
+    return top;
+  }
 }
 
 /** A message the student can act on, and the raw error behind it, for any error of the claim flow. */

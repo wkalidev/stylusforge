@@ -95,6 +95,18 @@ describe("describeClaimError", () => {
     expect(view.details).toContain("Execution reverted");
   });
 
+  it("still explains an error whose raw wallet object cannot be serialized", () => {
+    const raw: Record<string, unknown> = { code: 4001, message: "User denied transaction signature." };
+    raw.self = raw;
+    expect(describeClaimError(new Error("Request failed", { cause: raw })).message).toBe(CLAIM_ERROR_MESSAGES.rejected);
+    const fee: Record<string, unknown> = { code: -32603, data: { message: "max fee per gas less than block base fee" } };
+    fee.self = fee;
+    expect(describeClaimError(new Error("Internal JSON-RPC error.", { cause: fee }))).toEqual({
+      message: CLAIM_ERROR_MESSAGES.fee,
+      details: "Internal JSON-RPC error.",
+    });
+  });
+
   it("reports an unreachable server", () => {
     expect(describeClaimError(new TypeError("Failed to fetch"))).toEqual({ message: CLAIM_ERROR_MESSAGES.offline, details: "Failed to fetch" });
   });
