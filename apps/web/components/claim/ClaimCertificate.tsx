@@ -126,7 +126,7 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
       await queryClient.invalidateQueries();
     } catch (cause) {
       setError({
-        message: describeClaimError(cause),
+        message: describeClaimError(cause).message,
         objectives: cause instanceof VoucherRequestError ? cause.objectives : [],
       });
     } finally {
