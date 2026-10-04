@@ -3,12 +3,15 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Editor from '@monaco-editor/react';
 import { ClaimCertificate } from '@/components/claim/ClaimCertificate';
+import { SparkBurst } from '@/components/feedback/SparkBurst';
 import { LessonXpBar } from '@/components/progress/LessonXpBar';
 import { buttonClasses } from '@/components/ui/button';
 import { LESSONS, getLesson } from '@/lib/curriculum/lessons';
 import { validateCode } from '@/lib/curriculum/validate';
 import { resetCode, saveCode, useSavedCode } from '@/lib/progress/code';
 import { markLessonCompleted, useCompletedLessons } from '@/lib/progress/progress';
+import { playAnvilStrike } from '@/lib/sound/anvil';
+import { isSoundEnabled } from '@/lib/sound/preference';
 import { LessonMarkdown } from './LessonMarkdown';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 
@@ -19,6 +22,7 @@ export function LessonLayout({ slug }: { slug: string }) {
   const code = savedCode ?? exercise?.starterCode ?? '';
   const [completed, setCompleted] = useState(false);
   const [hints, setHints] = useState<string[]>([]);
+  const [strikes, setStrikes] = useState(0);
   const completedIds = useCompletedLessons();
 
   if (!lesson || !exercise) {
@@ -39,6 +43,10 @@ export function LessonLayout({ slug }: { slug: string }) {
     setHints(result.hints);
     if (result.passed) {
       markLessonCompleted(lesson.id);
+      setStrikes((count) => count + 1);
+      if (isSoundEnabled()) {
+        playAnvilStrike();
+      }
     }
   };
 
@@ -143,9 +151,12 @@ export function LessonLayout({ slug }: { slug: string }) {
             <button type='button' onClick={resetToStarter} disabled={savedCode === null} className={buttonClasses('steel', 'lg')}>
               Reset code
             </button>
-            <button type='button' onClick={checkCode} className={buttonClasses('heat', 'lg', 'flex-1')}>
-              Check my code
-            </button>
+            <div className='relative flex-1'>
+              <button type='button' onClick={checkCode} className={buttonClasses('heat', 'lg', 'w-full')}>
+                Check my code
+              </button>
+              <SparkBurst trigger={strikes} />
+            </div>
           </div>
         </div>
       </div>
