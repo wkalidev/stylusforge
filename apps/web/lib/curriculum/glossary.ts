@@ -102,6 +102,18 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'Returns a writable handle to one entry of a `mapping`; chain `.set(value)` to store it.',
   },
   {
+    id: 'insert',
+    pattern: /(?<=\.)insert\(/,
+    title: 'insert(key, value)',
+    description: 'Stores `value` for `key` in a `mapping`, overwriting what was there. The same as `setter(key).set(value)`.',
+  },
+  {
+    id: 'delete',
+    pattern: /(?<=\.)delete\(/,
+    title: 'delete(key)',
+    description: 'Resets one entry of a `mapping` to its zero value. `take(key)` does the same and returns the old value.',
+  },
+  {
     id: 'mapping',
     pattern: /\bmapping\(/,
     title: 'mapping(K => V)',

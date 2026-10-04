@@ -24,6 +24,15 @@ describe("glossaryAt", () => {
     expect(idAt("let log = 1;", 5)).toBeNull();
   });
 
+  it("matches insert and delete only as method calls", () => {
+    const write = "        self.scores.insert(player, total);";
+    expect(idAt(write, write.indexOf("insert") + 1)).toBe("insert");
+    const clear = "        self.scores.delete(player);";
+    expect(idAt(clear, clear.indexOf("delete") + 1)).toBe("delete");
+    expect(idAt("insert(player, total);", 1)).toBeNull();
+    expect(idAt("let delete = 1;", 5)).toBeNull();
+  });
+
   it("does not match inside longer identifiers", () => {
     expect(idAt("let my_U256x = 1;", 8)).toBeNull();
     expect(idAt("uint2567", 2)).toBeNull();
