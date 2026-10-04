@@ -8,6 +8,18 @@ export interface LessonCheck {
   anyOf: string[];
   /** Shown to the student when the check fails. */
   hint: string;
+  /**
+   * Optional snippet locating where the check belongs (a struct, a function signature): when the
+   * check fails, the editor underlines the line where this snippet starts.
+   */
+  anchor?: string;
+}
+
+export interface CheckResult {
+  check: LessonCheck;
+  passed: boolean;
+  /** 1-based line of the check's anchor in the code, or null without an anchor match. */
+  line: number | null;
 }
 
 export interface ValidationResult {
@@ -45,20 +57,32 @@ export function snippetPattern(snippet: string): RegExp {
   return new RegExp(start + source + end);
 }
 
+/** Replaces every character except newlines with a space, keeping positions and lines. */
+function blank(segment: string): string {
+  return segment.replace(/[^\n]/g, " ");
+}
+
+/** A string literal emptied in place: same length, quotes at both ends, contents blanked. */
+function emptyLiteral(literal: string): string {
+  return literal.length < 2 ? blank(literal) : `"${blank(literal.slice(1, -1))}"`;
+}
+
 /**
  * Removes what a check must never match: line comments, (nested) block comments and the
- * contents of string literals, including raw strings. Comments become a space so the tokens
- * around them stay separated; strings keep their quotes and lose their contents.
+ * contents of string literals, including raw strings. Positions are preserved: removed
+ * characters become spaces (newlines stay), so an index in the result is the same index in the
+ * original code and matches map back to lines.
  */
 export function stripCommentsAndStrings(code: string): string {
   let out = "";
   let i = 0;
   while (i < code.length) {
+    const start = i;
     const rest = code.slice(i);
     if (rest.startsWith("//")) {
       const end = code.indexOf("\n", i);
       i = end === -1 ? code.length : end;
-      out += " ";
+      out += blank(code.slice(start, i));
     } else if (rest.startsWith("/*")) {
       let depth = 1;
       i += 2;
@@ -73,21 +97,21 @@ export function stripCommentsAndStrings(code: string): string {
           i += 1;
         }
       }
-      out += " ";
+      out += blank(code.slice(start, i));
     } else if (/^b?r#*"/.test(rest) && !/[A-Za-z0-9_]/.test(code[i - 1] ?? "")) {
       // Raw string r"..." / r#"..."#: ends at a quote followed by the same number of hashes.
       const opening = rest.match(/^b?r(#*)"/)!;
       const closing = `"${opening[1]}`;
       const end = code.indexOf(closing, i + opening[0].length);
       i = end === -1 ? code.length : end + closing.length;
-      out += '""';
+      out += emptyLiteral(code.slice(start, i));
     } else if (code[i] === '"') {
       i += 1;
       while (i < code.length && code[i] !== '"') {
         i += code[i] === "\\" ? 2 : 1;
       }
-      i += 1;
-      out += '""';
+      i = Math.min(i + 1, code.length);
+      out += emptyLiteral(code.slice(start, i));
     } else {
       out += code[i];
       i += 1;
@@ -96,14 +120,33 @@ export function stripCommentsAndStrings(code: string): string {
   return out;
 }
 
+/** 1-based line of a character index. */
+function lineAt(code: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index; i += 1) {
+    if (code.charCodeAt(i) === 10) line += 1;
+  }
+  return line;
+}
+
 /**
  * Runs every check against the code, with comments and string contents removed so a check
- * cannot be passed by writing the expected snippet in a comment or a string.
+ * cannot be passed by writing the expected snippet in a comment or a string. Each result
+ * carries the line of the check's anchor, for editor diagnostics.
  */
-export function validateCode(code: string, checks: LessonCheck[]): ValidationResult {
+export function evaluateChecks(code: string, checks: LessonCheck[]): CheckResult[] {
   const source = stripCommentsAndStrings(code);
-  const hints = checks
-    .filter((check) => !check.anyOf.some((snippet) => snippetPattern(snippet).test(source)))
-    .map((check) => check.hint);
+  return checks.map((check) => {
+    const passed = check.anyOf.some((snippet) => snippetPattern(snippet).test(source));
+    const anchor = check.anchor ? snippetPattern(check.anchor).exec(source) : null;
+    return { check, passed, line: anchor ? lineAt(source, anchor.index) : null };
+  });
+}
+
+/** The verdict of "Check my code": passed when every check passes, with the failed hints. */
+export function validateCode(code: string, checks: LessonCheck[]): ValidationResult {
+  const hints = evaluateChecks(code, checks)
+    .filter((result) => !result.passed)
+    .map((result) => result.check.hint);
   return { passed: hints.length === 0, hints };
 }

@@ -93,14 +93,17 @@ const CONTENT: Record<number, LessonContent> = {
         {
           anyOf: ['string greeting;'],
           hint: 'Declare the field in sol_storage! with Solidity syntax: string greeting;',
+          anchor: 'pub struct HelloWorld {',
         },
         {
           anyOf: ['self.greeting.get_string()'],
           hint: 'Return self.greeting.get_string() from get_greeting',
+          anchor: 'pub fn get_greeting(',
         },
         {
           anyOf: ['self.greeting.set_str(greeting)', 'self.greeting.set_str(&greeting)'],
           hint: 'Store the argument with self.greeting.set_str(greeting) in set_greeting',
+          anchor: 'pub fn set_greeting(',
         },
       ],
     },
@@ -172,18 +175,22 @@ const CONTENT: Record<number, LessonContent> = {
         {
           anyOf: ['uint256 count;'],
           hint: 'Declare the field in sol_storage! with Solidity syntax: uint256 count;',
+          anchor: 'pub struct Counter {',
         },
         {
           anyOf: ['-> U256 { self.count.get() }', '-> U256 { return self.count.get(); }'],
           hint: 'Return self.count.get() from get',
+          anchor: 'pub fn get(&self)',
         },
         {
           anyOf: ['self.count.set(self.count.get() + U256::from(1))', 'self.count.set(self.count.get() + U256::from(1u8))'],
           hint: 'In increment, write self.count.set(self.count.get() + U256::from(1))',
+          anchor: 'pub fn increment(',
         },
         {
           anyOf: ['self.count.set(U256::ZERO)', 'self.count.set(U256::from(0))'],
           hint: 'In reset, write self.count.set(U256::ZERO)',
+          anchor: 'pub fn reset(',
         },
       ],
     },
@@ -287,26 +294,32 @@ const CONTENT: Record<number, LessonContent> = {
         {
           anyOf: ['event Transfer(address indexed from, address indexed to, uint256 value);'],
           hint: 'Declare event Transfer(address indexed from, address indexed to, uint256 value); in sol!',
+          anchor: 'sol! {',
         },
         {
           anyOf: ['error InsufficientBalance(uint256 available, uint256 required);'],
           hint: 'Declare error InsufficientBalance(uint256 available, uint256 required); in sol!',
+          anchor: 'sol! {',
         },
         {
           anyOf: ['InsufficientBalance(InsufficientBalance)'],
           hint: 'Add an InsufficientBalance(InsufficientBalance) variant to TokenError',
+          anchor: 'pub enum TokenError {',
         },
         {
           anyOf: ['if available < amount {', 'if amount > available {'],
           hint: 'Compare the balance with the amount before moving tokens: if available < amount { ... }',
+          anchor: 'let available = self.balances.get(from);',
         },
         {
           anyOf: ['Err(TokenError::InsufficientBalance(InsufficientBalance {'],
           hint: 'Revert with Err(TokenError::InsufficientBalance(InsufficientBalance { available, required: amount }))',
+          anchor: 'let available = self.balances.get(from);',
         },
         {
           anyOf: ['self.vm().log(Transfer {'],
           hint: 'Emit the event with self.vm().log(Transfer { from, to, value: amount })',
+          anchor: 'Ok(())',
         },
       ],
     },
@@ -405,34 +418,42 @@ const CONTENT: Record<number, LessonContent> = {
         {
           anyOf: ['uint256 total_supply;'],
           hint: 'Declare uint256 total_supply; in sol_storage!',
+          anchor: 'pub struct Erc20 {',
         },
         {
           anyOf: ['mapping(address => uint256) balances;'],
           hint: 'Declare mapping(address => uint256) balances; in sol_storage!',
+          anchor: 'pub struct Erc20 {',
         },
         {
           anyOf: ['mapping(address => mapping(address => uint256)) allowances;'],
           hint: 'Declare mapping(address => mapping(address => uint256)) allowances; in sol_storage!',
+          anchor: 'pub struct Erc20 {',
         },
         {
           anyOf: ['self.total_supply.get()'],
           hint: 'Return self.total_supply.get() from total_supply',
+          anchor: 'pub fn total_supply(',
         },
         {
           anyOf: ['self.balances.get(account)'],
           hint: 'Return self.balances.get(account) from balance_of',
+          anchor: 'pub fn balance_of(',
         },
         {
           anyOf: ['Err(Erc20Error::InsufficientBalance(InsufficientBalance {'],
           hint: 'In transfer, revert with Err(Erc20Error::InsufficientBalance(InsufficientBalance { from, have, want: value }))',
+          anchor: 'let from = self.vm().msg_sender();',
         },
         {
           anyOf: ['self.vm().log(Transfer {'],
           hint: 'Emit self.vm().log(Transfer { from, to, value }) in transfer',
+          anchor: 'pub fn transfer(',
         },
         {
           anyOf: ['Ok(true)'],
           hint: 'Return Ok(true) once the transfer is done',
+          anchor: 'pub fn transfer(',
         },
       ],
     },

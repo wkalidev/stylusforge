@@ -54,7 +54,9 @@ Content targets the current `stylus-sdk` (0.10): `sol_storage!` with Solidity fi
 
 Checks are static: the code is not compiled. `apps/web/lib/curriculum/validate.ts` runs them in the browser for instant feedback and again on the server before a certificate voucher is signed.
 
-A check is a list of snippets (`anyOf`) and a hint. It passes when the code contains any of its snippets:
+A check is a list of snippets (`anyOf`), a hint and an `anchor`. It passes when the code contains any of its snippets. The anchor is a snippet locating the line the check is about (a struct, a function signature, the `sol!` block): when the check fails, the editor underlines that line and shows the hint on hover. Matching works on the code with comments and string contents blanked in place, so positions and lines are preserved.
+
+Matching rules:
 
 - whitespace does not matter, except that two identifiers must stay separated (`uint256 count;` matches `uint256   count ;` but not `uint256count;`);
 - a snippet never matches in the middle of an identifier (`uint256 count;` does not match `uint256 counter;`);
@@ -62,7 +64,8 @@ A check is a list of snippets (`anyOf`) and a hint. It passes when the code cont
 
 Every lesson must satisfy, and `apps/web/lib/curriculum/lessons.test.ts` enforces:
 
-1. each check fails on the starter code (no check is passed for free);
-2. the reference solution passes every check;
-3. the solution still passes when reformatted;
-4. the solution pasted in comments or a raw string fails.
+1. each check has an anchor found in the starter code;
+2. each check fails on the starter code (no check is passed for free);
+3. the reference solution passes every check;
+4. the solution still passes when reformatted;
+5. the solution pasted in comments or a raw string fails.

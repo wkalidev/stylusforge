@@ -214,6 +214,8 @@ The contract's metadata URI is `<app origin>/api/metadata/{id}` (`pnpm deploy:lo
 
 The lesson page keeps its split layout from `lg` up: explanation on the left, editor on the right. Below `lg` it becomes **Learn / Code** tabs (an ARIA tablist; arrow keys switch tabs), and the explanation ends with an "Open the editor" button.
 
+- **Live objectives**: the lesson checks are listed as objectives and re-evaluated 300 ms after typing pauses: a card above the explanation from `lg`, a collapsible summary above the editor below `lg`. Met objectives light up from cold steel to molten, with a heat bar and a live count. They are guidance only; "Check my code" is the validation that records progress.
+- **Inline diagnostics**: each failing check underlines the line of its `anchor` (see the [curriculum README](../../curriculum/README.md#validation-rules)) with an amber squiggle; hovering shows the hint.
 - **Shortcut**: Ctrl+Enter (⌘ Enter on macOS) runs "Check my code" from the editor or anywhere on the page; inside the editor it replaces Monaco's own "insert line below". The button shows the shortcut and declares `aria-keyshortcuts`.
 
 - **XP bar**: the top bar shows the lesson's reward and a bar with the rank progress plus a ghost segment for that reward. It says when passing the lesson promotes the student, then fills once the lesson is passed.
