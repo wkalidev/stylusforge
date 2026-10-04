@@ -2,36 +2,24 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAccount, useReadContract } from 'wagmi';
-import { chain } from '@/lib/chain';
-import { nftContractAddress, stylusForgeNftAbi } from '@/lib/contract';
 import { LESSONS } from '@/lib/curriculum/lessons';
 import { useCompletedLessons } from '@/lib/progress/progress';
+import { useClaimedLessons } from '@/lib/useClaimedLessons';
 
 /**
  * Lessons passed in this browser but not claimed by the connected wallet, so local progress and
  * on-chain certificates converge. The current lesson page has its own claim panel and is skipped.
  */
 export function UnclaimedPrompt() {
-  const { address } = useAccount();
   const pathname = usePathname();
   const passed = useCompletedLessons();
-  const onChain = useReadContract({
-    address: nftContractAddress ?? undefined,
-    abi: stylusForgeNftAbi,
-    functionName: 'getCompletedLessons',
-    args: address ? [address] : undefined,
-    chainId: chain.id,
-    query: { enabled: Boolean(address && nftContractAddress) },
-  });
+  const onChain = useClaimedLessons();
 
-  if (!address || !onChain.data) {
+  if (!onChain) {
     return null;
   }
-  const [registeredIds, done] = onChain.data;
-  const claimable = new Set(registeredIds.filter((_, index) => !done[index]).map(Number));
   const unclaimed = LESSONS.filter(
-    (lesson) => passed.includes(lesson.id) && claimable.has(lesson.id) && pathname !== `/learn/${lesson.slug}`,
+    (lesson) => passed.includes(lesson.id) && onChain.unclaimed.has(lesson.id) && pathname !== `/learn/${lesson.slug}`,
   );
   if (unclaimed.length === 0) {
     return null;
