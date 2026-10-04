@@ -22,3 +22,6 @@ target/
 .DS_Store
 *.log
 .vercel
+
+# Local task notes (never commit)
+TASK-stylusforge-mvp.md
