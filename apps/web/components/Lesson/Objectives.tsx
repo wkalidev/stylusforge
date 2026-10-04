@@ -13,8 +13,8 @@ export function Objectives({ results, variant }: { results: CheckResult[]; varia
   const met = results.filter((result) => result.passed).length;
   const list = (
     <ul className='space-y-1.5'>
-      {results.map((result) => (
-        <li key={result.check.hint} className='flex items-start gap-2.5 text-sm'>
+      {results.map((result, index) => (
+        <li key={index} className='flex items-start gap-2.5 text-sm'>
           <span
             aria-hidden='true'
             className={
@@ -26,7 +26,7 @@ export function Objectives({ results, variant }: { results: CheckResult[]; varia
           />
           <span className={'transition-colors duration-500 motion-reduce:transition-none ' + (result.passed ? 'text-steel-100' : 'text-steel-400')}>
             <span className='sr-only'>{result.passed ? 'Done: ' : 'To do: '}</span>
-            {result.check.hint}
+            {result.check.objective ?? result.check.hint}
           </span>
         </li>
       ))}
