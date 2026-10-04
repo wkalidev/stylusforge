@@ -46,6 +46,22 @@ The web-only content lives in `apps/web/lib/curriculum/lessons.ts`, keyed by les
 | `exercise.starterCode` | Rust code loaded in the editor |
 | `exercise.checks` | Static checks, see below |
 
+### Steps and quizzes
+
+The lesson page shows the explanation one step at a time: the `## ` title and its introduction are the first step, then each `### ` section is a step titled by its heading (`apps/web/lib/curriculum/steps.ts`). End every explanation with a `### Your task` step, and keep step titles unique within a lesson.
+
+`exercise.quizzes` adds optional questions between steps:
+
+| Field | Description |
+|---|---|
+| `afterStep` | Title of the step the question follows (not `Your task`) |
+| `question` | The question |
+| `options` | Two or more distinct answers |
+| `answer` | Index of the correct option (vary its position between questions) |
+| `explanation` | Shown once answered, right or wrong |
+
+Quizzes never block progress. Tests check that every lesson has titled steps ending with the task and well-formed quizzes attached to existing steps.
+
 Each available lesson also has a reference solution in `apps/web/lib/curriculum/solutions.ts`. Solutions are only imported by tests, never by app code, so they do not reach the browser.
 
 Content targets the current `stylus-sdk` (0.10): `sol_storage!` with Solidity field syntax, `#[entrypoint]` and `#[public]`, events emitted with `self.vm().log(...)`, errors declared in `sol!` and wrapped in an enum deriving `SolidityError`, and `self.vm().msg_sender()` for the caller.
