@@ -219,8 +219,8 @@ pnpm hardhat verify etherscan --network arbitrumSepolia <CONTRACT_ADDRESS>
 | `StylusForgeNFT` | [`0xf7f027a6af8d2f99a9b8f466983f4515522daa8d`](https://sepolia.arbiscan.io/address/0xf7f027a6af8d2f99a9b8f466983f4515522daa8d#code) (source verified on Arbiscan) |
 | Owner | `0x6815FF8b05dfBf916a528E24494bB8d851Ee0A03` |
 | Claim signer | `0x96cecfC59220e6FC83d213Ad3ba806d5868Bb4e0` |
-| Metadata URI | `https://stylusforge-drab.vercel.app/api/metadata/{id}` |
+| Metadata URI | `https://stylusforge.wkalidev.com/api/metadata/{id}`, set by [`0x78a7c3e8…dadc00`](https://sepolia.arbiscan.io/tx/0x78a7c3e88f2b148be2c3c16621bab1260f792eec06ea1bd3a7e23a6d4dfadc00) |
 | Registered lessons | 1 to 4 |
-| Web app | <https://stylusforge-drab.vercel.app> |
+| Web app | <https://stylusforge.wkalidev.com> |
 
 Lessons added later (6 to 8 for module 1) are registered with `pnpm register:lessons --network arbitrumSepolia` once the web app that serves them is deployed ([Registering new lessons](#registering-new-lessons)). Check the registry with `lessons(id)` on Arbiscan's "Read Contract" tab.
