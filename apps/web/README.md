@@ -24,11 +24,12 @@ apps/web/
 │  ├─ api/metadata/[id]/    ERC-1155 metadata JSON (route.ts) and SVG image (image/route.ts)
 │  ├─ profile/page.tsx      on-chain certificates and XP of the connected wallet
 │  └─ learn/
-│     ├─ page.tsx           curriculum list
+│     ├─ page.tsx           skill tree of the lessons
 │     └─ [slug]/page.tsx    lesson page (prerendered per available lesson, 404 otherwise)
 ├─ components/
 │  ├─ brand/ForgeMark.tsx       StylusForge mark and logo
 │  ├─ hero/                     3D hero: scene, ingot geometry, shaders, lazy loader, fallback
+│  ├─ learn/SkillTree.tsx       lessons as connected nodes (completed, available, locked)
 │  ├─ landing/                  landing sections: Hero, HowItWorks (TypingCode), CertificatePreview (TiltCard), FinalCta
 │  ├─ claim/ClaimCertificate.tsx claim panel of a passed lesson
 │  ├─ claim/UnclaimedPrompt.tsx bar listing passed lessons whose certificate is not claimed
@@ -47,7 +48,8 @@ apps/web/
 │  ├─ curriculum/solutions.ts   reference solutions (tests only)
 │  ├─ hooks/useMediaQuery.ts    media queries (reduced motion, constrained devices)
 │  ├─ highlightRust.ts          small Rust tokenizer for code snippets
-│  ├─ progress/                 local progress: storage, passed lessons, saved code, ranks
+│  ├─ progress/                 local progress: storage, passed lessons, saved code, ranks, skill tree states
+│  ├─ useClaimedLessons.ts      on-chain claimed / unclaimed lessons of the connected wallet
 │  ├─ chain.ts                  chain selection from NEXT_PUBLIC_CHAIN_ID
 │  ├─ contract.ts               StylusForgeNFT ABI (checked against the artifact) and address
 │  ├─ claim.ts                  EIP-712 voucher types and signing (shared)
@@ -196,6 +198,18 @@ The contract's metadata URI is `<app origin>/api/metadata/{id}` (`pnpm deploy:lo
 | `GET /api/metadata/[id]/image` | The SVG certificate (`image/svg+xml`) |
 
 `[id]` is the decimal id or the 64-hex-digit form clients substitute for `{id}`. Unknown and unavailable lessons return 404. Both responses are cacheable for an hour. The SVG is standalone (no external resources) so wallets and marketplaces can display it.
+
+## Skill tree
+
+`/learn` shows the curriculum as a path of connected nodes (`components/learn/SkillTree.tsx`), with states from `lib/progress/skillTree.ts`:
+
+| State | When | Look |
+|---|---|---|
+| Completed | Passed in this browser | Molten knot, glowing path to the next node, "Passed" |
+| Available | The first lesson, or the lesson right after a completed one | Amber ring (pulsing unless reduced motion), "Ready to start" |
+| Locked | Anything else | Lock knot, dashed steel path, "Pass <previous lesson> to unlock" or "Coming soon" |
+
+With a wallet connected, lessons whose certificate the wallet owns carry a quench-blue "Certificate on-chain" mark. Locked lessons that are written stay reachable by URL: the tree guides, it does not gate content.
 
 ## Lessons and checks
 
