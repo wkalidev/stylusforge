@@ -174,6 +174,8 @@ const CONTENT: Record<number, LessonContent> = {
         'self.count.set(next);',
         '```',
         '',
+        '> **Overflow:** `+` and `-` on `U256` wrap around instead of reverting: `U256::MAX + U256::from(1)` is zero. Solidity 0.8 would revert. The Security pitfalls lesson of module 5 shows how to refuse it with `checked_add` and `checked_sub`.',
+        '',
         'Methods that write storage take `&mut self`; read-only methods take `&self`.',
         '',
         '### Your task',
