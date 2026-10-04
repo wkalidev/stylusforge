@@ -13,7 +13,7 @@ Learn Arbitrum Stylus smart contracts in Rust, in the browser, and earn a soul-b
 The first interactive learning platform dedicated to Arbitrum Stylus: write, check and certify your Rust smart contracts directly in the browser.
 
 - **Lessons** in a skill tree, each with an explanation, a Rust editor and instant, static checks.
-- **Progress** saved in the browser: XP and ranks (Apprentice, Smith, Master Forger) update the moment a check passes, no wallet needed.
+- **Progress** saved in the browser: XP and seven ranks, from Apprentice to Forgemaster, update the moment a check passes, no wallet needed.
 - **Certificates**: claim a soul-bound ERC-1155 certificate for each passed lesson. The server re-validates the code and signs a voucher; the student mints it and pays the gas.
 - **Profile**: certificates and XP read on-chain, with ERC-1155 metadata and generated SVG certificates.
 - **Forge identity**: blackened steel, molten heat and Arbitrum blue, with a procedural 3D ingot hero, spark bursts and an optional anvil sound.
