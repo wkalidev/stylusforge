@@ -21,6 +21,10 @@ interface LessonBase {
   xp: number;
   /** Id of the module (curriculum/modules.json) the lesson belongs to. */
   module: string;
+  /** One line on what the student builds, shown on the lesson card. */
+  preview: string;
+  /** Estimated time to complete the lesson, in minutes. */
+  minutes: number;
 }
 
 /** Available lessons have an exercise; unavailable ones are listed as coming soon. */
@@ -30,6 +34,8 @@ export type Lesson = LessonBase &
 interface LessonContent {
   slug: string;
   difficulty: string;
+  preview: string;
+  minutes: number;
   exercise?: LessonExercise;
 }
 
@@ -38,6 +44,8 @@ const CONTENT: Record<number, LessonContent> = {
   1: {
     slug: 'hello-world',
     difficulty: 'Beginner',
+    preview: 'A contract that stores a greeting anyone can read and change.',
+    minutes: 10,
     exercise: {
       explanation: [
         '## Hello World with Arbitrum Stylus',
@@ -144,6 +152,8 @@ const CONTENT: Record<number, LessonContent> = {
   2: {
     slug: 'storage-state',
     difficulty: 'Beginner',
+    preview: 'A counter you can read, increment and reset.',
+    minutes: 10,
     exercise: {
       explanation: [
         '## Storage and State',
@@ -262,6 +272,8 @@ const CONTENT: Record<number, LessonContent> = {
   3: {
     slug: 'events-errors',
     difficulty: 'Intermediate',
+    preview: 'A token transfer that reverts with a custom error and emits an event.',
+    minutes: 15,
     exercise: {
       explanation: [
         '## Events and Errors',
@@ -439,6 +451,8 @@ const CONTENT: Record<number, LessonContent> = {
   4: {
     slug: 'erc20-token',
     difficulty: 'Intermediate',
+    preview: 'The core of an ERC-20 token: supply, balances and transfers.',
+    minutes: 20,
     exercise: {
       explanation: [
         '## ERC-20 Token',
@@ -631,6 +645,8 @@ const CONTENT: Record<number, LessonContent> = {
   5: {
     slug: 'defi-interaction',
     difficulty: 'Advanced',
+    preview: 'A contract that calls into a DeFi protocol.',
+    minutes: 25,
   },
 };
 
@@ -643,7 +659,8 @@ export const LESSONS: Lesson[] = curriculum.map(({ id, name, xp, available, modu
   if (!modules.some((entry) => entry.id === module)) {
     throw new Error(`Lesson ${id} belongs to an unknown module: ${module}`);
   }
-  const base = { id, slug: content.slug, title: name, difficulty: content.difficulty, xp, module };
+  const { slug, difficulty, preview, minutes } = content;
+  const base = { id, slug, title: name, difficulty, xp, module, preview, minutes };
   if (!available) {
     return { ...base, available: false };
   }

@@ -129,3 +129,111 @@ body::before {
   font-family: var(--font-big-shoulders), "Arial Narrow", sans-serif;
   font-variation-settings: "opsz" 72;
 }
+
+/*
+ * An ember drifting down a heated stretch of the skill tree path. The element spans the segment
+ * height, so translateY(100%) carries its spark from the top of the segment to the bottom.
+ * Paused while the path is off-screen ([data-embers="paused"]) and absent with reduced motion.
+ */
+@keyframes ember-flow {
+  0% {
+    transform: translateY(0) scale(0.5);
+    opacity: 0;
+  }
+  15%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100%) scale(1);
+    opacity: 0;
+  }
+}
+
+.forge-ember {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 6px;
+  margin-left: -3px;
+  pointer-events: none;
+  animation: ember-flow 1.8s linear infinite;
+}
+
+.forge-ember::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--color-amber-300);
+  box-shadow: 0 0 8px 2px var(--color-molten-500);
+}
+
+[data-embers="paused"] .forge-ember {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forge-ember {
+    display: none;
+  }
+}
+
+/*
+ * A lesson unlocking: a ring bursts from its knot and its card glows once. Opacity and transform
+ * only; nothing plays with reduced motion (the card still shows "Just unlocked").
+ */
+@keyframes unlock-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes unlock-glow {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes unlock-rise {
+  from {
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .forge-unlock-ring {
+    animation: unlock-ring 1.2s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  }
+
+  .forge-unlock-card {
+    animation: unlock-rise 0.6s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  }
+
+  .forge-unlock-card::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: 0 0 36px 4px color-mix(in oklab, var(--color-molten-500) 55%, transparent);
+    animation: unlock-glow 1.4s ease-out both;
+  }
+}

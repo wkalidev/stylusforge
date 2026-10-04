@@ -108,7 +108,7 @@ function ObjectiveHints({
         <button
           type='button'
           onClick={() => revealNextHint(lessonId, checkIndex, hints.length)}
-          className='mt-1 text-xs font-semibold text-amber-300/90 underline-offset-4 hover:text-amber-300 hover:underline'
+          className='mt-1 block text-xs font-semibold text-amber-300/90 underline-offset-4 hover:text-amber-300 hover:underline'
         >
           {revealed === 0 ? 'Show a hint' : 'Next hint'}
           <span className='text-steel-400'>

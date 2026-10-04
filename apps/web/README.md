@@ -29,7 +29,9 @@ apps/web/
 ├─ components/
 │  ├─ brand/ForgeMark.tsx       StylusForge mark and logo
 │  ├─ hero/                     3D hero: scene, ingot geometry, shaders, lazy loader, fallback
-│  ├─ learn/SkillTree.tsx       lessons as connected nodes (completed, available, locked)
+│  ├─ learn/ProgressHero.tsx    rank, XP, next milestone, streak and the continue button
+│  ├─ learn/SkillTree.tsx       the path through the forge zones, with embers and unlocks
+│  ├─ learn/LessonCard.tsx      lesson card: preview, objectives, time, certificate state, locked shake
 │  ├─ landing/                  landing sections: Hero, HowItWorks (TypingCode), CertificatePreview (TiltCard), FinalCta
 │  ├─ claim/ClaimCertificate.tsx claim panel of a passed lesson
 │  ├─ claim/UnclaimedPrompt.tsx bar listing passed lessons whose certificate is not claimed
@@ -56,7 +58,7 @@ apps/web/
 │  ├─ hooks/useMediaQuery.ts    media queries (reduced motion, constrained devices)
 │  ├─ highlightRust.ts          small Rust tokenizer for code snippets
 │  ├─ sound/                    synthesized anvil strike and the sound preference (muted by default)
-│  ├─ progress/                 local progress: storage, passed lessons, saved code, ranks, skill tree states
+│  ├─ progress/                 local progress: storage, passed lessons, saved code, hints, ranks, streak, skill tree and path layout
 │  ├─ useClaimedLessons.ts      on-chain claimed / unclaimed lessons of the connected wallet
 │  ├─ chain.ts                  chain selection from NEXT_PUBLIC_CHAIN_ID
 │  ├─ contract.ts               StylusForgeNFT ABI (checked against the artifact) and address
@@ -174,6 +176,7 @@ Progress is local first, so the reward is immediate and needs no wallet:
 - a passing check records the lesson in `localStorage` (`stylusforge:completed:v1`) and the lesson bar shows "Passed";
 - the code of each lesson is saved on every change (`stylusforge:code:v1:<id>`) and restored when the lesson is reopened; "Reset code" brings back the starter code;
 - the hints revealed for each lesson are saved too (`stylusforge:hints:v1:<id>`);
+- the lessons page also keeps the daily streak (`stylusforge:streak:v1`), the lesson opened last (`stylusforge:last-lesson:v1`) and the unlocked lessons already shown (`stylusforge:seen-unlocked:v1`);
 - the XP meter sums the XP of the passed lessons and shows the rank (`lib/progress/ranks.ts`). Its caption reads `<xp> / <next threshold> XP` (`<xp> XP · top rank` at the top) and its bar fills against the next threshold, so it never looks empty right after a rank-up.
 
 | Rank | From | Reached at |
@@ -244,17 +247,35 @@ The lesson page keeps its split layout from `lg` up: explanation on the left, ed
 - **Anvil sound**: an optional strike synthesized with the Web Audio API (`lib/sound/anvil.ts`, no audio file): a filtered noise impact plus five inharmonic, decaying partials. It is muted by default. The header toggle (`aria-pressed`) turns it on, plays one strike as a preview, and the choice is remembered in `localStorage`.
 - After a pass, "Forged: +XP" links to the next lesson.
 
-## Skill tree
+## Lessons page
 
-`/learn` shows the curriculum as a path of connected nodes (`components/learn/SkillTree.tsx`), with states from `lib/progress/skillTree.ts`:
+`/learn` opens on a progress hero (`components/learn/ProgressHero.tsx`), then shows the curriculum as one path through the forge zones (`components/learn/SkillTree.tsx`).
+
+**Progress hero**: the rank, the total XP, the lessons passed, the next milestone ("500 XP to Journeyman") with a bar against its threshold, the daily streak and a call to action:
+
+- **Streak** (`lib/progress/streak.ts`): a local calendar day counts once "Check my code" runs. The streak is the run of consecutive days; it holds through the day after the last practice and resets after a full day without one.
+- **Continue** (`continueTarget` in `lib/progress/skillTree.ts`): the lesson opened last if it is not passed ("Continue where you left off"), otherwise the next available lesson after it, else the first available one. "Start the first lesson" before any progress; a short note once every written lesson is passed.
+
+**Forge zones**: each module of [`curriculum/modules.json`](../../curriculum/modules.json) is a zone (Zone 1 · The Hearth, Foundations), with a diamond marker on the path, its progress ("1 of 2 lessons passed" and a bar) and its state: "Zone complete" when every lesson is passed, dimmed with "Pass <lesson> to enter" while nothing in it is open. The layout comes from `lib/progress/forgePath.ts`.
+
+**Path**: a single spine on the left at every width, with a knot per lesson. A segment is heated (solid molten) when the lesson before it is passed and the lesson after it is open, across zone headers; other segments are dashed steel. Embers drift down heated segments.
 
 | State | When | Look |
 |---|---|---|
-| Completed | Passed in this browser | Molten knot, glowing path to the next node, "Passed" |
+| Completed | Passed in this browser | Molten knot, "Passed" |
 | Available | The first lesson, or the lesson right after a completed one | Amber ring (pulsing unless reduced motion), "Ready to start" |
-| Locked | Anything else | Lock knot, dashed steel path, "Pass <previous lesson> to unlock" or "Coming soon" |
+| Locked | Anything else | Lock knot, dimmed card, "Pass <previous lesson> to unlock" or "Coming soon" |
 
-With a wallet connected, lessons whose certificate the wallet owns carry a quench-blue "Certificate on-chain" mark. Locked lessons that are written stay reachable by URL: the tree guides, it does not gate content.
+**Lesson cards** (`components/learn/LessonCard.tsx`): title, XP, a one-line preview of what you build, then difficulty, objective count and estimated time (`preview` and `minutes` in the lesson content). Badges:
+
+- "Certificate on-chain" (quench blue) when the connected wallet owns the certificate, wherever the lesson was passed;
+- "Claim your certificate" (dashed) on lessons passed here whose certificate is not known to be owned: registered and unclaimed for the connected wallet, or any passed lesson without a wallet.
+
+Open cards tilt slightly towards the pointer (at most 4°). A click on a locked card shakes it and says "Pass <lesson> first" (or "Coming soon") for four seconds, announced to screen readers; the lesson page itself stays reachable by URL.
+
+**Unlocks** (`lib/progress/unlocks.ts`): an available lesson (other than the first) that the tree has not shown yet plays an unlock once: a ring bursts from its knot, the card rises and glows, and it reads "Just unlocked". It is recorded as seen once the animation has played (1.6 s), so leaving the page earlier replays it next time.
+
+**Performance and motion**, as for the hero: no WebGL on this page; animations use only `transform` and `opacity` (CSS keyframes and the Web Animations API, no per-frame React updates); embers pause while the path is off-screen (IntersectionObserver); the tilt needs a fine pointer; with `prefers-reduced-motion` there are no embers, tilt, shake, ping or unlock animation (the "Just unlocked" badge and the locked message still show). Checked at 375, 768 and 1440 px.
 
 ## Lessons and checks
 

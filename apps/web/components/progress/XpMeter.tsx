@@ -12,7 +12,6 @@ export function XpMeter() {
   const xp = useLocalXp();
   const { rank, next, xpToNext, thresholdFraction } = rankProgress(xp);
   const label = next ? `${xp} XP, ${xpToNext} XP to ${next.name}` : `${xp} XP, top rank`;
-  const caption = next ? `${xp} / ${next.minXp} XP` : `${xp} XP · top rank`;
 
   return (
     <div className='flex items-center gap-2 sm:gap-3' title={label}>
@@ -32,7 +31,22 @@ export function XpMeter() {
             style={{ width: `${thresholdFraction * 100}%` }}
           />
         </div>
-        <span className='whitespace-nowrap text-[11px] leading-none text-steel-400 tabular-nums'>{caption}</span>
+        {/* Compact on phones ("250/750"), so the header fits in 375 px. */}
+        <span className='whitespace-nowrap text-[11px] leading-none text-steel-400 tabular-nums'>
+          {next ? (
+            <>
+              {xp}
+              <span className='sm:hidden'>/</span>
+              <span className='hidden sm:inline'> / </span>
+              {next.minXp}
+              <span className='hidden sm:inline'> XP</span>
+            </>
+          ) : (
+            <>
+              {xp} XP<span className='hidden sm:inline'> · top rank</span>
+            </>
+          )}
+        </span>
       </div>
     </div>
   );
