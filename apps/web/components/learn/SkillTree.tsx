@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { LESSONS } from '@/lib/curriculum/lessons';
 import { MODULES } from '@/lib/curriculum/modules';
 import { forgePath, type Heat, type PathZone, type RowHeat } from '@/lib/progress/forgePath';
@@ -54,12 +55,30 @@ function segmentClass(heat: Exclude<Heat, null>): string {
     : 'w-0 border-l-2 border-dashed border-steel-700';
 }
 
+/** Two embers half a cycle apart: a steady drift down a heated segment. */
+function Embers() {
+  return (
+    <>
+      <span className='forge-ember' />
+      <span className='forge-ember [animation-delay:-0.9s]' />
+    </>
+  );
+}
+
 /** The path through a row: from its top to its middle (in) and from its middle to its bottom (out). */
 function Spine({ heat }: { heat: RowHeat }) {
   return (
     <>
-      {heat.in && <span aria-hidden='true' className={`${SEGMENT} top-0 h-1/2 ${segmentClass(heat.in)}`} />}
-      {heat.out && <span aria-hidden='true' className={`${SEGMENT} top-1/2 bottom-0 ${segmentClass(heat.out)}`} />}
+      {heat.in && (
+        <span aria-hidden='true' className={`${SEGMENT} top-0 h-1/2 ${segmentClass(heat.in)}`}>
+          {heat.in === 'hot' && <Embers />}
+        </span>
+      )}
+      {heat.out && (
+        <span aria-hidden='true' className={`${SEGMENT} top-1/2 bottom-0 ${segmentClass(heat.out)}`}>
+          {heat.out === 'hot' && <Embers />}
+        </span>
+      )}
     </>
   );
 }
@@ -127,6 +146,18 @@ export function SkillTree() {
   const passed = useCompletedLessons();
   const onChain = useClaimedLessons();
   const zones = forgePath(MODULES, skillTree(LESSONS, passed));
+
+  // Embers only drift while the path is on screen.
+  const path = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = path.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      element.dataset.embers = entry.isIntersecting ? 'running' : 'paused';
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   // Owned certificates show wherever the lesson was passed; passed lessons not known to be claimed
   // get a reminder (unclaimed on-chain, or unknown without a wallet).
   const certificate = (node: SkillNode): CertificateState => {
@@ -136,7 +167,7 @@ export function SkillTree() {
   };
 
   return (
-    <div className='mt-10'>
+    <div ref={path} data-embers='paused' className='mt-10'>
       {zones.map((zone) => (
         <section key={zone.id} aria-labelledby={`zone-${zone.id}`}>
           <ZoneHeader zone={zone} />

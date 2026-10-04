@@ -129,3 +129,55 @@ body::before {
   font-family: var(--font-big-shoulders), "Arial Narrow", sans-serif;
   font-variation-settings: "opsz" 72;
 }
+
+/*
+ * An ember drifting down a heated stretch of the skill tree path. The element spans the segment
+ * height, so translateY(100%) carries its spark from the top of the segment to the bottom.
+ * Paused while the path is off-screen ([data-embers="paused"]) and absent with reduced motion.
+ */
+@keyframes ember-flow {
+  0% {
+    transform: translateY(0) scale(0.5);
+    opacity: 0;
+  }
+  15%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100%) scale(1);
+    opacity: 0;
+  }
+}
+
+.forge-ember {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 6px;
+  margin-left: -3px;
+  pointer-events: none;
+  animation: ember-flow 1.8s linear infinite;
+}
+
+.forge-ember::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--color-amber-300);
+  box-shadow: 0 0 8px 2px var(--color-molten-500);
+}
+
+[data-embers="paused"] .forge-ember {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forge-ember {
+    display: none;
+  }
+}
