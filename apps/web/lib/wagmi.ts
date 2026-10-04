@@ -19,6 +19,9 @@ function resolveProjectId(): string {
 
 export const wagmiConfig = getDefaultConfig({
   appName: "StylusForge",
+  // Shown by WalletConnect wallets (injected wallets read the page's icon links). An absolute URL
+  // on the current origin, like the app URL RainbowKit derives; none during server rendering.
+  appIcon: typeof window !== "undefined" ? `${window.location.origin}/icons/icon-192.png` : undefined,
   projectId: resolveProjectId(),
   chains: [chain],
   ssr: true,
