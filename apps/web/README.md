@@ -1,6 +1,6 @@
 # StylusForge web app
 
-Next.js app for StylusForge: lesson pages with a Monaco code editor, exercise checks and wallet connection on Arbitrum Sepolia.
+Next.js app for StylusForge: lesson pages with a Monaco code editor, exercise checks and wallet connection on Arbitrum Sepolia or a local Hardhat chain.
 
 ## Stack
 
@@ -25,7 +25,8 @@ apps/web/
 │  └─ Wallet/Providers.tsx      Wagmi, TanStack Query and RainbowKit providers
 ├─ lib/
 │  ├─ curriculum/lessons.ts     lesson content, starter code and checks
-│  └─ wagmi.ts                  wagmi config (Arbitrum Sepolia)
+│  ├─ chain.ts                  chain selection from NEXT_PUBLIC_CHAIN_ID
+│  └─ wagmi.ts                  wagmi config for the selected chain
 └─ eslint.config.mjs
 ```
 
@@ -44,11 +45,19 @@ Install dependencies from the repository root with `pnpm install`.
 
 ## Environment variables
 
-Create `apps/web/.env.local`:
+Variable names are listed in [`.env.example`](.env.example). Two files hold the values, both gitignored:
 
-| Variable | Description |
-|---|---|
-| `NEXT_PUBLIC_WALLETCONNECT_ID` | WalletConnect Cloud project ID used by RainbowKit. Falls back to `demo` when unset. |
+- `.env.local`: your own values (WalletConnect project id, testnet settings). Create it yourself; no script reads or writes it.
+- `.env.development.local`: written by `pnpm deploy:local` for the local Hardhat chain. `next dev` loads it on top of `.env.local`; `next build` and `next start` ignore it.
+
+| Variable | Scope | Description |
+|---|---|---|
+| `NEXT_PUBLIC_WALLETCONNECT_ID` | browser | WalletConnect Cloud project ID used by RainbowKit. Falls back to `demo` when unset. |
+| `NEXT_PUBLIC_CHAIN_ID` | browser | `31337` for the local Hardhat node, `421614` for Arbitrum Sepolia (default when unset). Any other value fails at startup. |
+| `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` | browser | Address of `StylusForgeNFT` on that chain |
+| `CLAIM_SIGNER_PRIVATE_KEY` | server only | Key that signs claim vouchers. Never import it from a client component. |
+
+See the [root README](../../README.md#local-development) to run the app against a local chain.
 
 ## Exercise checks
 

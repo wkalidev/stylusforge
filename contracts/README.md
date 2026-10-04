@@ -14,7 +14,9 @@ Hardhat 3 project for `StylusForgeNFT`, the soul-bound ERC-1155 certificate cont
 ```
 contracts/
 ├─ contracts/StylusForgeNFT.sol   certificate contract
-├─ scripts/deploy.ts              deployment script
+├─ scripts/deploy.ts              Arbitrum Sepolia deployment script
+├─ scripts/deploy-local.ts        local node deployment, writes the web dev env
+├─ scripts/deploy-certificate.ts  shared deploy steps (deploy, lessons, signer)
 ├─ scripts/lessons.ts             loads and validates ../curriculum/lessons.json
 ├─ test/StylusForgeNFT.ts         tests (node:test + viem)
 ├─ hardhat.config.ts
@@ -32,6 +34,8 @@ Install dependencies from the repository root with `pnpm install`. Then, from `c
 | `pnpm hardhat build` | Compile the contracts |
 | `pnpm test` | Run all tests (`hardhat test`); also available as `pnpm test` from the root |
 | `pnpm hardhat test nodejs` | Run only the TypeScript tests |
+| `pnpm chain` | Start a local Hardhat node on `http://127.0.0.1:8545` (chain id 31337); also available from the root |
+| `pnpm deploy:local` | Deploy to that node and write `apps/web/.env.development.local`; also available from the root |
 
 ## Configuration variables
 
@@ -107,6 +111,18 @@ Custom errors: `InvalidLesson`, `LessonAlreadyExists`, `AlreadyCompleted`, `Soul
 4. The contract rejects the claim if the deadline has passed (`ClaimExpired`), if the signature does not recover to `signer` for this caller and lesson (`InvalidSignature`), if the lesson is not registered (`InvalidLesson`) or if the certificate is already owned (`AlreadyCompleted`, which also blocks replays).
 
 ## Deployment
+
+### Local node
+
+With `pnpm chain` running, `pnpm deploy:local` runs `scripts/deploy-local.ts` on the built-in `localhost` network:
+
+1. stops unless it is connected to a running node with chain id 31337 (the in-process network also uses 31337 but vanishes when the script exits);
+2. deploys from Hardhat account #0, registers the lessons and sets Hardhat account #1 as the claim signer;
+3. writes `apps/web/.env.development.local` (`NEXT_PUBLIC_CHAIN_ID`, `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS`, `CLAIM_SIGNER_PRIVATE_KEY`), overwriting it on every run. It writes no other file.
+
+Both keys are the public Hardhat test keys; no configuration variable is needed. The node keeps its state in memory, so run `pnpm deploy:local` again after restarting it. The full local workflow, including MetaMask, is in the [root README](../README.md#local-development).
+
+### Arbitrum Sepolia
 
 `scripts/deploy.ts`:
 
