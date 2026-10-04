@@ -1058,6 +1058,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  8: {
+    slug: 'nested-structs',
+    difficulty: 'Intermediate',
+    preview: 'A to-do list whose tasks are structs, stored in a vector.',
+    minutes: 20,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
