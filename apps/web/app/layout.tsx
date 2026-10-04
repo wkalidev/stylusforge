@@ -8,6 +8,8 @@ const bigShoulders = Big_Shoulders({
   variable: "--font-big-shoulders",
   subsets: ["latin"],
   axes: ["opsz"],
+  // No metric overrides exist for this family; the CSS fallback stack covers loading.
+  adjustFontFallback: false,
 });
 
 const geistSans = Geist({
