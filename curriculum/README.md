@@ -79,19 +79,33 @@ Quizzes never block progress. Tests check that every lesson has titled steps end
 
 Each available lesson also has a reference solution in `apps/web/lib/curriculum/solutions.ts`. Solutions are only imported by tests, never by app code, so they do not reach the browser.
 
-Content targets the current `stylus-sdk` (0.10): `sol_storage!` with Solidity field syntax, `#[entrypoint]` and `#[public]`, events emitted with `self.vm().log(...)`, errors declared in `sol!` and wrapped in an enum deriving `SolidityError`, and `self.vm().msg_sender()` for the caller.
+Content targets the current `stylus-sdk` (0.10): `sol_storage!` with Solidity field syntax, `#[entrypoint]` and `#[public]`, events emitted with `self.vm().log(...)`, errors declared in `sol!` and wrapped in an enum deriving `SolidityError`, and `self.vm().msg_sender()` for the caller. Storage collections use the `StorageMap` and `StorageVec` accessors: `get`, `insert`, `setter(key).set`, `delete` on mappings; `len`, `push`, `get`, `getter`, `setter`, `pop` and `grow` on vectors.
+
+Reference solutions and the code in explanations are compiled with `cargo check` against the latest `stylus-sdk` before a lesson is published (0.10.10 for module 1), in a crate that also depends on `alloy-primitives` and `alloy-sol-types`, as Stylus projects do.
+
+### Module 1: Foundations
+
+| Lesson | Contract | Teaches |
+|---|---|---|
+| 1 Hello World Stylus | `HelloWorld` | Contract anatomy, `string` storage |
+| 2 Storage and State | `Counter` | `uint256` storage, `get` and `set` |
+| 6 Mappings | `Scoreboard` | `mapping(K => V)`: zero by default, `get`, `insert`, `delete`, nested mappings with `getter` and `setter` |
+| 7 Storage vectors | `PriceLog` | `T[]`: `len`, `push`, `get` returning an `Option`, reverting with `ok_or`, `pop` |
+| 8 Nested structs | `TodoList` | Storage structs as fields, mapping values and vector elements; `grow`, `getter` and `setter` handles, and how they borrow the contract |
 
 ## Simulations
 
 After a pass, the lesson page offers "Try it": a JavaScript model of the lesson's contract (`apps/web/lib/curriculum/simulations.ts`, format in `simulation.ts`). It is labelled as a simulation and never runs the student's Rust.
 
-A simulation has a `contract` name, an optional `note` on its starting state (for example a seeded balance), `accounts` (Alice, Bob, Carol), an `initialState()` and `functions`. Each function has its Rust `name`, its ABI `abiName`, `view` or not, typed `params` (`uint256`, `address`, `string`), an optional `returns`, and a pure `run(state, args, caller)` that returns `{ state, returns, events }` or `{ revert: { error, args } }`.
+A simulation has a `contract` name, an optional `note` on its starting state (for example a seeded balance), `accounts` (Alice, Bob, Carol), an `initialState()` and `functions`. Each function has its Rust `name`, its ABI `abiName`, `view` or not, typed `params` (`uint256`, `address`, `string`), an optional `returns` (an array such as `['string', 'bool']` for a tuple), and a pure `run(state, args, caller)` that returns `{ state, returns, events }` or `{ revert: { error, args } }`.
+
+State fields are scalars (`bigint`, `string`, `boolean`), mappings (records keyed by lowercase address, read and written with `readMapping`, `writeMapping` and `deleteMapping`), vectors (arrays) and structs (records keyed by field name). The panel shows vectors by index and structs and tuples inline.
 
 The engine parses arguments by type (uint256 within range, addresses by hex or account name), runs the function on a copy of the state, and leaves the state unchanged on a revert, an invalid argument or an arithmetic error (`checkedAdd` / `checkedSub`). Model the same order of operations as the reference solution. Tests require a simulation for every available lesson, with the same functions as its reference solution, and a scenario per lesson.
 
 ## Glossary
 
-`apps/web/lib/curriculum/glossary.ts` explains Stylus tokens on hover in the lesson editor: `sol_storage!`, `sol!`, `#[entrypoint]`, `#[public]`, the `no_main` `cfg_attr`, `extern crate alloc`, the prelude, `SolidityError`, `self.vm()`, `msg_sender()`, `vm().log`, `get_string`, `set_str`, `setter`, `mapping`, `uint256`, `U256` and `Address`.
+`apps/web/lib/curriculum/glossary.ts` explains Stylus tokens on hover in the lesson editor: `sol_storage!`, `sol!`, `#[entrypoint]`, `#[public]`, the `no_main` `cfg_attr`, `extern crate alloc`, the prelude, `SolidityError`, `self.vm()`, `msg_sender()`, `vm().log`, `get_string`, `set_str`, `setter`, `mapping`, `insert`, `delete`, `getter`, `T[]`, `push`, `pop`, `len`, `grow`, `uint256`, `U256` and `Address`.
 
 Each entry has an `id`, a `pattern` (a regular expression without the `g` or `y` flag; the whole match is the hovered range), a `title` and a Markdown `description` written for stylus-sdk 0.10. Tokens in comments and strings get no tooltip. Tests check that every key token of the starter code has an entry; add one when a lesson introduces new syntax.
 
