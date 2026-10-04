@@ -4,11 +4,11 @@ import {
   UINT256_MAX,
   callSimulation,
   deleteMapping,
-  checkedAdd,
-  checkedSub,
   formatSimValue,
   parseArgument,
   readMapping,
+  wrappingAdd,
+  wrappingSub,
   writeMapping,
   type LessonSimulation,
 } from "./simulation";
@@ -29,7 +29,7 @@ const vault: LessonSimulation = {
       params: [{ name: "amount", type: "uint256" }],
       run: (state, args, caller) => {
         if (caller.address !== state.owner) return { revert: { error: "NotOwner", args: { caller: caller.address } } };
-        return { state: { ...state, total: checkedAdd(state.total as bigint, args.amount as bigint) }, events: [{ name: "Added", args: { amount: args.amount } }] };
+        return { state: { ...state, total: wrappingAdd(state.total as bigint, args.amount as bigint) }, events: [{ name: "Added", args: { amount: args.amount } }] };
       },
     },
   ],
@@ -55,13 +55,17 @@ describe("parseArgument", () => {
   });
 });
 
-describe("checked arithmetic and mappings", () => {
-  it("refuses to wrap around", () => {
-    expect(() => checkedAdd(UINT256_MAX, 1n)).toThrow(/overflow/);
-    expect(() => checkedSub(1n, 2n)).toThrow(/underflow/);
-    expect(checkedSub(5n, 2n)).toBe(3n);
+describe("wrapping arithmetic", () => {
+  it("wraps around modulo 2^256 like U256 in Rust", () => {
+    expect(wrappingAdd(UINT256_MAX, 1n)).toBe(0n);
+    expect(wrappingAdd(UINT256_MAX, UINT256_MAX)).toBe(UINT256_MAX - 1n);
+    expect(wrappingSub(0n, 1n)).toBe(UINT256_MAX);
+    expect(wrappingAdd(2n, 3n)).toBe(5n);
+    expect(wrappingSub(5n, 2n)).toBe(3n);
   });
+});
 
+describe("mappings", () => {
   it("reads unset entries as zero and writes copies", () => {
     const state = { balances: {} };
     const next = writeMapping(state, "balances", bob.address.toUpperCase().replace("0X", "0x"), 7n);
@@ -99,9 +103,8 @@ describe("callSimulation", () => {
     expect(result.state).toBe(state);
   });
 
-  it("reports invalid arguments and arithmetic errors as failed calls", () => {
+  it("reports invalid arguments as failed calls", () => {
     expect(callSimulation(vault, state, "add", { amount: "abc" }, alice).error?.error).toMatch(/unsigned/);
-    expect(callSimulation(vault, { ...state, total: UINT256_MAX }, "add", { amount: "1" }, alice).error?.error).toMatch(/overflow/);
   });
 });
 

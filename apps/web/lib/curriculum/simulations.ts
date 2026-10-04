@@ -1,4 +1,4 @@
-import { checkedAdd, deleteMapping, readMapping, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
+import { deleteMapping, readMapping, wrappingAdd, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -49,7 +49,7 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
         abiName: 'increment',
         view: false,
         params: [],
-        run: (state) => ({ state: { ...state, count: checkedAdd(state.count as bigint, 1n) } }),
+        run: (state) => ({ state: { ...state, count: wrappingAdd(state.count as bigint, 1n) } }),
       },
       {
         name: 'reset',
@@ -84,7 +84,7 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
           }
           // Same order as the lesson: debit the sender, then read and credit the recipient.
           let next = writeMapping(state, 'balances', from, available - amount);
-          next = writeMapping(next, 'balances', to, checkedAdd(readMapping(next, 'balances', to), amount));
+          next = writeMapping(next, 'balances', to, wrappingAdd(readMapping(next, 'balances', to), amount));
           return { state: next, events: [{ name: 'Transfer', args: { from, to, value: amount } }] };
         },
       },
@@ -134,7 +134,7 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
             return { revert: { error: 'InsufficientBalance', args: { from, have, want: value } } };
           }
           let next = writeMapping(state, 'balances', from, have - value);
-          next = writeMapping(next, 'balances', to, checkedAdd(readMapping(next, 'balances', to), value));
+          next = writeMapping(next, 'balances', to, wrappingAdd(readMapping(next, 'balances', to), value));
           return { state: next, returns: true, events: [{ name: 'Transfer', args: { from, to, value } }] };
         },
       },
@@ -159,7 +159,7 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
         view: false,
         params: [{ name: 'points', type: 'uint256' }],
         run: (state, args, caller) => {
-          const total = checkedAdd(readMapping(state, 'scores', caller.address), args.points as bigint);
+          const total = wrappingAdd(readMapping(state, 'scores', caller.address), args.points as bigint);
           return { state: writeMapping(state, 'scores', caller.address, total) };
         },
       },

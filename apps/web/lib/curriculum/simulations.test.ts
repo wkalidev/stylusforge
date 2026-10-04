@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { LESSONS } from "./lessons";
-import { callSimulation, readMapping, type LessonSimulation, type SimState } from "./simulation";
+import { UINT256_MAX, callSimulation, readMapping, type LessonSimulation, type SimState } from "./simulation";
 import { SIM_ACCOUNTS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
@@ -16,6 +16,45 @@ function run(simulation: LessonSimulation, calls: [string, Record<string, string
     return result;
   });
 }
+
+const MAX = UINT256_MAX;
+
+/**
+ * One call per lesson whose reference solution adds or subtracts U256 values, from a state at the
+ * edge of uint256, with the state Rust would end in: `U256` `+` and `-` wrap around instead of
+ * reverting, so the simulation must not revert either.
+ */
+const OVERFLOW_CASES: Record<number, { state: SimState; call: [string, Record<string, string>, typeof alice]; expected: SimState }> = {
+  2: { state: { count: MAX }, call: ["increment", {}, alice], expected: { count: 0n } },
+  3: {
+    state: { balances: { [alice.address]: 1n, [bob.address]: MAX } },
+    call: ["send", { to: "Bob", amount: "1" }, alice],
+    expected: { balances: { [alice.address]: 0n, [bob.address]: 0n } },
+  },
+  4: {
+    state: { total_supply: MAX, balances: { [alice.address]: 1n, [bob.address]: MAX }, allowances: {} },
+    call: ["transfer", { to: "Bob", value: "1" }, alice],
+    expected: { total_supply: MAX, balances: { [alice.address]: 0n, [bob.address]: 0n }, allowances: {} },
+  },
+  6: { state: { scores: { [alice.address]: MAX } }, call: ["record", { points: "2" }, alice], expected: { scores: { [alice.address]: 1n } } },
+};
+
+/** Whether Rust code adds or subtracts with the binary + or - operators (not `->`). */
+const usesArithmetic = (code: string) => /\s[+-]=?\s/.test(code);
+
+describe("overflow in lesson simulations", () => {
+  it("has a case for every available lesson whose solution adds or subtracts", () => {
+    const arithmetic = LESSONS.filter((lesson) => lesson.available && usesArithmetic(SOLUTIONS[lesson.id])).map((lesson) => lesson.id);
+    expect(Object.keys(OVERFLOW_CASES).map(Number).sort((a, b) => a - b)).toEqual(arithmetic.sort((a, b) => a - b));
+  });
+
+  it.each(Object.entries(OVERFLOW_CASES))("lesson %s wraps around like U256 instead of reverting", (id, { state, call, expected }) => {
+    const [fn, args, caller] = call;
+    const result = callSimulation(getSimulation(Number(id))!, state, fn, args, caller);
+    expect(result.error).toBeUndefined();
+    expect(result.state).toEqual(expected);
+  });
+});
 
 describe("lesson simulations", () => {
   it("cover every available lesson with the functions of its reference solution", () => {
@@ -82,12 +121,12 @@ describe("lesson simulations", () => {
     expect(results[5].state.scores).toEqual({ [bob.address]: 7n });
   });
 
-  it("lesson 6 keeps the score when the sum overflows", () => {
+  it("lesson 6 wraps the score around when the sum overflows, like U256", () => {
     const [, overflow] = run(getSimulation(6)!, [
-      ["record", { points: "1" }, alice],
+      ["record", { points: "2" }, alice],
       ["record", { points: ((1n << 256n) - 1n).toString() }, alice],
     ]);
-    expect(overflow).toMatchObject({ ok: false, error: { error: "Arithmetic overflow" } });
+    expect(overflow.ok).toBe(true);
     expect(readMapping(overflow.state, "scores", alice.address)).toBe(1n);
   });
 

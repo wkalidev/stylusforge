@@ -77,16 +77,16 @@ export function parseArgument(type: SimType, raw: string, accounts: SimAccount[]
   return text;
 }
 
-/** Checked uint256 arithmetic, so a model never wraps around silently. */
-export function checkedAdd(a: bigint, b: bigint): bigint {
-  const sum = a + b;
-  if (sum > UINT256_MAX) throw new SimArgumentError('Arithmetic overflow');
-  return sum;
+/**
+ * uint256 arithmetic as `U256` does it in Rust: `+` and `-` wrap around modulo 2^256 instead of
+ * reverting (alloy's `ruint` implements them with `wrapping_add` and `wrapping_sub`).
+ */
+export function wrappingAdd(a: bigint, b: bigint): bigint {
+  return (a + b) & UINT256_MAX;
 }
 
-export function checkedSub(a: bigint, b: bigint): bigint {
-  if (b > a) throw new SimArgumentError('Arithmetic underflow');
-  return a - b;
+export function wrappingSub(a: bigint, b: bigint): bigint {
+  return (a - b) & UINT256_MAX;
 }
 
 /** Reads a mapping entry, zero when unset (like a storage mapping). */
@@ -133,8 +133,8 @@ export interface SimCallResult {
 }
 
 /**
- * Calls one function of a simulation. Arguments are parsed by type; a revert, an invalid argument
- * or an arithmetic error leaves the state unchanged, like a reverted transaction.
+ * Calls one function of a simulation. Arguments are parsed by type; a revert or an invalid argument
+ * leaves the state unchanged, like a reverted transaction.
  */
 export function callSimulation(
   simulation: LessonSimulation,
