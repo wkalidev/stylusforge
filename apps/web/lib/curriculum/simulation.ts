@@ -91,6 +91,12 @@ export function writeMapping(state: SimState, field: string, key: string, value:
   return { ...state, [field]: mapping };
 }
 
+/** Returns a state copy with one mapping entry reset to zero, which removes it from the view. */
+export function deleteMapping(state: SimState, field: string, key: string): SimState {
+  const entries = Object.entries(state[field] as Record<string, SimValue>);
+  return { ...state, [field]: Object.fromEntries(entries.filter(([entry]) => entry !== key.toLowerCase())) };
+}
+
 export interface SimCallResult {
   ok: boolean;
   state: SimState;

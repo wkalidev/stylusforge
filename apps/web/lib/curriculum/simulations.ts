@@ -1,4 +1,4 @@
-import { checkedAdd, readMapping, writeMapping, type LessonSimulation, type SimAccount } from './simulation';
+import { checkedAdd, deleteMapping, readMapping, writeMapping, type LessonSimulation, type SimAccount } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -137,6 +137,38 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
           next = writeMapping(next, 'balances', to, checkedAdd(readMapping(next, 'balances', to), value));
           return { state: next, returns: true, events: [{ name: 'Transfer', args: { from, to, value } }] };
         },
+      },
+    ],
+  },
+  6: {
+    contract: 'Scoreboard',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ scores: {} }),
+    functions: [
+      {
+        name: 'score_of',
+        abiName: 'scoreOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'scores', args.account as string) }),
+      },
+      {
+        name: 'record',
+        abiName: 'record',
+        view: false,
+        params: [{ name: 'points', type: 'uint256' }],
+        run: (state, args, caller) => {
+          const total = checkedAdd(readMapping(state, 'scores', caller.address), args.points as bigint);
+          return { state: writeMapping(state, 'scores', caller.address, total) };
+        },
+      },
+      {
+        name: 'clear',
+        abiName: 'clear',
+        view: false,
+        params: [],
+        run: (state, _args, caller) => ({ state: deleteMapping(state, 'scores', caller.address) }),
       },
     ],
   },
