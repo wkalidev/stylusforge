@@ -85,3 +85,21 @@ export function forgePath(modules: readonly ModuleInput[], nodes: readonly Skill
     };
   });
 }
+
+/**
+ * The zone's progress in words: "1 of 5 lessons passed", "Pass Hello World Stylus to enter", or,
+ * once complete, "Lesson passed", "Both lessons passed" and "All 5 lessons passed".
+ */
+export function zoneStatus(zone: PathZone): string {
+  if (zone.total === 0) return 'Lessons coming soon';
+  const lessons = (count: number) => `${count} ${count === 1 ? 'lesson' : 'lessons'}`;
+  if (zone.state === 'complete') {
+    if (zone.total === 1) return 'Lesson passed';
+    return zone.total === 2 ? 'Both lessons passed' : `All ${lessons(zone.total)} passed`;
+  }
+  const firstLocked = zone.nodes[0]?.node;
+  if (zone.state === 'locked') {
+    return firstLocked?.unlockedBy ? `Pass ${firstLocked.unlockedBy.title} to enter` : 'Lessons coming soon';
+  }
+  return `${zone.passed} of ${lessons(zone.total)} passed`;
+}

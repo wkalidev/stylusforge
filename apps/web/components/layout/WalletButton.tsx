@@ -2,6 +2,7 @@
 
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { buttonClasses } from '@/components/ui/button';
+import { shortAddress } from '@/lib/address';
 
 /**
  * RainbowKit's wallet flows behind forge-styled, compact buttons: a heat button to connect, a
@@ -35,10 +36,19 @@ export function WalletButton() {
             type='button'
             data-testid='account-button'
             onClick={openAccountModal}
-            className={buttonClasses('steel', 'md', 'h-9 px-3 font-mono text-xs sm:text-sm')}
+            title={account.ensName ?? account.address}
+            className={buttonClasses('steel', 'md', 'h-9 shrink-0 gap-1.5! whitespace-nowrap px-2! font-mono sm:gap-2! sm:px-3! text-xs sm:text-sm')}
           >
-            <span aria-hidden='true' className='h-2 w-2 rounded-full bg-quench-500 shadow-[0_0_8px_var(--color-quench-500)]' />
-            {account.displayName}
+            <span aria-hidden='true' className='h-2 w-2 shrink-0 rounded-full bg-quench-500 shadow-[0_0_8px_var(--color-quench-500)]' />
+            {account.ensName ? (
+              <span className='max-w-24 truncate sm:max-w-40'>{account.ensName}</span>
+            ) : (
+              // "0xf39F…2266" from sm, "0xf3…66" on phones, so the header fits in 375 px.
+              <span>
+                <span className='sm:hidden'>{shortAddress(account.address, 2)}</span>
+                <span className='hidden sm:inline'>{shortAddress(account.address, 4)}</span>
+              </span>
+            )}
           </button>
         );
       }}

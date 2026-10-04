@@ -169,7 +169,7 @@ See the [root README](../../README.md#local-development) to run the app against 
 
 ## Wallet and progress
 
-The header shows the player's controls on every page: the XP meter, the anvil sound toggle and the wallet button (RainbowKit's modals behind compact forge-styled buttons).
+The header shows the player's controls on every page: the XP meter, the anvil sound toggle and the wallet button (RainbowKit's modals behind compact forge-styled buttons). Once connected, the button shows the address on one line, shortened to `0xf3…66` on phones (`0xf39F…2266` from `sm`), or the ENS name, truncated.
 
 Progress is local first, so the reward is immediate and needs no wallet:
 
@@ -217,7 +217,7 @@ With a wallet connected, a bar under the header lists the lessons passed in this
 
 ## Profile and metadata
 
-`/profile` shows what is on-chain for the connected wallet: the claimed certificates (rendered with the certificate SVG) and the XP they carry (`getTotalXP`), with the rank that XP reaches. The header XP meter stays local, so both ranks can differ until every passed lesson is claimed; a line under the on-chain rank says so.
+`/profile` shows what is on-chain for the connected wallet: the claimed certificates (rendered with the certificate SVG) and the XP they carry (`getTotalXP`), with the rank that XP reaches and a bar filled against the next rank's threshold, like the header meter. The header XP meter stays local, so both ranks can differ until every passed lesson is claimed; a line under the on-chain rank says so.
 
 Below the certificates, **Ready to claim** (`components/profile/UnclaimedLessons.tsx`) lists the lessons passed in this browser that are registered on-chain but not owned by the wallet. Each has the regular claim action (`ClaimCertificate`), sent with the code saved for the lesson (`stylusforge:code:v1:<id>`); the server re-validates it as usual. When the saved code is missing or no longer passes the checks, the row offers "Open lesson" instead. A successful claim refreshes the on-chain reads, so the lesson moves to the certificates.
 
@@ -258,7 +258,7 @@ The lesson page keeps its split layout from `lg` up: explanation on the left, ed
 - **Streak** (`lib/progress/streak.ts`): a local calendar day counts once "Check my code" runs. The streak is the run of consecutive days; it holds through the day after the last practice and resets after a full day without one.
 - **Continue** (`continueTarget` in `lib/progress/skillTree.ts`): the lesson opened last if it is not passed ("Continue where you left off"), otherwise the next available lesson after it, else the first available one. "Start the first lesson" before any progress; a short note once every written lesson is passed.
 
-**Forge zones**: each module of [`curriculum/modules.json`](../../curriculum/modules.json) is a zone (Zone 1 · The Hearth, Foundations), with a diamond marker on the path, its progress ("1 of 2 lessons passed" and a bar) and its state: "Zone complete" when every lesson is passed, dimmed with "Pass <lesson> to enter" while nothing in it is open. The layout comes from `lib/progress/forgePath.ts`.
+**Forge zones**: each module of [`curriculum/modules.json`](../../curriculum/modules.json) is a zone (Zone 1 · The Hearth, Foundations), with a diamond marker on the path, its progress ("1 of 2 lessons passed" and a bar) and its state: "Zone complete" when every lesson is passed (with "Lesson passed", "Both lessons passed" or "All 5 lessons passed"), dimmed with "Pass <lesson> to enter" while nothing in it is open. The layout comes from `lib/progress/forgePath.ts`.
 
 **Path**: a single spine on the left at every width, with a knot per lesson. A segment is heated (solid molten) when the lesson before it is passed and the lesson after it is open, across zone headers; other segments are dashed steel. Embers drift down heated segments.
 

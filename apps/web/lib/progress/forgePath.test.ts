@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Lesson } from "@/lib/curriculum/lessons";
-import { forgePath } from "./forgePath";
+import { forgePath, zoneStatus } from "./forgePath";
 import { skillTree } from "./skillTree";
 import { newlyUnlocked, parseSeenUnlocks } from "./unlocks";
 
@@ -59,6 +59,25 @@ describe("forgePath", () => {
   it("ends the path at the last row", () => {
     const zones = path([]);
     expect(zones[2].header).toEqual({ in: "cold", out: null });
+  });
+});
+
+describe("zoneStatus", () => {
+  it("counts the lessons passed, or names the lesson that opens a locked zone", () => {
+    expect(path([]).map(zoneStatus)).toEqual(["0 of 2 lessons passed", "Pass Lesson 2 to enter", "Lessons coming soon"]);
+    expect(path([1]).map(zoneStatus)[0]).toBe("1 of 2 lessons passed");
+  });
+
+  it.each([
+    [1, "Lesson passed"],
+    [2, "Both lessons passed"],
+    [3, "All 3 lessons passed"],
+    [5, "All 5 lessons passed"],
+  ])("words a complete zone of %i", (count, status) => {
+    const lessons = Array.from({ length: count }, (_, index) => lesson(index + 1, "a"));
+    const [zone] = forgePath(MODULES.slice(0, 1), skillTree(lessons, lessons.map(({ id }) => id)));
+    expect(zone.state).toBe("complete");
+    expect(zoneStatus(zone)).toBe(status);
   });
 });
 

@@ -66,7 +66,7 @@ export function ProfileView() {
     (lesson) => lesson.available && passed.includes(lesson.id) && registered.has(lesson.id) && !claimedIds.has(lesson.id),
   );
   const xp = Number(totalXp);
-  const { rank, next, xpToNext, fraction } = rankProgress(xp);
+  const { rank, next, xpToNext, thresholdFraction } = rankProgress(xp);
 
   return (
     <div className='space-y-12'>
@@ -82,10 +82,10 @@ export function ProfileView() {
             aria-label={`On-chain rank ${rank.name}`}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={Math.round(fraction * 100)}
+            aria-valuenow={Math.round(thresholdFraction * 100)}
             className='h-2 overflow-hidden rounded-full bg-steel-800'
           >
-            <div className='h-full rounded-full bg-gradient-to-r from-quench-700 via-quench-500 to-quench-300' style={{ width: `${fraction * 100}%` }} />
+            <div className='h-full rounded-full bg-gradient-to-r from-quench-700 via-quench-500 to-quench-300' style={{ width: `${thresholdFraction * 100}%` }} />
           </div>
           <p className='mt-2 text-right text-sm text-steel-400'>
             {next ? `${xpToNext} XP to ${next.name}` : 'Top rank reached'}
