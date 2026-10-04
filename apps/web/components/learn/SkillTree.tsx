@@ -87,12 +87,13 @@ function Spine({ heat }: { heat: RowHeat }) {
 
 function zoneStatus(zone: PathZone): string {
   if (zone.total === 0) return 'Lessons coming soon';
-  if (zone.state === 'complete') return `All ${zone.total} lessons passed`;
+  const lessons = (count: number) => `${count} ${count === 1 ? 'lesson' : 'lessons'}`;
+  if (zone.state === 'complete') return zone.total === 1 ? 'Lesson passed' : `All ${lessons(zone.total)} passed`;
   const firstLocked = zone.nodes[0]?.node;
   if (zone.state === 'locked') {
     return firstLocked?.unlockedBy ? `Pass ${firstLocked.unlockedBy.title} to enter` : 'Lessons coming soon';
   }
-  return `${zone.passed} of ${zone.total} lessons passed`;
+  return `${zone.passed} of ${lessons(zone.total)} passed`;
 }
 
 /** A zone header: zone and module names, with the module's progress and completion state. */
