@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { SkillNode } from '@/lib/progress/skillTree';
+import { useCardTilt } from './useCardTilt';
 
 export function statusText(node: SkillNode): string {
   if (node.state === 'completed') return 'Passed';
@@ -51,6 +52,7 @@ function CertificateBadge({ state }: { state: CertificateState }) {
 /** A lesson on the path: what you build, how long it takes and where you stand. */
 export function LessonCard({ node, certificate = null }: { node: SkillNode; certificate?: CertificateState }) {
   const { lesson, state } = node;
+  const tilt = useCardTilt<HTMLAnchorElement>();
   const tone =
     state === 'completed'
       ? 'steel-surface ember-edge'
@@ -81,9 +83,20 @@ export function LessonCard({ node, certificate = null }: { node: SkillNode; cert
   );
   const className = `${tone} block p-5 transition-colors`;
   return lesson.available ? (
-    <Link href={`/learn/${lesson.slug}`} className={`${className} hover:border-molten-500`}>
-      {body}
-    </Link>
+    <div className='[perspective:900px]'>
+      <Link
+        href={`/learn/${lesson.slug}`}
+        {...tilt.handlers}
+        className={
+          `${className} hover:border-molten-500 ` +
+          (tilt.enabled
+            ? 'transition-[transform,border-color] duration-200 ease-out [transform:rotateX(var(--tilt-x,0deg))_rotateY(var(--tilt-y,0deg))]'
+            : '')
+        }
+      >
+        {body}
+      </Link>
+    </div>
   ) : (
     <div className={className}>{body}</div>
   );
