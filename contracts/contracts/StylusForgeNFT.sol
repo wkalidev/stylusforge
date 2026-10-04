@@ -13,6 +13,7 @@ contract StylusForgeNFT is ERC1155, Ownable {
 
     error InvalidLesson(uint256 lessonId);
     error AlreadyCompleted(address student, uint256 lessonId);
+    error SoulBound();
 
     constructor() ERC1155("") Ownable(msg.sender) {
         lessonNames[1] = "Hello World Stylus";
@@ -49,14 +50,12 @@ contract StylusForgeNFT is ERC1155, Ownable {
         return total;
     }
 
-    // Soul-bound : bloque tous les transferts
-    function safeTransferFrom(address, address, uint256, uint256, bytes memory)
-        public pure override {
-        revert("StylusForgeNFT: soul-bound, non-transferable");
-    }
-
-    function safeBatchTransferFrom(address, address, uint256[] memory, uint256[] memory, bytes memory)
-        public pure override {
-        revert("StylusForgeNFT: soul-bound, non-transferable");
+    /// @dev Soul-bound: only mints (from == address(0)) are allowed; transfers and burns revert.
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
+        internal
+        override
+    {
+        if (from != address(0)) revert SoulBound();
+        super._update(from, to, ids, values);
     }
 }
