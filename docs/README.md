@@ -5,13 +5,14 @@
 StylusForge is a pnpm workspace with three parts that share one source of truth for lessons.
 
 ```
-curriculum/lessons.json ──► contracts/ (deploy scripts, tests)   lesson ids, names, XP, availability
+curriculum/lessons.json ──► contracts/ (deploy and registration scripts, tests)   lesson ids, names, XP, availability, module
                         └─► apps/web/  (lessons, landing, tree)
+curriculum/modules.json ──► apps/web/  (module and zone names; the contracts only validate them)
 ```
 
 | Package | Role |
 |---|---|
-| `curriculum/` | `lessons.json`: lesson id (= certificate token id), name, XP and availability |
+| `curriculum/` | `lessons.json`: lesson id (= certificate token id), name, XP, availability and module; `modules.json`: module and forge zone names |
 | `contracts/` | `StylusForgeNFT`: soul-bound ERC-1155 certificates, lesson registry, EIP-712 claims (Hardhat 3) |
 | `apps/web/` | Next.js app: lessons with a Monaco editor, static checks, local progress, claim flow, profile, metadata |
 
@@ -52,7 +53,7 @@ Browser                                   Next.js server                 Chain
 |---|---|---|
 | Passed lessons, saved code, sound preference | `localStorage` in the student's browser | header XP meter, skill tree, lesson page |
 | Certificates and on-chain XP | `StylusForgeNFT` (`completed`, `getCompletedLessons`, `getTotalXP`) | claim panel, unclaimed prompt, skill tree mark, profile |
-| Lesson metadata | `curriculum/lessons.json`, registered on-chain at deployment | everything |
+| Lesson metadata | `curriculum/lessons.json`, registered on-chain at deployment, later lessons with `pnpm register:lessons` | everything |
 
 Local and on-chain progress can differ (a lesson passed but not claimed, or claimed from another browser). The unclaimed prompt under the header brings them back together.
 
