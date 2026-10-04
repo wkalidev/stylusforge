@@ -1,20 +1,20 @@
 # StylusForge
 
-Interactive IDE to learn Arbitrum Stylus smart contracts in Rust.
+[![CI](https://github.com/wkalidev/stylusforge/actions/workflows/ci.yml/badge.svg)](https://github.com/wkalidev/stylusforge/actions/workflows/ci.yml)
 
-> 🚧 Work in progress
+Learn Arbitrum Stylus smart contracts in Rust, in the browser, and earn a soul-bound certificate on-chain for every lesson you finish.
+
+**Status:** MVP. The full flow runs on a local chain; the Arbitrum Sepolia deployment is not done yet.
 
 ## What is StylusForge?
 
-The first interactive learning platform dedicated to Arbitrum Stylus — write, deploy and certify your Rust smart contracts directly in the browser.
+The first interactive learning platform dedicated to Arbitrum Stylus: write, check and certify your Rust smart contracts directly in the browser.
 
 - **Lessons** in a skill tree, each with an explanation, a Rust editor and instant, static checks.
 - **Progress** saved in the browser: XP and ranks (Apprentice, Smith, Master Forger) update the moment a check passes, no wallet needed.
 - **Certificates**: claim a soul-bound ERC-1155 certificate for each passed lesson. The server re-validates the code and signs a voucher; the student mints it and pays the gas.
 - **Profile**: certificates and XP read on-chain, with ERC-1155 metadata and generated SVG certificates.
 - **Forge identity**: blackened steel, molten heat and Arbitrum blue, with a procedural 3D ingot hero, spark bursts and an optional anvil sound.
-
-How it fits together: [docs/README.md](docs/README.md).
 
 ## Stack
 
@@ -26,6 +26,21 @@ How it fits together: [docs/README.md](docs/README.md).
 - Hardhat 3 + OpenZeppelin Contracts 5 (Solidity 0.8.28)
 - Arbitrum Sepolia (testnet), or a local Hardhat chain for development
 - Soul-bound NFT certificates (ERC-1155)
+
+## Architecture
+
+```
+curriculum/lessons.json ─► contracts/  StylusForgeNFT: soul-bound ERC-1155, lesson registry, EIP-712 claims
+                        └► apps/web/   lessons, static checks, local progress, claim API, profile, metadata
+
+student ── check code (browser) ── POST /api/claim (re-validates, signs voucher) ── claim() from the wallet ──► chain
+```
+
+- The browser's verdict is never trusted: `/api/claim` runs the checks again before signing.
+- The signer key stays on the server (`server-only`); the contract only mints with a voucher from its current signer, and certificates cannot be transferred.
+- Progress lives in the browser (instant XP and ranks); certificates and on-chain XP live in the contract.
+
+Details, the full claim sequence and the trust boundaries: [docs/README.md](docs/README.md). Package docs: [apps/web](apps/web/README.md), [contracts](contracts/README.md), [curriculum](curriculum/README.md).
 
 ## Repository layout
 
@@ -99,6 +114,30 @@ The local node keeps its state in memory: after restarting `pnpm chain`, run `pn
 
 > These keys are public and shared by every Hardhat install. Never send real funds to them and never use them on a live network.
 
+## Environment variables
+
+Names are listed in [`apps/web/.env.example`](apps/web/.env.example) and [`contracts/.env.example`](contracts/.env.example); values never go into git.
+
+**Web app** (`apps/web/.env.local`, or the Vercel project):
+
+| Variable | Scope | Description |
+|---|---|---|
+| `NEXT_PUBLIC_WALLETCONNECT_ID` | browser | WalletConnect Cloud project id. Required by production builds. |
+| `NEXT_PUBLIC_CHAIN_ID` | browser | `31337` for the local node, `421614` for Arbitrum Sepolia (default) |
+| `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` | browser | `StylusForgeNFT` address on that chain |
+| `CLAIM_SIGNER_PRIVATE_KEY` | server only | Key of the contract's claim `signer` |
+
+For local development `pnpm deploy:local` writes the last three to `apps/web/.env.development.local`.
+
+**Contracts** (Hardhat configuration variables: environment or encrypted keystore, never `.env`):
+
+| Variable | Used by |
+|---|---|
+| `ARBITRUM_SEPOLIA_RPC_URL` | `arbitrumSepolia` network |
+| `DEPLOYER_PRIVATE_KEY` | `arbitrumSepolia` network |
+| `CLAIM_SIGNER_ADDRESS` | `scripts/deploy.ts` |
+| `ETHERSCAN_API_KEY` | `hardhat verify` (Arbiscan) |
+
 ## Root scripts
 
 | Script | Runs |
@@ -109,6 +148,14 @@ The local node keeps its state in memory: after restarting `pnpm chain`, run `pn
 | `pnpm test` | `hardhat test` in `contracts`, then `vitest run` in `apps/web` |
 | `pnpm chain` | `hardhat node` in `contracts`: local chain on port 8545 |
 | `pnpm deploy:local` | Deploys to the local node and writes `apps/web/.env.development.local` |
+
+## Testnet contract
+
+| Network | Address |
+|---|---|
+| Arbitrum Sepolia (421614) | Not deployed yet |
+
+Deployment and verification steps: [contracts/README.md](contracts/README.md#deployment).
 
 ## Deployment (Vercel)
 
@@ -140,4 +187,4 @@ After the first deployment:
 
 ## License
 
-MIT
+[MIT](LICENSE)
