@@ -4,7 +4,7 @@ import { buttonClasses } from '@/components/ui/button';
 
 export function Hero() {
   return (
-    <section className='heat-glow relative overflow-hidden'>
+    <section className='relative overflow-hidden'>
       <div className='forge-container grid min-h-[calc(100dvh-3.5rem)] items-center gap-4 py-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:py-0'>
         <div className='order-2 lg:order-1'>
           <h1 className='font-display text-6xl font-extrabold leading-none text-steel-100 sm:text-7xl xl:text-8xl'>
