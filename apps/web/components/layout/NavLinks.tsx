@@ -20,7 +20,7 @@ export function NavLinks() {
             href={href}
             aria-current={active ? 'page' : undefined}
             className={
-              'rounded-[var(--radius-forge)] px-2 py-2 text-sm font-medium transition-colors sm:px-3 ' +
+              'rounded-[var(--radius-forge)] px-1.5 py-2 text-sm font-medium transition-colors sm:px-3 ' +
               (active ? 'text-amber-300' : 'text-steel-300 hover:text-steel-100')
             }
           >
