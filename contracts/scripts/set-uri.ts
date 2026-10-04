@@ -2,6 +2,7 @@ import { network } from "hardhat";
 import { getAddress, isAddress } from "viem";
 
 import { readConfigVariable } from "./config-variables.js";
+import { confirm } from "./confirm.js";
 import { metadataUri } from "./metadata-uri.js";
 
 /**
@@ -32,7 +33,15 @@ if (current === uri) {
   console.log(`Metadata URI on ${networkName} is already ${uri}: nothing to do.`);
 } else {
   console.log(`Setting the metadata URI on ${networkName}:\n  from: ${current || "(empty)"}\n  to:   ${uri}`);
-  const hash = await nft.write.setURI([uri]);
-  await publicClient.waitForTransactionReceipt({ hash });
-  console.log(`Done (transaction ${hash}).`);
+  // ERC-1155 clients replace {id} with the token id in lowercase hex, zero-padded to 64 digits
+  // (the web app also accepts the decimal id).
+  console.log(`  (token 1: ${uri.replace("{id}", "1".padStart(64, "0"))})`);
+  if (await confirm(`Send setURI("${uri}") to ${nft.address}?`)) {
+    const hash = await nft.write.setURI([uri]);
+    await publicClient.waitForTransactionReceipt({ hash });
+    console.log(`Done (transaction ${hash}).`);
+  } else {
+    console.log("Not confirmed, nothing was sent. Answer y in an interactive terminal to send it.");
+    process.exitCode = 1;
+  }
 }
