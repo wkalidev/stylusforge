@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useIsConstrainedDevice, usePrefersReducedMotion } from '@/lib/hooks/useMediaQuery';
+import { hasWebGL } from '@/lib/webgl';
 import { HeroFallback } from './HeroFallback';
 
 /** three.js only loads in the browser, in its own chunk, after the page is interactive. */
@@ -10,15 +11,6 @@ const HeroScene = dynamic(() => import('./HeroScene'), {
   ssr: false,
   loading: () => <HeroFallback />,
 });
-
-function hasWebGL() {
-  try {
-    const canvas = document.createElement('canvas');
-    return Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'));
-  } catch {
-    return false;
-  }
-}
 
 export function HeroVisual() {
   const container = useRef<HTMLDivElement>(null);
