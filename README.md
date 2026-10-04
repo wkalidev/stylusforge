@@ -110,6 +110,10 @@ The local node keeps its state in memory: after restarting `pnpm chain`, run `pn
 | `pnpm chain` | `hardhat node` in `contracts`: local chain on port 8545 |
 | `pnpm deploy:local` | Deploys to the local node and writes `apps/web/.env.development.local` |
 
+## Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request (and on demand): `pnpm install --frozen-lockfile` on Node 22, then `pnpm lint`, `pnpm test` (contracts, then vitest) and `pnpm build`. The build uses a placeholder WalletConnect id unless the repository variable `NEXT_PUBLIC_WALLETCONNECT_ID` is set.
+
 ## License
 
 MIT
