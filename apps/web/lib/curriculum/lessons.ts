@@ -240,7 +240,17 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn get(&self)',
         },
         {
-          anyOf: ['self.count.set(self.count.get() + U256::from(1))', 'self.count.set(self.count.get() + U256::from(1u8))'],
+          anyOf: [
+            'self.count.set(self.count.get() + U256::from(1))',
+            'self.count.set(self.count.get() + U256::from(1u8))',
+            // The current value or the new one kept in a local first.
+            'let $x = self.count.get(); self.count.set($x + U256::from(1))',
+            'let $x = self.count.get(); self.count.set($x + U256::from(1u8))',
+            'let $x = self.count.get() + U256::from(1); self.count.set($x)',
+            'let $x = self.count.get() + U256::from(1u8); self.count.set($x)',
+            'let mut $x = self.count.get(); $x += U256::from(1); self.count.set($x)',
+            'let mut $x = self.count.get(); $x += U256::from(1u8); self.count.set($x)',
+          ],
           objective: 'Increment the count by 1',
           hints: [
             'Read the current value, add one, then write the result back.',

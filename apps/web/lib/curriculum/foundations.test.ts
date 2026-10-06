@@ -13,6 +13,43 @@ function variant(lessonId: number, from: string, to: string) {
   return validateCode(solution.replace(from, to), lesson.exercise.checks);
 }
 
+describe("lesson 2: Storage and State", () => {
+  const increment = "self.count.set(self.count.get() + U256::from(1));";
+
+  it("accepts the current count or the new one kept in a local variable", () => {
+    expect(variant(2, increment, "let current = self.count.get();\n        self.count.set(current + U256::from(1));").passed).toBe(true);
+    expect(variant(2, increment, "let c = self.count.get();\n        self.count.set(c + U256::from(1u8));").passed).toBe(true);
+    expect(variant(2, increment, "let next = self.count.get() + U256::from(1);\n        self.count.set(next);").passed).toBe(true);
+    expect(
+      variant(2, increment, "let mut count = self.count.get();\n        count += U256::from(1);\n        self.count.set(count);").passed,
+    ).toBe(true);
+  });
+
+  it("accepts a local read split across lines, rustfmt style", () => {
+    expect(
+      variant(2, increment, "let current = self\n            .count\n            .get();\n        self.count.set(current + U256::from(1));").passed,
+    ).toBe(true);
+  });
+
+  it("refuses a local that is read but not the one written back", () => {
+    const result = variant(
+      2,
+      increment,
+      "let current = self.count.get();\n        let other = U256::ZERO;\n        self.count.set(other + U256::from(1));",
+    );
+    expect(result.objectives).toEqual(["Increment the count by 1"]);
+  });
+
+  it("refuses a local that is never incremented or never written back", () => {
+    expect(variant(2, increment, "let current = self.count.get();\n        self.count.set(current);").objectives).toEqual([
+      "Increment the count by 1",
+    ]);
+    expect(variant(2, increment, "let mut count = self.count.get();\n        count += U256::from(1);").objectives).toEqual([
+      "Increment the count by 1",
+    ]);
+  });
+});
+
 describe("lesson 6: Mappings", () => {
   it("accepts setter(key).set(value) and either order of the sum", () => {
     expect(variant(6, "self.scores.insert(player, total);", "self.scores.setter(player).set(total);").passed).toBe(true);
