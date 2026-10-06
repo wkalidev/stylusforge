@@ -383,4 +383,60 @@ impl FeeConfig {
     }
 }
 `,
+  11: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    call::transfer::transfer_eth,
+    prelude::*,
+};
+
+sol! {
+    error InsufficientDeposit(uint256 available, uint256 requested);
+}
+
+#[derive(SolidityError)]
+pub enum BankError {
+    InsufficientDeposit(InsufficientDeposit),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct PiggyBank {
+        mapping(address => uint256) deposits;
+    }
+}
+
+#[public]
+impl PiggyBank {
+    #[payable]
+    pub fn deposit(&mut self) {
+        let account = self.vm().msg_sender();
+        let total = self.deposits.get(account) + self.vm().msg_value();
+        self.deposits.insert(account, total);
+    }
+
+    pub fn deposit_of(&self, account: Address) -> U256 {
+        self.deposits.get(account)
+    }
+
+    pub fn balance(&self) -> U256 {
+        self.vm().balance(self.vm().contract_address())
+    }
+
+    pub fn withdraw(&mut self, amount: U256) -> Result<(), Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let available = self.deposits.get(account);
+        if available < amount {
+            return Err(BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into());
+        }
+        self.deposits.insert(account, available - amount);
+        transfer_eth(self.vm(), account, amount)?;
+        Ok(())
+    }
+}
+`,
 };
