@@ -34,6 +34,37 @@ describe("lesson 9: msg context", () => {
   });
 });
 
+describe("lesson 3: Events and Errors", () => {
+  const revert = "return Err(TokenError::InsufficientBalance(InsufficientBalance {\n                available,\n                required: amount,\n            }));";
+  const emit = "self.vm().log(Transfer { from, to, value: amount });";
+
+  it("accepts the error built in a local variable first", () => {
+    expect(
+      variant(3, revert, "let error = InsufficientBalance {\n                available,\n                required: amount,\n            };\n            return Err(TokenError::InsufficientBalance(error));").passed,
+    ).toBe(true);
+    expect(
+      variant(3, revert, "let error = TokenError::InsufficientBalance(InsufficientBalance { available, required: amount });\n            return Err(error);").passed,
+    ).toBe(true);
+  });
+
+  it("accepts the event built in a local variable first, on one line or rustfmt style", () => {
+    expect(variant(3, emit, "let event = Transfer { from, to, value: amount };\n        self.vm().log(event);").passed).toBe(true);
+    expect(
+      variant(3, emit, "let event = Transfer {\n            from,\n            to,\n            value: amount,\n        };\n        self.vm().log(event);").passed,
+    ).toBe(true);
+  });
+
+  it("refuses an error built in a local but never returned", () => {
+    const result = variant(3, revert, "let _error = InsufficientBalance { available, required: amount };\n            return Ok(());");
+    expect(result.objectives).toEqual(["Revert when the balance is too low"]);
+  });
+
+  it("refuses an event built in a local but never logged", () => {
+    const result = variant(3, emit, "let _event = Transfer { from, to, value: amount };");
+    expect(result.objectives).toEqual(["Emit Transfer after the balances are updated"]);
+  });
+});
+
 describe("lesson 10: Access control", () => {
   it("accepts the comparison either way round", () => {
     expect(variant(10, "if caller != self.owner.get() {", "if self.owner.get() != caller {").passed).toBe(true);

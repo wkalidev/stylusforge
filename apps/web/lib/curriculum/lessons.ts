@@ -422,7 +422,14 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'let available = self.balances.get(from);',
         },
         {
-          anyOf: ['Err(TokenError::InsufficientBalance(InsufficientBalance {'],
+          anyOf: [
+            'Err(TokenError::InsufficientBalance(InsufficientBalance {',
+            // The error built in a local first, with the fields of the hints (rustfmt may add a trailing comma).
+            'let $x = InsufficientBalance { available, required: amount }; return Err(TokenError::InsufficientBalance($x))',
+            'let $x = InsufficientBalance { available, required: amount, }; return Err(TokenError::InsufficientBalance($x))',
+            'let $x = TokenError::InsufficientBalance(InsufficientBalance { available, required: amount }); return Err($x)',
+            'let $x = TokenError::InsufficientBalance(InsufficientBalance { available, required: amount, }); return Err($x)',
+          ],
           objective: 'Revert when the balance is too low',
           hints: [
             'Returning an `Err` from a `#[public]` method reverts the call.',
@@ -432,7 +439,12 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'let available = self.balances.get(from);',
         },
         {
-          anyOf: ['self.vm().log(Transfer {'],
+          anyOf: [
+            'self.vm().log(Transfer {',
+            // The event built in a local first, with the fields of the hints (rustfmt may add a trailing comma).
+            'let $x = Transfer { from, to, value: amount }; self.vm().log($x)',
+            'let $x = Transfer { from, to, value: amount, }; self.vm().log($x)',
+          ],
           objective: 'Emit Transfer after the balances are updated',
           hints: [
             'Events are emitted through the host, which `self.vm()` returns.',
