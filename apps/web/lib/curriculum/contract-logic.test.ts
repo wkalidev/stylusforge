@@ -114,6 +114,53 @@ describe("lesson 11: Payable and sending ETH", () => {
     ).toBe(true);
   });
 
+  const deposit = "let total = self.deposits.get(account) + self.vm().msg_value();";
+  const lower = "self.deposits.insert(account, available - amount);\n        transfer_eth(self.vm(), account, amount)?;";
+  const refuse = "return Err(BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into());";
+
+  it("accepts the deposit or the ETH sent read into local variables first", () => {
+    expect(variant(11, deposit, "let sent = self.vm().msg_value();\n        let total = self.deposits.get(account) + sent;").passed).toBe(true);
+    expect(
+      variant(11, deposit, "let deposited = self.deposits.get(account);\n        let sent = self.vm().msg_value();\n        let total = deposited + sent;").passed,
+    ).toBe(true);
+    expect(variant(11, deposit, "let mut total = self.deposits.get(account);\n        total += self.vm().msg_value();").passed).toBe(true);
+  });
+
+  it("refuses a local ETH amount that is never added", () => {
+    const result = variant(11, deposit, "let sent = self.vm().msg_value();\n        let total = self.deposits.get(account) + U256::from(1);");
+    expect(result.objectives).toEqual(["Add the ETH sent with the call to the caller's deposit"]);
+  });
+
+  it("accepts the lowered deposit computed in a local variable first", () => {
+    expect(
+      variant(11, lower, "let remaining = available - amount;\n        self.deposits.insert(account, remaining);\n        transfer_eth(self.vm(), account, amount)?;").passed,
+    ).toBe(true);
+    expect(
+      variant(11, lower, "let remaining = available - amount;\n        self.deposits.setter(account).set(remaining);\n        transfer_eth(self.vm(), account, amount)?;").passed,
+    ).toBe(true);
+  });
+
+  it("refuses a local lowered deposit written after the ETH is sent, or never written", () => {
+    const late = variant(11, lower, "let remaining = available - amount;\n        transfer_eth(self.vm(), account, amount)?;\n        self.deposits.insert(account, remaining);");
+    expect(late.objectives).toEqual(["Lower the deposit first, then send the ETH"]);
+    const unused = variant(11, lower, "let remaining = available - amount;\n        self.deposits.insert(account, available);\n        transfer_eth(self.vm(), account, amount)?;");
+    expect(unused.objectives).toEqual(["Lower the deposit first, then send the ETH"]);
+  });
+
+  it("accepts the error built in a local variable first", () => {
+    expect(
+      variant(11, refuse, "let error = InsufficientDeposit { available, requested: amount };\n            return Err(BankError::InsufficientDeposit(error).into());").passed,
+    ).toBe(true);
+    expect(
+      variant(11, refuse, "let error = BankError::InsufficientDeposit(InsufficientDeposit {\n                available,\n                requested: amount,\n            });\n            return Err(error.into());").passed,
+    ).toBe(true);
+  });
+
+  it("refuses an error built in a local but never returned", () => {
+    const result = variant(11, refuse, "let _error = InsufficientDeposit { available, requested: amount };\n            return Ok(());");
+    expect(result.objectives).toEqual(["Revert when the deposit is too small"]);
+  });
+
   it("refuses a deposit that is not payable", () => {
     const result = variant(11, "#[payable]\n", "");
     expect(result.objectives).toEqual(["Let deposit receive ETH"]);

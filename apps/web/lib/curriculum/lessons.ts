@@ -1999,7 +1999,21 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn deposit(',
         },
         {
-          anyOf: ['let total = self.deposits.get(account) + self.vm().msg_value();', 'let total = self.vm().msg_value() + self.deposits.get(account);'],
+          // The new deposit is still named total (#111); the deposit and the ETH sent may be read into locals first.
+          anyOf: [
+            'let total = self.deposits.get(account) + self.vm().msg_value();',
+            'let total = self.vm().msg_value() + self.deposits.get(account);',
+            'let $x = self.vm().msg_value(); let total = self.deposits.get(account) + $x;',
+            'let $x = self.vm().msg_value(); let total = $x + self.deposits.get(account);',
+            'let $x = self.deposits.get(account); let total = $x + self.vm().msg_value();',
+            'let $x = self.deposits.get(account); let total = self.vm().msg_value() + $x;',
+            'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let total = $x + $y;',
+            'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let total = $y + $x;',
+            'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let total = $x + $y;',
+            'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let total = $y + $x;',
+            'let mut total = self.deposits.get(account); total += self.vm().msg_value();',
+            'let mut total = self.vm().msg_value(); total += self.deposits.get(account);',
+          ],
           objective: "Add the ETH sent with the call to the caller's deposit",
           hints: [
             'The wei sent with the call comes from the host. Add it to what `account` already deposited.',
@@ -2039,7 +2053,14 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'let available = self.deposits.get(account);',
         },
         {
-          anyOf: ['Err(BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into())'],
+          anyOf: [
+            'Err(BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into())',
+            // The error built in a local first (rustfmt may add a trailing comma).
+            'let $x = InsufficientDeposit { available, requested: amount }; return Err(BankError::InsufficientDeposit($x).into())',
+            'let $x = InsufficientDeposit { available, requested: amount, }; return Err(BankError::InsufficientDeposit($x).into())',
+            'let $x = BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }); return Err($x.into())',
+            'let $x = BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount, }); return Err($x.into())',
+          ],
           objective: 'Revert when the deposit is too small',
           hints: [
             'Return an `Err` from inside the `if`, with the `InsufficientDeposit` error.',
@@ -2052,6 +2073,9 @@ const CONTENT: Record<number, LessonContent> = {
           anyOf: [
             'self.deposits.insert(account, available - amount); transfer_eth(self.vm(), account, amount)?;',
             'self.deposits.setter(account).set(available - amount); transfer_eth(self.vm(), account, amount)?;',
+            // The lowered deposit computed in a local first.
+            'let $x = available - amount; self.deposits.insert(account, $x); transfer_eth(self.vm(), account, amount)?;',
+            'let $x = available - amount; self.deposits.setter(account).set($x); transfer_eth(self.vm(), account, amount)?;',
           ],
           objective: 'Lower the deposit first, then send the ETH',
           hints: [
