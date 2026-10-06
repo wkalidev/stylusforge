@@ -285,4 +285,38 @@ impl TodoList {
     }
 }
 `,
+  9: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    prelude::*,
+};
+
+sol_storage! {
+    #[entrypoint]
+    pub struct Attendance {
+        mapping(address => uint256) check_ins;
+        address last_visitor;
+    }
+}
+
+#[public]
+impl Attendance {
+    pub fn check_in(&mut self) {
+        let visitor = self.vm().msg_sender();
+        let now = U256::from(self.vm().block_timestamp());
+        self.check_ins.insert(visitor, now);
+        self.last_visitor.set(visitor);
+    }
+
+    pub fn checked_in_at(&self, account: Address) -> U256 {
+        self.check_ins.get(account)
+    }
+
+    pub fn last_visitor(&self) -> Address {
+        self.last_visitor.get()
+    }
+}
+`,
 };
