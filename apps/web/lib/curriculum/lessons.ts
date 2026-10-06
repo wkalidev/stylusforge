@@ -1536,6 +1536,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  10: {
+    slug: 'access-control',
+    difficulty: 'Intermediate',
+    preview: 'A fee setting that only its owner can change or hand over.',
+    minutes: 15,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
