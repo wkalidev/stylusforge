@@ -5,11 +5,10 @@ export type Header = { key: string; value: string };
 const HSTS_MAX_AGE = 63_072_000;
 
 /**
- * Report-only while the policy is checked against a deployment: violations are logged in the
- * browser console instead of blocked. Enforcing it means renaming this to Content-Security-Policy.
- * Next.js reads the nonce from either header on the request.
+ * Enforced: browsers block what the policy does not allow. It was report-only until a production
+ * deployment showed no violations. Next.js reads the nonce from this header on the request.
  */
-export const CSP_HEADER = 'Content-Security-Policy-Report-Only';
+export const CSP_HEADER = 'Content-Security-Policy';
 
 /**
  * WalletConnect / Reown endpoints the wallet stack calls from the page: the hosts that Reown's CSP
