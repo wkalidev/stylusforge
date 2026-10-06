@@ -1769,6 +1769,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  11: {
+    slug: 'payable-eth',
+    difficulty: 'Intermediate',
+    preview: 'A piggy bank that takes ETH deposits and pays them back on request.',
+    minutes: 20,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
