@@ -285,4 +285,206 @@ impl TodoList {
     }
 }
 `,
+  9: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    prelude::*,
+};
+
+sol_storage! {
+    #[entrypoint]
+    pub struct Attendance {
+        mapping(address => uint256) check_ins;
+        address last_visitor;
+    }
+}
+
+#[public]
+impl Attendance {
+    pub fn check_in(&mut self) {
+        let visitor = self.vm().msg_sender();
+        let now = U256::from(self.vm().block_timestamp());
+        self.check_ins.insert(visitor, now);
+        self.last_visitor.set(visitor);
+    }
+
+    pub fn checked_in_at(&self, account: Address) -> U256 {
+        self.check_ins.get(account)
+    }
+
+    pub fn last_visitor(&self) -> Address {
+        self.last_visitor.get()
+    }
+}
+`,
+  10: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol! {
+    error Unauthorized(address caller);
+}
+
+#[derive(SolidityError)]
+pub enum AccessError {
+    Unauthorized(Unauthorized),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct FeeConfig {
+        address owner;
+        uint256 fee;
+    }
+}
+
+#[public]
+impl FeeConfig {
+    #[constructor]
+    pub fn constructor(&mut self, owner: Address) {
+        self.owner.set(owner);
+    }
+
+    pub fn owner(&self) -> Address {
+        self.owner.get()
+    }
+
+    pub fn fee(&self) -> U256 {
+        self.fee.get()
+    }
+
+    pub fn set_fee(&mut self, fee: U256) -> Result<(), AccessError> {
+        self.only_owner()?;
+        self.fee.set(fee);
+        Ok(())
+    }
+
+    pub fn transfer_ownership(&mut self, new_owner: Address) -> Result<(), AccessError> {
+        self.only_owner()?;
+        self.owner.set(new_owner);
+        Ok(())
+    }
+}
+
+impl FeeConfig {
+    fn only_owner(&self) -> Result<(), AccessError> {
+        let caller = self.vm().msg_sender();
+        if caller != self.owner.get() {
+            return Err(AccessError::Unauthorized(Unauthorized { caller }));
+        }
+        Ok(())
+    }
+}
+`,
+  11: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    call::transfer::transfer_eth,
+    prelude::*,
+};
+
+sol! {
+    error InsufficientDeposit(uint256 available, uint256 requested);
+}
+
+#[derive(SolidityError)]
+pub enum BankError {
+    InsufficientDeposit(InsufficientDeposit),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct PiggyBank {
+        mapping(address => uint256) deposits;
+    }
+}
+
+#[public]
+impl PiggyBank {
+    #[payable]
+    pub fn deposit(&mut self) {
+        let account = self.vm().msg_sender();
+        let total = self.deposits.get(account) + self.vm().msg_value();
+        self.deposits.insert(account, total);
+    }
+
+    pub fn deposit_of(&self, account: Address) -> U256 {
+        self.deposits.get(account)
+    }
+
+    pub fn balance(&self) -> U256 {
+        self.vm().balance(self.vm().contract_address())
+    }
+
+    pub fn withdraw(&mut self, amount: U256) -> Result<(), Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let available = self.deposits.get(account);
+        if available < amount {
+            return Err(BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into());
+        }
+        self.deposits.insert(account, available - amount);
+        transfer_eth(self.vm(), account, amount)?;
+        Ok(())
+    }
+}
+`,
+  12: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{alloy_primitives::U256, alloy_sol_types::sol, prelude::*};
+
+sol! {
+    error FeeOverflow(uint256 amount, uint256 rate_bps);
+}
+
+#[derive(SolidityError)]
+pub enum QuoteError {
+    FeeOverflow(FeeOverflow),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct FeeQuote {
+        uint256 rate_bps;
+    }
+}
+
+#[public]
+impl FeeQuote {
+    pub fn fee(amount: U256, rate_bps: U256) -> Result<U256, QuoteError> {
+        let scaled = amount
+            .checked_mul(rate_bps)
+            .ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?;
+        Ok(scaled / U256::from(10_000))
+    }
+
+    pub fn rate(&self) -> U256 {
+        self.rate_bps.get()
+    }
+
+    pub fn set_rate(&mut self, rate_bps: U256) {
+        self.rate_bps.set(rate_bps);
+    }
+
+    pub fn quote(&self, amount: U256) -> Result<U256, QuoteError> {
+        Self::fee(amount, self.rate_bps.get())
+    }
+
+    pub fn quote_pair(&self, first: U256, second: U256) -> Result<(U256, U256), QuoteError> {
+        let rate = self.rate_bps.get();
+        Ok((Self::fee(first, rate)?, Self::fee(second, rate)?))
+    }
+}
+`,
 };

@@ -12,6 +12,33 @@ describe("glossaryAt", () => {
     expect(idAt("#[public]", 1)).toBe("public");
   });
 
+  it("explains #[constructor]", () => {
+    expect(glossaryAt("    #[constructor]", 8)).toMatchObject({ entry: { id: "constructor" }, startColumn: 5, endColumn: 19 });
+    expect(idAt("    pub fn constructor(&mut self, owner: Address) {", 12)).toBeNull();
+  });
+
+  it("explains receiving and sending ETH", () => {
+    expect(idAt("    #[payable]", 7)).toBe("payable");
+    const total = "        let total = self.deposits.get(account) + self.vm().msg_value();";
+    expect(idAt(total, total.indexOf("msg_value") + 1)).toBe("msg_value");
+    const held = "        self.vm().balance(self.vm().contract_address())";
+    expect(idAt(held, held.indexOf("balance") + 1)).toBe("balance");
+    expect(idAt(held, held.indexOf("contract_address") + 1)).toBe("contract_address");
+    const send = "        transfer_eth(self.vm(), account, amount)?;";
+    expect(idAt(send, send.indexOf("transfer_eth") + 1)).toBe("transfer_eth");
+    expect(idAt("    pub fn balance(&self) -> U256 {", 12)).toBeNull();
+  });
+
+  it("explains checked arithmetic and the gas left", () => {
+    const scaled = "        let scaled = amount.checked_mul(rate_bps)";
+    expect(idAt(scaled, scaled.indexOf("checked_mul") + 1)).toBe("checked");
+    const sum = "a.checked_add(b)";
+    expect(idAt(sum, sum.indexOf("checked_add") + 1)).toBe("checked");
+    expect(idAt("let checked_mul = 1;", 5)).toBeNull();
+    expect(idAt("self.vm().evm_gas_left()", 11)).toBe("gas_left");
+    expect(idAt("self.vm().evm_ink_left()", 11)).toBe("gas_left");
+  });
+
   it("tells sol! apart from sol_storage!", () => {
     expect(idAt("sol! {", 2)).toBe("sol");
     expect(idAt("sol_storage! {", 2)).toBe("sol_storage");
@@ -52,6 +79,22 @@ describe("glossaryAt", () => {
     expect(idAt(read, read.indexOf("getter") + 1)).toBe("getter");
     expect(idAt("        Task[] tasks;", 10)).toBe("vector");
     expect(idAt("let grow = 1;", 5)).toBeNull();
+  });
+
+  it("explains the message and block context", () => {
+    const now = "        let now = U256::from(self.vm().block_timestamp());";
+    expect(idAt(now, now.indexOf("block_timestamp") + 1)).toBe("block_timestamp");
+    const number = "U256::from(self.vm().block_number())";
+    expect(idAt(number, number.indexOf("block_number") + 1)).toBe("block_number");
+    const origin = "let is_owner = self.vm().tx_origin() == owner;";
+    expect(idAt(origin, origin.indexOf("tx_origin") + 1)).toBe("tx_origin");
+    expect(idAt("let block_number = 1;", 5)).toBeNull();
+  });
+
+  it("explains an address storage field, but not address in a mapping or an event", () => {
+    expect(glossaryAt("        address last_visitor;", 10)).toMatchObject({ entry: { id: "address_field" }, startColumn: 9, endColumn: 16 });
+    expect(idAt("        mapping(address => uint256) check_ins;", 18)).toBeNull();
+    expect(idAt("    event Transfer(address indexed from, address indexed to, uint256 value);", 21)).toBeNull();
   });
 
   it("does not match inside longer identifiers", () => {

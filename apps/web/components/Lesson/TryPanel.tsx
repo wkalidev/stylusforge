@@ -5,6 +5,8 @@ import { buttonClasses } from '@/components/ui/button';
 import {
   callSimulation,
   formatSimValue,
+  holdsEth,
+  simTimestamp,
   type LessonSimulation,
   type SimAccount,
   type SimCallResult,
@@ -18,6 +20,8 @@ interface LogEntry {
   caller: SimAccount;
   fn: SimFunction;
   args: Record<string, string>;
+  /** Wei sent with the call, as typed. */
+  value: string;
   result: SimCallResult;
 }
 
@@ -27,18 +31,20 @@ function formatArgs(record: Record<string, SimValue> | undefined, accounts: SimA
     .join(', ');
 }
 
-function FunctionForm({ fn, onCall }: { fn: SimFunction; onCall: (args: Record<string, string>) => void }) {
+function FunctionForm({ fn, onCall }: { fn: SimFunction; onCall: (args: Record<string, string>, value: string) => void }) {
   const id = useId();
   const [args, setArgs] = useState<Record<string, string>>({});
+  const [value, setValue] = useState('');
   return (
     <form
       className='rounded-[var(--radius-forge)] border border-steel-700 p-3'
       onSubmit={(event) => {
         event.preventDefault();
-        onCall(args);
+        onCall(args, value);
       }}
     >
       <p className='font-mono text-sm text-steel-100'>
+        {fn.payable && <span className='text-amber-300'>payable </span>}
         {fn.abiName}(
         <span className='text-steel-400'>{fn.params.map((param) => `${param.type} ${param.name}`).join(', ')}</span>)
         {fn.returns && (
@@ -58,12 +64,30 @@ function FunctionForm({ fn, onCall }: { fn: SimFunction; onCall: (args: Record<s
             />
           </label>
         ))}
+        {fn.payable && (
+          <label className='flex min-w-0 flex-1 flex-col gap-1 text-xs text-amber-300'>
+            value (wei)
+            <input
+              id={`${id}-value`}
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              placeholder='0'
+              className='h-9 min-w-24 rounded-[var(--radius-forge)] border border-steel-700 bg-steel-950 px-2 font-mono text-sm text-steel-100'
+            />
+          </label>
+        )}
         <button type='submit' className={buttonClasses(fn.view ? 'steel' : 'heat', 'md', 'h-9')}>
           {fn.view ? 'Read' : 'Send'}
         </button>
       </div>
     </form>
   );
+}
+
+/** A Unix time as `1767225612 (2026-01-01 00:00:12 UTC)`. */
+function formatTimestamp(seconds: bigint): string {
+  const date = new Date(Number(seconds) * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC');
+  return `${seconds} (${date})`;
 }
 
 const EMPTY = <span className='text-steel-600'>(empty)</span>;
@@ -117,6 +141,10 @@ function StorageView({ state, accounts }: { state: SimState; accounts: SimAccoun
 export function TryPanel({ simulation, passed }: { simulation: LessonSimulation | null; passed: boolean }) {
   const [state, setState] = useState<SimState | null>(() => simulation?.initialState() ?? null);
   const [callerIndex, setCallerIndex] = useState(0);
+  // Transactions sent so far: each one runs in the next block of the simulated clock.
+  const [sent, setSent] = useState(0);
+  // The contract's ETH balance, in wei: not storage, so kept next to it.
+  const [balance, setBalance] = useState(0n);
   const [log, setLog] = useState<LogEntry[]>([]);
 
   if (!simulation || !state) {
@@ -132,10 +160,13 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
   }
 
   const caller = simulation.accounts[callerIndex];
-  const call = (fn: SimFunction, args: Record<string, string>) => {
-    const result = callSimulation(simulation, state, fn.name, args, caller);
+  const call = (fn: SimFunction, args: Record<string, string>, value: string) => {
+    const block = fn.view ? sent : sent + 1;
+    const result = callSimulation(simulation, state, fn.name, args, caller, { timestamp: simTimestamp(block), value, balance });
+    setSent(block);
     setState(result.state);
-    setLog((entries) => [{ id: (entries[0]?.id ?? 0) + 1, caller, fn, args, result }, ...entries].slice(0, 20));
+    setBalance(result.balance);
+    setLog((entries) => [{ id: (entries[0]?.id ?? 0) + 1, caller, fn, args, value, result }, ...entries].slice(0, 20));
   };
 
   return (
@@ -170,17 +201,22 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
           type='button'
           onClick={() => {
             setState(simulation.initialState());
+            setSent(0);
+            setBalance(0n);
             setLog([]);
           }}
           className='text-sm text-steel-400 underline-offset-4 hover:text-steel-100 hover:underline'
         >
           Reset the simulation
         </button>
+        {simulation.clock && (
+          <p className='w-full font-mono text-xs text-steel-400'>Simulated block time: {formatTimestamp(simTimestamp(sent))}</p>
+        )}
       </div>
 
       <div className='space-y-2'>
         {simulation.functions.map((fn) => (
-          <FunctionForm key={fn.name} fn={fn} onCall={(args) => call(fn, args)} />
+          <FunctionForm key={fn.name} fn={fn} onCall={(args, value) => call(fn, args, value)} />
         ))}
       </div>
 
@@ -188,6 +224,11 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
         <section aria-label='Storage' className='steel-surface p-3'>
           <p className='mb-2 text-sm font-semibold text-steel-100'>Storage</p>
           <StorageView state={state} accounts={simulation.accounts} />
+          {holdsEth(simulation) && (
+            <p className='mt-3 border-t border-steel-800 pt-2 font-mono text-sm text-steel-400'>
+              ETH balance (not storage): <span className='text-amber-300'>{formatSimValue(balance, simulation.accounts)} wei</span>
+            </p>
+          )}
         </section>
         <section aria-label='Calls' className='steel-surface p-3'>
           <p className='mb-2 text-sm font-semibold text-steel-100'>Calls</p>
@@ -199,6 +240,7 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
                 <li key={entry.id} className='border-b border-steel-800 pb-2 last:border-0'>
                   <p className='text-steel-300'>
                     {entry.caller.name}: {entry.fn.abiName}({Object.values(entry.args).join(', ')})
+                    {entry.value.trim() !== '' && <span className='text-amber-300'> with {entry.value.trim()} wei</span>}
                   </p>
                   {entry.result.ok ? (
                     <>
@@ -210,7 +252,14 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
                           event {event.name}({formatArgs(event.args, simulation.accounts)})
                         </p>
                       ))}
-                      {entry.result.returns === undefined && entry.result.events.length === 0 && <p className='text-steel-400'>ok</p>}
+                      {entry.result.transfers.map((transfer, index) => (
+                        <p key={index} className='text-amber-300'>
+                          sent {formatSimValue(transfer.amount, simulation.accounts)} wei to {formatSimValue(transfer.to, simulation.accounts)}
+                        </p>
+                      ))}
+                      {entry.result.returns === undefined && entry.result.events.length === 0 && entry.result.transfers.length === 0 && (
+                        <p className='text-steel-400'>ok</p>
+                      )}
                     </>
                   ) : (
                     <p className='text-molten-300'>

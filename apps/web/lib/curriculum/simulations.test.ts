@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { LESSONS } from "./lessons";
-import { UINT256_MAX, callSimulation, readMapping, type LessonSimulation, type SimState } from "./simulation";
-import { SIM_ACCOUNTS, getSimulation } from "./simulations";
+import { SIM_START_TIME, UINT256_MAX, callSimulation, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
+import { SIM_ACCOUNTS, ZERO_ADDRESS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
-const [alice, bob] = SIM_ACCOUNTS;
+const [alice, bob, carol] = SIM_ACCOUNTS;
 
 /** Runs calls in sequence and returns every result. */
 function run(simulation: LessonSimulation, calls: [string, Record<string, string>, typeof alice][]) {
@@ -20,11 +20,14 @@ function run(simulation: LessonSimulation, calls: [string, Record<string, string
 const MAX = UINT256_MAX;
 
 /**
- * One call per lesson whose reference solution adds or subtracts U256 values, from a state at the
- * edge of uint256, with the state Rust would end in: `U256` `+` and `-` wrap around instead of
- * reverting, so the simulation must not revert either.
+ * One call per lesson whose reference solution adds, subtracts or multiplies U256 values with
+ * operators, from a state at the edge of uint256, with the state Rust would end in: `U256` `+`, `-`
+ * and `*` wrap around instead of reverting, so the simulation must not revert either.
  */
-const OVERFLOW_CASES: Record<number, { state: SimState; call: [string, Record<string, string>, typeof alice]; expected: SimState }> = {
+const OVERFLOW_CASES: Record<
+  number,
+  { state: SimState; call: [string, Record<string, string>, typeof alice]; with?: SimCall; expected: SimState }
+> = {
   2: { state: { count: MAX }, call: ["increment", {}, alice], expected: { count: 0n } },
   3: {
     state: { balances: { [alice.address]: 1n, [bob.address]: MAX } },
@@ -37,20 +40,42 @@ const OVERFLOW_CASES: Record<number, { state: SimState; call: [string, Record<st
     expected: { total_supply: MAX, balances: { [alice.address]: 0n, [bob.address]: 0n }, allowances: {} },
   },
   6: { state: { scores: { [alice.address]: MAX } }, call: ["record", { points: "2" }, alice], expected: { scores: { [alice.address]: 1n } } },
+  11: {
+    state: { deposits: { [alice.address]: MAX } },
+    call: ["deposit", {}, alice],
+    with: { value: "2" },
+    expected: { deposits: { [alice.address]: 1n } },
+  },
 };
 
-/** Whether Rust code adds or subtracts with the binary + or - operators (not `->`). */
-const usesArithmetic = (code: string) => /\s[+-]=?\s/.test(code);
+/** Whether Rust code uses the binary +, - or * operators (not `->` or a dereference). */
+const usesArithmetic = (code: string) => /\s[-+*]=?\s/.test(code);
 
 describe("overflow in lesson simulations", () => {
-  it("has a case for every available lesson whose solution adds or subtracts", () => {
+  it("has a case for every available lesson whose solution adds, subtracts or multiplies", () => {
     const arithmetic = LESSONS.filter((lesson) => lesson.available && usesArithmetic(SOLUTIONS[lesson.id])).map((lesson) => lesson.id);
     expect(Object.keys(OVERFLOW_CASES).map(Number).sort((a, b) => a - b)).toEqual(arithmetic.sort((a, b) => a - b));
   });
 
-  it.each(Object.entries(OVERFLOW_CASES))("lesson %s wraps around like U256 instead of reverting", (id, { state, call, expected }) => {
+  it("lesson 12 reverts with FeeOverflow where checked_mul overflows, instead of wrapping", () => {
+    const simulation = getSimulation(12)!;
+    const max = MAX.toString();
+    expect(callSimulation(simulation, { rate_bps: 0n }, "fee", { amount: max, rate_bps: "2" }, alice)).toMatchObject({
+      ok: false,
+      error: { error: "FeeOverflow", args: { amount: MAX, rate_bps: 2n } },
+    });
+    // The largest product that fits does not revert.
+    expect(callSimulation(simulation, { rate_bps: 0n }, "fee", { amount: max, rate_bps: "1" }, alice).returns).toBe(MAX / 10_000n);
+    expect(callSimulation(simulation, { rate_bps: 2n }, "quote", { amount: max }, alice)).toMatchObject({ ok: false, error: { error: "FeeOverflow" } });
+    expect(callSimulation(simulation, { rate_bps: 2n }, "quote_pair", { first: "1", second: max }, alice)).toMatchObject({
+      ok: false,
+      error: { error: "FeeOverflow", args: { amount: MAX, rate_bps: 2n } },
+    });
+  });
+
+  it.each(Object.entries(OVERFLOW_CASES))("lesson %s wraps around like U256 instead of reverting", (id, { state, call, with: how, expected }) => {
     const [fn, args, caller] = call;
-    const result = callSimulation(getSimulation(Number(id))!, state, fn, args, caller);
+    const result = callSimulation(getSimulation(Number(id))!, state, fn, args, caller, how);
     expect(result.error).toBeUndefined();
     expect(result.state).toEqual(expected);
   });
@@ -61,7 +86,11 @@ describe("lesson simulations", () => {
     for (const lesson of LESSONS.filter((candidate) => candidate.available)) {
       const simulation = getSimulation(lesson.id);
       expect(simulation, lesson.title).not.toBeNull();
-      const publicFns = [...SOLUTIONS[lesson.id].matchAll(/pub fn (\w+)/g)].map((match) => match[1]).sort();
+      // A #[constructor] runs once at deployment: the model starts deployed instead.
+      const publicFns = [...SOLUTIONS[lesson.id].matchAll(/(#\[constructor\]\s*)?pub fn (\w+)/g)]
+        .filter((match) => !match[1])
+        .map((match) => match[2])
+        .sort();
       expect(simulation!.functions.map((fn) => fn.name).sort(), lesson.title).toEqual(publicFns);
     }
   });
@@ -181,6 +210,96 @@ describe("lesson simulations", () => {
     ]);
     expect(read).toMatchObject({ ok: false, error: { error: "UnknownTask", args: { id: 1n } } });
     expect(write).toMatchObject({ ok: false, error: { error: "UnknownTask", args: { id: 5n } }, state: { tasks: [{ title: "Only task", done: false }] } });
+  });
+
+  it("lesson 9 records each visitor's check-in time on the simulated clock", () => {
+    const simulation = getSimulation(9)!;
+    let state = simulation.initialState();
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, sent: number) => {
+      const result = callSimulation(simulation, state, fn, args, caller, { timestamp: simTimestamp(sent) });
+      state = result.state;
+      return result;
+    };
+    expect(call("last_visitor", {}, alice, 0).returns).toBe(ZERO_ADDRESS);
+    call("check_in", {}, alice, 1);
+    call("check_in", {}, bob, 2);
+    expect(call("checked_in_at", { account: "Alice" }, bob, 2).returns).toBe(SIM_START_TIME + 12n);
+    expect(call("checked_in_at", { account: "Bob" }, bob, 2).returns).toBe(SIM_START_TIME + 24n);
+    expect(call("checked_in_at", { account: "Carol" }, bob, 2).returns).toBe(0n);
+    expect(call("last_visitor", {}, alice, 2).returns).toBe(bob.address);
+    // Checking in again moves the time forward and makes Alice the last visitor.
+    call("check_in", {}, alice, 3);
+    expect(readMapping(state, "check_ins", alice.address)).toBe(SIM_START_TIME + 36n);
+    expect(state.last_visitor).toBe(alice.address);
+  });
+
+  it("lesson 10 lets only the owner set the fee and hand over the contract", () => {
+    const results = run(getSimulation(10)!, [
+      ["set_fee", { fee: "25" }, bob],
+      ["set_fee", { fee: "25" }, alice],
+      ["transfer_ownership", { new_owner: "Bob" }, alice],
+      ["set_fee", { fee: "30" }, alice],
+      ["set_fee", { fee: "30" }, bob],
+      ["owner", {}, carol],
+      ["fee", {}, carol],
+    ]);
+    expect(results[0]).toMatchObject({ ok: false, error: { error: "Unauthorized", args: { caller: bob.address } } });
+    expect(results[0].state.fee).toBe(0n);
+    expect(results[1]).toMatchObject({ ok: true, state: { fee: 25n } });
+    // Once ownership is handed over, the old owner is refused like anyone else.
+    expect(results[3]).toMatchObject({ ok: false, error: { error: "Unauthorized", args: { caller: alice.address } } });
+    expect(results[5].returns).toBe(bob.address);
+    expect(results[6].returns).toBe(30n);
+  });
+
+  it("lesson 11 takes deposits, pays them back and reverts past the deposit", () => {
+    const simulation = getSimulation(11)!;
+    let state = simulation.initialState();
+    let balance = 0n;
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, value?: string) => {
+      const result = callSimulation(simulation, state, fn, args, caller, { value, balance });
+      state = result.state;
+      balance = result.balance;
+      return result;
+    };
+    call("deposit", {}, alice, "300");
+    call("deposit", {}, bob, "200");
+    call("deposit", {}, alice, "50");
+    expect(call("deposit_of", { account: "Alice" }, carol).returns).toBe(350n);
+    expect(call("balance", {}, carol).returns).toBe(550n);
+    expect(call("withdraw", { amount: "100" }, alice)).toMatchObject({ ok: true, transfers: [{ to: alice.address, amount: 100n }], balance: 450n });
+    expect(readMapping(state, "deposits", alice.address)).toBe(250n);
+    // Bob cannot take more than he deposited, even though the contract holds enough.
+    expect(call("withdraw", { amount: "201" }, bob)).toMatchObject({
+      ok: false,
+      error: { error: "InsufficientDeposit", args: { available: 200n, requested: 201n } },
+      balance: 450n,
+    });
+    expect(call("withdraw", { amount: "1" }, carol)).toMatchObject({ ok: false, error: { error: "InsufficientDeposit" } });
+  });
+
+  it("lesson 11 refuses ETH sent to a function that is not payable", () => {
+    const result = callSimulation(getSimulation(11)!, { deposits: { [alice.address]: 5n } }, "withdraw", { amount: "1" }, alice, { value: "1", balance: 5n });
+    expect(result).toMatchObject({ ok: false, error: { error: "method withdraw not payable" }, balance: 5n });
+  });
+
+  it("lesson 12 quotes fees in basis points at the stored rate", () => {
+    const results = run(getSimulation(12)!, [
+      ["quote", { amount: "1000" }, alice],
+      ["set_rate", { rate_bps: "250" }, alice],
+      ["rate", {}, bob],
+      ["quote", { amount: "1000" }, bob],
+      ["quote_pair", { first: "1000", second: "4000" }, bob],
+      ["fee", { amount: "1", rate_bps: "9999" }, bob],
+      ["fee", { amount: "200", rate_bps: "10000" }, bob],
+    ]);
+    expect(results[0].returns).toBe(0n);
+    expect(results[2].returns).toBe(250n);
+    expect(results[3].returns).toBe(25n);
+    expect(results[4].returns).toEqual([25n, 100n]);
+    // Integer division rounds down; 10,000 basis points are the whole amount.
+    expect(results[5].returns).toBe(0n);
+    expect(results[6].returns).toBe(200n);
   });
 
   it("lesson 4 behaves like an ERC-20 transfer", () => {

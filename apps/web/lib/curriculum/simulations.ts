@@ -1,4 +1,4 @@
-import { deleteMapping, readMapping, wrappingAdd, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
+import { UINT256_MAX, deleteMapping, readMapping, wrappingAdd, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -6,6 +6,9 @@ export const SIM_ACCOUNTS: SimAccount[] = [
   { name: 'Bob', address: '0x0000000000000000000000000000000000000b0b' },
   { name: 'Carol', address: '0x00000000000000000000000000000000000ca201' },
 ];
+
+/** `Address::ZERO`, the value of an address field never written. */
+export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 /** "Try it" models of each lesson's contract, keyed by lesson id. */
 export const SIMULATIONS: Record<number, LessonSimulation> = {
@@ -255,6 +258,190 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  9: {
+    contract: 'Attendance',
+    note: 'The block time is a simplified simulated clock: each sent transaction runs 12 seconds after the previous one, while real Arbitrum blocks are much faster.',
+    accounts: SIM_ACCOUNTS,
+    clock: true,
+    initialState: () => ({ check_ins: {}, last_visitor: ZERO_ADDRESS }),
+    functions: [
+      {
+        name: 'check_in',
+        abiName: 'checkIn',
+        view: false,
+        params: [],
+        run: (state, _args, caller, block) => ({
+          state: { ...writeMapping(state, 'check_ins', caller.address, block.timestamp), last_visitor: caller.address },
+        }),
+      },
+      {
+        name: 'checked_in_at',
+        abiName: 'checkedInAt',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'check_ins', args.account as string) }),
+      },
+      {
+        name: 'last_visitor',
+        abiName: 'lastVisitor',
+        view: true,
+        params: [],
+        returns: 'address',
+        run: (state) => ({ returns: state.last_visitor as string }),
+      },
+    ],
+  },
+  10: {
+    contract: 'FeeConfig',
+    note: 'The model is deployed with Alice as the owner, as if the constructor received her address.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ owner: SIM_ACCOUNTS[0].address, fee: 0n }),
+    functions: [
+      {
+        name: 'owner',
+        abiName: 'owner',
+        view: true,
+        params: [],
+        returns: 'address',
+        run: (state) => ({ returns: state.owner as string }),
+      },
+      {
+        name: 'fee',
+        abiName: 'fee',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.fee as bigint }),
+      },
+      {
+        name: 'set_fee',
+        abiName: 'setFee',
+        view: false,
+        params: [{ name: 'fee', type: 'uint256' }],
+        run: (state, args, caller) => onlyOwner(state, caller) ?? { state: { ...state, fee: args.fee } },
+      },
+      {
+        name: 'transfer_ownership',
+        abiName: 'transferOwnership',
+        view: false,
+        params: [{ name: 'new_owner', type: 'address' }],
+        run: (state, args, caller) => onlyOwner(state, caller) ?? { state: { ...state, owner: args.new_owner } },
+      },
+    ],
+  },
+  11: {
+    contract: 'PiggyBank',
+    note: 'Send ETH with deposit using its value field. The model tracks the ETH the contract holds, not the balances of the accounts.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ deposits: {} }),
+    functions: [
+      {
+        name: 'deposit',
+        abiName: 'deposit',
+        view: false,
+        payable: true,
+        params: [],
+        run: (state, _args, caller, call) => {
+          const total = wrappingAdd(readMapping(state, 'deposits', caller.address), call.value);
+          return { state: writeMapping(state, 'deposits', caller.address, total) };
+        },
+      },
+      {
+        name: 'deposit_of',
+        abiName: 'depositOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'deposits', args.account as string) }),
+      },
+      {
+        name: 'balance',
+        abiName: 'balance',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (_state, _args, _caller, call) => ({ returns: call.balance }),
+      },
+      {
+        name: 'withdraw',
+        abiName: 'withdraw',
+        view: false,
+        params: [{ name: 'amount', type: 'uint256' }],
+        run: (state, args, caller) => {
+          const amount = args.amount as bigint;
+          const available = readMapping(state, 'deposits', caller.address);
+          if (available < amount) {
+            return { revert: { error: 'InsufficientDeposit', args: { available, requested: amount } } };
+          }
+          // Checks, effects, interactions: the deposit is lowered before the ETH is sent.
+          return {
+            state: writeMapping(state, 'deposits', caller.address, available - amount),
+            transfers: [{ to: caller.address, amount }],
+          };
+        },
+      },
+    ],
+  },
+  12: {
+    contract: 'FeeQuote',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ rate_bps: 0n }),
+    functions: [
+      {
+        name: 'fee',
+        abiName: 'fee',
+        view: true,
+        params: [
+          { name: 'amount', type: 'uint256' },
+          { name: 'rate_bps', type: 'uint256' },
+        ],
+        returns: 'uint256',
+        run: (_state, args) => quoteFee(args.amount as bigint, args.rate_bps as bigint),
+      },
+      {
+        name: 'rate',
+        abiName: 'rate',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.rate_bps as bigint }),
+      },
+      {
+        name: 'set_rate',
+        abiName: 'setRate',
+        view: false,
+        params: [{ name: 'rate_bps', type: 'uint256' }],
+        run: (state, args) => ({ state: { ...state, rate_bps: args.rate_bps } }),
+      },
+      {
+        name: 'quote',
+        abiName: 'quote',
+        view: true,
+        params: [{ name: 'amount', type: 'uint256' }],
+        returns: 'uint256',
+        run: (state, args) => quoteFee(args.amount as bigint, state.rate_bps as bigint),
+      },
+      {
+        name: 'quote_pair',
+        abiName: 'quotePair',
+        view: true,
+        params: [
+          { name: 'first', type: 'uint256' },
+          { name: 'second', type: 'uint256' },
+        ],
+        returns: ['uint256', 'uint256'],
+        run: (state, args) => {
+          const rate = state.rate_bps as bigint;
+          const first = quoteFee(args.first as bigint, rate);
+          if ('revert' in first) return first;
+          const second = quoteFee(args.second as bigint, rate);
+          if ('revert' in second) return second;
+          return { returns: [first.returns, second.returns] };
+        },
+      },
+    ],
+  },
 };
 
 /** A task of the lesson 8 to-do list. */
@@ -264,6 +451,22 @@ type Task = { title: string; done: boolean };
 function findTask(state: SimState, id: bigint): Task | { revert: { error: string; args: { id: bigint } } } {
   const tasks = state.tasks as Task[];
   return id < BigInt(tasks.length) ? tasks[Number(id)] : { revert: { error: 'UnknownTask', args: { id } } };
+}
+
+/** The Unauthorized revert of lesson 10's only_owner guard, or null when the caller is the owner. */
+function onlyOwner(state: SimState, caller: SimAccount): { revert: { error: string; args: { caller: string } } } | null {
+  const owner = state.owner as string;
+  return caller.address.toLowerCase() === owner.toLowerCase() ? null : { revert: { error: 'Unauthorized', args: { caller: caller.address } } };
+}
+
+/**
+ * Lesson 12's fee in basis points: `checked_mul` turns an overflow into the FeeOverflow revert
+ * instead of wrapping around like `*`.
+ */
+function quoteFee(amount: bigint, rateBps: bigint): { returns: bigint } | { revert: { error: string; args: Record<string, bigint> } } {
+  const scaled = amount * rateBps;
+  if (scaled > UINT256_MAX) return { revert: { error: 'FeeOverflow', args: { amount, rate_bps: rateBps } } };
+  return { returns: scaled / 10_000n };
 }
 
 export function getSimulation(lessonId: number): LessonSimulation | null {
