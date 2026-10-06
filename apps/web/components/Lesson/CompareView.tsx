@@ -1,9 +1,18 @@
 'use client';
 
-import { DiffEditor, type BeforeMount } from '@monaco-editor/react';
+import { useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
+import type { BeforeMount, DiffOnMount, MonacoDiffEditor } from '@monaco-editor/react';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
+import { EditorLoading } from './EditorLoading';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 import { registerGlossaryHover } from './glossaryHover';
+
+// Self-hosted Monaco (see monaco.ts), on the client only: it needs the DOM as soon as it loads.
+const DiffEditor = dynamic(() => import('./monaco').then((module) => module.DiffEditor), {
+  ssr: false,
+  loading: () => <EditorLoading />,
+});
 
 const beforeMount: BeforeMount = (monaco) => {
   defineForgeEditorTheme(monaco);
@@ -16,12 +25,33 @@ const beforeMount: BeforeMount = (monaco) => {
  */
 export function CompareView({ code, solution }: { code: string; solution: string }) {
   const wide = useMediaQuery('(min-width: 768px)');
+  // The wrapper disposes its models before the diff editor on unmount, which Monaco reports as an
+  // error. Keep them there instead and dispose them here, once the editor has let go of them.
+  const modelsRef = useRef<ReturnType<MonacoDiffEditor['getModel']>>(null);
+  const onMount: DiffOnMount = (editor) => {
+    modelsRef.current = editor.getModel();
+  };
+  useEffect(
+    () => () => {
+      const models = modelsRef.current;
+      if (models) {
+        setTimeout(() => {
+          models.original.dispose();
+          models.modified.dispose();
+        });
+      }
+    },
+    [],
+  );
   return (
     <DiffEditor
       height='100%'
       language='rust'
       theme={FORGE_EDITOR_THEME}
       beforeMount={beforeMount}
+      onMount={onMount}
+      keepCurrentOriginalModel
+      keepCurrentModifiedModel
       original={code}
       modified={solution}
       options={{
