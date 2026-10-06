@@ -2272,7 +2272,14 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn fee(',
         },
         {
-          anyOf: ['.ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?'],
+          anyOf: [
+            '.ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?',
+            // The error built in a local first, right before the checked product.
+            'let $x = QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }); let $y = amount.checked_mul(rate_bps).ok_or($x)?',
+            'let $x = QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }); let $y = rate_bps.checked_mul(amount).ok_or($x)?',
+            'let $x = FeeOverflow { amount, rate_bps }; let $y = amount.checked_mul(rate_bps).ok_or(QuoteError::FeeOverflow($x))?',
+            'let $x = FeeOverflow { amount, rate_bps }; let $y = rate_bps.checked_mul(amount).ok_or(QuoteError::FeeOverflow($x))?',
+          ],
           objective: 'Revert with FeeOverflow when the product does not fit',
           hints: [
             'Turn the `None` of an overflow into an error, as lesson 7 did with `ok_or`.',
@@ -2282,7 +2289,13 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn fee(',
         },
         {
-          anyOf: ['Ok(scaled / U256::from(10_000))', 'Ok(scaled / U256::from(10000))'],
+          anyOf: [
+            'Ok(scaled / U256::from(10_000))',
+            'Ok(scaled / U256::from(10000))',
+            // The fee computed in a local first (the product is still named scaled, #111).
+            'let $x = scaled / U256::from(10_000); Ok($x)',
+            'let $x = scaled / U256::from(10000); Ok($x)',
+          ],
           objective: 'Return the fee as a share of 10,000 basis points',
           hints: [
             'The checked product is in basis points: 10,000 of them are 100%.',
@@ -2302,7 +2315,12 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn quote(',
         },
         {
-          anyOf: ['Self::fee(amount, self.rate_bps.get())'],
+          anyOf: [
+            'Self::fee(amount, self.rate_bps.get())',
+            // The stored rate read into a local first.
+            'let $x = self.rate_bps.get(); Self::fee(amount, $x)',
+            'let $x = self.rate_bps.get(); Ok(Self::fee(amount, $x)?)',
+          ],
           objective: 'Quote the fee at the stored rate',
           hints: [
             'Now that `fee` has no `self`, it is called on the type, not on `self`.',

@@ -187,6 +187,41 @@ describe("lesson 12: View/pure and gas", () => {
     expect(variant(12, "U256::from(10_000)", "U256::from(10000)").passed).toBe(true);
   });
 
+  const product = "let scaled = amount\n            .checked_mul(rate_bps)\n            .ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?;";
+
+  it("accepts the overflow error built in a local variable first", () => {
+    expect(
+      variant(12, product, "let overflow = QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps });\n        let scaled = amount\n            .checked_mul(rate_bps)\n            .ok_or(overflow)?;").passed,
+    ).toBe(true);
+    expect(
+      variant(12, product, "let overflow = FeeOverflow { amount, rate_bps };\n        let scaled = rate_bps.checked_mul(amount).ok_or(QuoteError::FeeOverflow(overflow))?;").passed,
+    ).toBe(true);
+  });
+
+  it("refuses an overflow error built in a local but never used", () => {
+    const result = variant(12, product, "let _overflow = FeeOverflow { amount, rate_bps };\n        let scaled = amount.checked_mul(rate_bps).unwrap_or(U256::ZERO);");
+    expect(result.objectives).toEqual(["Revert with FeeOverflow when the product does not fit"]);
+  });
+
+  it("accepts the fee computed in a local variable first", () => {
+    expect(variant(12, "Ok(scaled / U256::from(10_000))", "let fee = scaled / U256::from(10_000);\n        Ok(fee)").passed).toBe(true);
+  });
+
+  it("refuses a local fee that is not the value returned", () => {
+    const result = variant(12, "Ok(scaled / U256::from(10_000))", "let _fee = scaled / U256::from(10_000);\n        Ok(scaled)");
+    expect(result.objectives).toEqual(["Return the fee as a share of 10,000 basis points"]);
+  });
+
+  it("accepts the stored rate read into a local variable first in quote", () => {
+    expect(variant(12, "Self::fee(amount, self.rate_bps.get())", "let rate = self.rate_bps.get();\n        Self::fee(amount, rate)").passed).toBe(true);
+    expect(variant(12, "Self::fee(amount, self.rate_bps.get())", "let rate = self.rate_bps.get();\n        Ok(Self::fee(amount, rate)?)").passed).toBe(true);
+  });
+
+  it("refuses a quote at a rate other than the stored one", () => {
+    const result = variant(12, "Self::fee(amount, self.rate_bps.get())", "let _rate = self.rate_bps.get();\n        Self::fee(amount, U256::from(30))");
+    expect(result.objectives).toEqual(["Quote the fee at the stored rate"]);
+  });
+
   it("refuses a fee that multiplies with the wrapping operator", () => {
     const result = variant(
       12,
