@@ -330,6 +330,59 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  11: {
+    contract: 'PiggyBank',
+    note: 'Send ETH with deposit using its value field. The model tracks the ETH the contract holds, not the balances of the accounts.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ deposits: {} }),
+    functions: [
+      {
+        name: 'deposit',
+        abiName: 'deposit',
+        view: false,
+        payable: true,
+        params: [],
+        run: (state, _args, caller, call) => {
+          const total = wrappingAdd(readMapping(state, 'deposits', caller.address), call.value);
+          return { state: writeMapping(state, 'deposits', caller.address, total) };
+        },
+      },
+      {
+        name: 'deposit_of',
+        abiName: 'depositOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'deposits', args.account as string) }),
+      },
+      {
+        name: 'balance',
+        abiName: 'balance',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (_state, _args, _caller, call) => ({ returns: call.balance }),
+      },
+      {
+        name: 'withdraw',
+        abiName: 'withdraw',
+        view: false,
+        params: [{ name: 'amount', type: 'uint256' }],
+        run: (state, args, caller) => {
+          const amount = args.amount as bigint;
+          const available = readMapping(state, 'deposits', caller.address);
+          if (available < amount) {
+            return { revert: { error: 'InsufficientDeposit', args: { available, requested: amount } } };
+          }
+          // Checks, effects, interactions: the deposit is lowered before the ETH is sent.
+          return {
+            state: writeMapping(state, 'deposits', caller.address, available - amount),
+            transfers: [{ to: caller.address, amount }],
+          };
+        },
+      },
+    ],
+  },
 };
 
 /** A task of the lesson 8 to-do list. */
