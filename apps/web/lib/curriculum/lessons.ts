@@ -1732,6 +1732,41 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn transfer_ownership(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Setting the owner at deployment",
+          question: "Why does the constructor take the owner as a parameter instead of reading msg_sender()?",
+          options: [
+            "msg_sender() is not available in a constructor",
+            "With cargo stylus deploy, the constructor is called by StylusDeployer, so msg_sender() is StylusDeployer",
+            "A constructor cannot write to storage",
+          ],
+          answer: 1,
+          explanation: "Deployment goes through the StylusDeployer contract, which calls the constructor. Reading msg_sender() there would make StylusDeployer the owner.",
+        },
+        {
+          afterStep: "A private guard",
+          question: "Where should a helper like only_owner go so that it is not part of the contract ABI?",
+          options: [
+            "In the #[public] block, without pub",
+            "In the #[public] block, marked #[constructor]",
+            "In a plain impl block, without #[public]",
+          ],
+          answer: 2,
+          explanation: "Every method of a #[public] block is exported, pub or not. A plain impl block stays internal Rust code.",
+        },
+        {
+          afterStep: "Guarding with ?",
+          question: "In set_limit, what happens when self.only_admin()? meets an Err?",
+          options: [
+            "The method returns the error and the call reverts",
+            "The error is logged and the limit is still written",
+            "The contract panics and burns all the gas",
+          ],
+          answer: 0,
+          explanation: "? returns the error early. Returning Err from a #[public] method reverts the call with the ABI-encoded error.",
+        },
+      ],
     },
   },
 };
