@@ -7,6 +7,7 @@ const HSTS_MAX_AGE = 63_072_000;
 /**
  * Report-only while the policy is checked against a deployment: violations are logged in the
  * browser console instead of blocked. Enforcing it means renaming this to Content-Security-Policy.
+ * Next.js reads the nonce from either header on the request.
  */
 export const CSP_HEADER = 'Content-Security-Policy-Report-Only';
 
@@ -38,16 +39,22 @@ function origins(urls: readonly string[]): string[] {
   return [...new Set(urls.map((url) => new URL(url).origin))];
 }
 
+/** What the Content Security Policy depends on: the chain, the environment and the request's nonce. */
+export type CspOptions = { rpcUrls: readonly string[]; development: boolean; nonce: string };
+
 /**
- * Content Security Policy: scripts, styles, fonts and workers (Monaco's included) from the app
- * only, network calls to the app, the chain RPC, WalletConnect and MetaMask, and no framing. `'unsafe-eval'`
- * is added in development only, where React uses eval for debugging information. Styles allow
- * `'unsafe-inline'`: Monaco and RainbowKit set inline styles.
+ * Content Security Policy for one request: scripts, styles, fonts and workers (Monaco's included)
+ * from the app only, network calls to the app, the chain RPC, WalletConnect and MetaMask, and no
+ * framing. Scripts run only when they carry the request's nonce, which Next.js adds to its own
+ * inline and bundle scripts, or when a trusted script loads them (`'strict-dynamic'`, which also
+ * makes browsers ignore `'self'`). `'unsafe-eval'` is added in development only, where React uses
+ * eval for debugging information. Styles allow `'unsafe-inline'` with no nonce: Monaco and
+ * RainbowKit set inline styles, and a nonce would make browsers ignore `'unsafe-inline'`.
  */
-export function contentSecurityPolicy({ rpcUrls, development }: { rpcUrls: readonly string[]; development: boolean }): string {
+export function contentSecurityPolicy({ rpcUrls, development, nonce }: CspOptions): string {
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
-    'script-src': ["'self'", ...(development ? ["'unsafe-eval'"] : [])],
+    'script-src': ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...(development ? ["'unsafe-eval'"] : [])],
     'style-src': ["'self'", "'unsafe-inline'"],
     'img-src': ["'self'", 'data:', 'blob:'],
     // data: for the font that @base-org/account (RainbowKit's Base option) inlines in its dialog.
@@ -66,14 +73,13 @@ export function contentSecurityPolicy({ rpcUrls, development }: { rpcUrls: reado
 }
 
 /**
- * Headers sent with every page and API response: the Content Security Policy, no framing by other
- * sites (clickjacking on the claim and profile pages), no MIME sniffing, no full URLs in
- * cross-origin referrers, no camera, microphone or geolocation, and HTTPS for the domain and its
- * subdomains.
+ * Headers sent with every response by next.config.ts: no framing by other sites (clickjacking on
+ * the claim and profile pages), no MIME sniffing, no full URLs in cross-origin referrers, no camera,
+ * microphone or geolocation, and HTTPS for the domain and its subdomains. The Content Security
+ * Policy is not among them: it carries a nonce per request, so proxy.ts sends it.
  */
-export function securityHeaders(csp: { rpcUrls: readonly string[]; development: boolean }): Header[] {
+export function securityHeaders(): Header[] {
   return [
-    { key: CSP_HEADER, value: contentSecurityPolicy(csp) },
     { key: 'X-Frame-Options', value: 'DENY' },
     { key: 'X-Content-Type-Options', value: 'nosniff' },
     { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
