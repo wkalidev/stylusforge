@@ -59,3 +59,34 @@ describe("lesson 10: Access control", () => {
     expect(result.objectives).toEqual(["Let only the owner hand over the contract"]);
   });
 });
+
+describe("lesson 11: Payable and sending ETH", () => {
+  it("accepts either order of the sum and setter(key).set(value)", () => {
+    expect(
+      variant(11, "self.deposits.get(account) + self.vm().msg_value()", "self.vm().msg_value() + self.deposits.get(account)").passed,
+    ).toBe(true);
+    expect(variant(11, "self.deposits.insert(account, total);", "self.deposits.setter(account).set(total);").passed).toBe(true);
+    expect(
+      variant(11, "self.deposits.insert(account, available - amount);", "self.deposits.setter(account).set(available - amount);").passed,
+    ).toBe(true);
+  });
+
+  it("refuses a deposit that is not payable", () => {
+    const result = variant(11, "#[payable]\n", "");
+    expect(result.objectives).toEqual(["Let deposit receive ETH"]);
+  });
+
+  it("refuses sending the ETH before lowering the deposit", () => {
+    const result = variant(
+      11,
+      "self.deposits.insert(account, available - amount);\n        transfer_eth(self.vm(), account, amount)?;",
+      "transfer_eth(self.vm(), account, amount)?;\n        self.deposits.insert(account, available - amount);",
+    );
+    expect(result.objectives).toEqual(["Lower the deposit first, then send the ETH"]);
+  });
+
+  it("refuses a withdrawal that never checks the deposit", () => {
+    const result = variant(11, "if available < amount {", "if false {");
+    expect(result.objectives).toEqual(["Check the deposit before paying anything out"]);
+  });
+});

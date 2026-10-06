@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { LESSONS } from "./lessons";
-import { SIM_START_TIME, UINT256_MAX, callSimulation, readMapping, simTimestamp, type LessonSimulation, type SimState } from "./simulation";
+import { SIM_START_TIME, UINT256_MAX, callSimulation, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
 import { SIM_ACCOUNTS, ZERO_ADDRESS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
@@ -24,7 +24,10 @@ const MAX = UINT256_MAX;
  * edge of uint256, with the state Rust would end in: `U256` `+` and `-` wrap around instead of
  * reverting, so the simulation must not revert either.
  */
-const OVERFLOW_CASES: Record<number, { state: SimState; call: [string, Record<string, string>, typeof alice]; expected: SimState }> = {
+const OVERFLOW_CASES: Record<
+  number,
+  { state: SimState; call: [string, Record<string, string>, typeof alice]; with?: SimCall; expected: SimState }
+> = {
   2: { state: { count: MAX }, call: ["increment", {}, alice], expected: { count: 0n } },
   3: {
     state: { balances: { [alice.address]: 1n, [bob.address]: MAX } },
@@ -37,6 +40,12 @@ const OVERFLOW_CASES: Record<number, { state: SimState; call: [string, Record<st
     expected: { total_supply: MAX, balances: { [alice.address]: 0n, [bob.address]: 0n }, allowances: {} },
   },
   6: { state: { scores: { [alice.address]: MAX } }, call: ["record", { points: "2" }, alice], expected: { scores: { [alice.address]: 1n } } },
+  11: {
+    state: { deposits: { [alice.address]: MAX } },
+    call: ["deposit", {}, alice],
+    with: { value: "2" },
+    expected: { deposits: { [alice.address]: 1n } },
+  },
 };
 
 /** Whether Rust code adds or subtracts with the binary + or - operators (not `->`). */
@@ -48,9 +57,9 @@ describe("overflow in lesson simulations", () => {
     expect(Object.keys(OVERFLOW_CASES).map(Number).sort((a, b) => a - b)).toEqual(arithmetic.sort((a, b) => a - b));
   });
 
-  it.each(Object.entries(OVERFLOW_CASES))("lesson %s wraps around like U256 instead of reverting", (id, { state, call, expected }) => {
+  it.each(Object.entries(OVERFLOW_CASES))("lesson %s wraps around like U256 instead of reverting", (id, { state, call, with: how, expected }) => {
     const [fn, args, caller] = call;
-    const result = callSimulation(getSimulation(Number(id))!, state, fn, args, caller);
+    const result = callSimulation(getSimulation(Number(id))!, state, fn, args, caller, how);
     expect(result.error).toBeUndefined();
     expect(result.state).toEqual(expected);
   });
@@ -225,6 +234,37 @@ describe("lesson simulations", () => {
     expect(results[3]).toMatchObject({ ok: false, error: { error: "Unauthorized", args: { caller: alice.address } } });
     expect(results[5].returns).toBe(bob.address);
     expect(results[6].returns).toBe(30n);
+  });
+
+  it("lesson 11 takes deposits, pays them back and reverts past the deposit", () => {
+    const simulation = getSimulation(11)!;
+    let state = simulation.initialState();
+    let balance = 0n;
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, value?: string) => {
+      const result = callSimulation(simulation, state, fn, args, caller, { value, balance });
+      state = result.state;
+      balance = result.balance;
+      return result;
+    };
+    call("deposit", {}, alice, "300");
+    call("deposit", {}, bob, "200");
+    call("deposit", {}, alice, "50");
+    expect(call("deposit_of", { account: "Alice" }, carol).returns).toBe(350n);
+    expect(call("balance", {}, carol).returns).toBe(550n);
+    expect(call("withdraw", { amount: "100" }, alice)).toMatchObject({ ok: true, transfers: [{ to: alice.address, amount: 100n }], balance: 450n });
+    expect(readMapping(state, "deposits", alice.address)).toBe(250n);
+    // Bob cannot take more than he deposited, even though the contract holds enough.
+    expect(call("withdraw", { amount: "201" }, bob)).toMatchObject({
+      ok: false,
+      error: { error: "InsufficientDeposit", args: { available: 200n, requested: 201n } },
+      balance: 450n,
+    });
+    expect(call("withdraw", { amount: "1" }, carol)).toMatchObject({ ok: false, error: { error: "InsufficientDeposit" } });
+  });
+
+  it("lesson 11 refuses ETH sent to a function that is not payable", () => {
+    const result = callSimulation(getSimulation(11)!, { deposits: { [alice.address]: 5n } }, "withdraw", { amount: "1" }, alice, { value: "1", balance: 5n });
+    expect(result).toMatchObject({ ok: false, error: { error: "method withdraw not payable" }, balance: 5n });
   });
 
   it("lesson 4 behaves like an ERC-20 transfer", () => {
