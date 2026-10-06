@@ -93,6 +93,14 @@ describe.each(available)("lesson $id: $title", (lesson) => {
     }
   });
 
+  it("shows no snippet placeholder to students", () => {
+    // Everything but the snippets themselves: title, preview, explanation, starter code, quizzes,
+    // objectives and hints. A placeholder such as $x only belongs in anyOf, alsoAnyOf and anchor.
+    const shown = JSON.stringify(lesson, (key, value) => (["anyOf", "alsoAnyOf", "anchor"].includes(key) ? undefined : value));
+    expect(shown).toContain(checks[0].objective);
+    expect(shown.match(/\$[A-Za-z_][A-Za-z0-9_]*/g) ?? []).toEqual([]);
+  });
+
   it("has at least two hints per check, and only the last one gives the code", () => {
     for (const check of checks) {
       expect(check.hints.length, check.objective).toBeGreaterThanOrEqual(2);

@@ -28,6 +28,66 @@ describe("snippetPattern", () => {
   it("rejects an empty snippet", () => {
     expect(() => snippetPattern("   ")).toThrow();
   });
+
+  it("accepts a method chain split across lines, rustfmt style", () => {
+    const pattern = snippetPattern("self.tasks.getter(id).ok_or(TodoError::UnknownTask(UnknownTask {");
+    expect(pattern.test("self\n            .tasks\n            .getter(id)\n            .ok_or(TodoError::UnknownTask(UnknownTask {")).toBe(true);
+    expect(pattern.test("self.tasks.getter(id).ok_or(TodoError\n    ::UnknownTask(UnknownTask {")).toBe(true);
+  });
+});
+
+describe("snippetPattern placeholders", () => {
+  const increment = snippetPattern("let $x = self.count.get(); self.count.set($x + U256::from(1))");
+
+  it("matches a local variable of any name", () => {
+    expect(increment.test("let current = self.count.get(); self.count.set(current + U256::from(1))")).toBe(true);
+    expect(increment.test("let c = self.count.get();\n        self.count.set(c + U256::from(1));")).toBe(true);
+    expect(increment.test("let _old = self.count.get(); self.count.set(_old + U256::from(1))")).toBe(true);
+  });
+
+  it("binds every occurrence in a snippet to the same identifier", () => {
+    expect(increment.test("let current = self.count.get(); self.count.set(other + U256::from(1))")).toBe(false);
+    expect(increment.test("let current = self.count.get(); self.count.set(current2 + U256::from(1))")).toBe(false);
+    expect(increment.test("let current = self.count.get(); self.count.set(my_current + U256::from(1))")).toBe(false);
+  });
+
+  it("never matches a keyword", () => {
+    for (const keyword of ["let", "mut", "self", "Self", "fn", "return", "match", "ref", "_"]) {
+      expect(snippetPattern("$x.done.set(true)").test(`${keyword}.done.set(true)`), keyword).toBe(false);
+    }
+    expect(snippetPattern("$x.done.set(true)").test("task.done.set(true)")).toBe(true);
+  });
+
+  it("supports let mut, and never takes mut for the name", () => {
+    const local = snippetPattern("let $x = self.count.get();");
+    const mutable = snippetPattern("let mut $x = self.count.get(); $x += U256::from(1);");
+    expect(local.test("let mut current = self.count.get();")).toBe(false);
+    expect(mutable.test("let mut current = self.count.get();\n current += U256::from(1);")).toBe(true);
+    expect(mutable.test("let mut current = self.count.get(); other += U256::from(1);")).toBe(false);
+  });
+
+  it("does not match inside a longer identifier", () => {
+    const pattern = snippetPattern("$x + points");
+    expect(pattern.test("current + points")).toBe(true);
+    expect(pattern.test("current + pointsx")).toBe(false);
+    expect(snippetPattern("self.scores.insert(player, $x)").test("self.scores.insert(player, total.max(1))")).toBe(false);
+  });
+
+  it("binds placeholders with different names independently", () => {
+    const pattern = snippetPattern("let $x = a(); let $y = b(); f($x, $y)");
+    expect(pattern.test("let left = a(); let right = b(); f(left, right)")).toBe(true);
+    expect(pattern.test("let left = a(); let right = b(); f(right, left)")).toBe(false);
+  });
+
+  it("follows the same whitespace rules, newlines around . and :: included", () => {
+    expect(increment.test("let current = self\n    .count\n    .get();\nself.count.set(current + U256\n    ::from(1))")).toBe(true);
+    expect(increment.test("letcurrent = self.count.get(); self.count.set(current + U256::from(1))")).toBe(false);
+  });
+
+  it("only matches consecutive statements (documented limit)", () => {
+    const apart = "let current = self.count.get();\nlet unrelated = U256::ZERO;\nself.count.set(current + U256::from(1))";
+    expect(increment.test(apart)).toBe(false);
+  });
 });
 
 describe("stripCommentsAndStrings", () => {

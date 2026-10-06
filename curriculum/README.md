@@ -135,7 +135,7 @@ A check has:
 
 | Field | Description |
 |---|---|
-| `anyOf` | Snippets; the check passes when the code contains any of them. |
+| `anyOf` | Snippets; the check passes when the code contains any of them. A snippet may use a placeholder such as `$x` for a local variable (see the matching rules). |
 | `alsoAnyOf` | Optional groups of snippets for further parts of the same goal: the check also needs one snippet of every group. Use it to merge steps of one idea (grow a vector, then set the new element's title) instead of writing one check per line. |
 | `objective` | The goal in plain words, never the expected code: "Increment the count by 1", not "write `self.count.set(...)`". Plain text, no backticks. |
 | `hints` | Two or more hints, revealed one at a time, from a nudge to the exact code. Only the last one gives the expected code. Inline code goes between backticks. |
@@ -153,6 +153,9 @@ Matching rules:
 
 - whitespace does not matter, except that two identifiers must stay separated (`uint256 count;` matches `uint256   count ;` but not `uint256count;`);
 - a snippet never matches in the middle of an identifier (`uint256 count;` does not match `uint256 counter;`);
+- newlines count as whitespace, so a method chain split across lines (`self` / `.tasks` / `.getter(id)`, rustfmt style) matches the one-line snippet;
+- a placeholder, `$` followed by a name such as `$x`, stands for a local variable: it matches any Rust identifier except a keyword (`let`, `mut`, `self`, `Self`, `fn`, `return`, `match`…), and every occurrence of the same placeholder in a snippet matches the same identifier. `let $x = self.scores.get(player); self.scores.insert(player, $x + points)` accepts the variable under any name, but only when the value inserted is the one read; `let mut $x = …` is supported. Placeholders never bind across snippets;
+- a snippet matches one contiguous piece of code: a snippet with several statements only matches when they are consecutive, with nothing in between. Write one alternative per common shape (a local holding the value, a `let mut` updated in place) rather than relying on statements in between;
 - comments (`//`, nested `/* */`) and the contents of string literals, raw strings included, are removed first, so a snippet written in a comment or a string does not count.
 
 Every lesson must satisfy, and `apps/web/lib/curriculum/lessons.test.ts` enforces:
@@ -163,4 +166,5 @@ Every lesson must satisfy, and `apps/web/lib/curriculum/lessons.test.ts` enforce
 4. the solution still passes when reformatted;
 5. the solution pasted in comments or a raw string fails;
 6. no objective and no `### Your task` step contains any expected snippet of a check, and objectives contain no backticks;
-7. each check has at least two non-empty hints, and only the last one contains the expected code: every part of it for a check with `alsoAnyOf`, none of it in the hints before.
+7. each check has at least two non-empty hints, and only the last one contains the expected code: every part of it for a check with `alsoAnyOf`, none of it in the hints before;
+8. no placeholder appears in anything shown to students: titles, previews, explanations, starter code, quizzes, objectives and hints. Placeholders only belong in `anyOf`, `alsoAnyOf` and `anchor`; hints show the code with real names.
