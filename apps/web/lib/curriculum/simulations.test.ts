@@ -5,7 +5,7 @@ import { SIM_START_TIME, UINT256_MAX, callSimulation, readMapping, simTimestamp,
 import { SIM_ACCOUNTS, ZERO_ADDRESS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
-const [alice, bob] = SIM_ACCOUNTS;
+const [alice, bob, carol] = SIM_ACCOUNTS;
 
 /** Runs calls in sequence and returns every result. */
 function run(simulation: LessonSimulation, calls: [string, Record<string, string>, typeof alice][]) {
@@ -206,6 +206,25 @@ describe("lesson simulations", () => {
     call("check_in", {}, alice, 3);
     expect(readMapping(state, "check_ins", alice.address)).toBe(SIM_START_TIME + 36n);
     expect(state.last_visitor).toBe(alice.address);
+  });
+
+  it("lesson 10 lets only the owner set the fee and hand over the contract", () => {
+    const results = run(getSimulation(10)!, [
+      ["set_fee", { fee: "25" }, bob],
+      ["set_fee", { fee: "25" }, alice],
+      ["transfer_ownership", { new_owner: "Bob" }, alice],
+      ["set_fee", { fee: "30" }, alice],
+      ["set_fee", { fee: "30" }, bob],
+      ["owner", {}, carol],
+      ["fee", {}, carol],
+    ]);
+    expect(results[0]).toMatchObject({ ok: false, error: { error: "Unauthorized", args: { caller: bob.address } } });
+    expect(results[0].state.fee).toBe(0n);
+    expect(results[1]).toMatchObject({ ok: true, state: { fee: 25n } });
+    // Once ownership is handed over, the old owner is refused like anyone else.
+    expect(results[3]).toMatchObject({ ok: false, error: { error: "Unauthorized", args: { caller: alice.address } } });
+    expect(results[5].returns).toBe(bob.address);
+    expect(results[6].returns).toBe(30n);
   });
 
   it("lesson 4 behaves like an ERC-20 transfer", () => {

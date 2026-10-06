@@ -33,3 +33,29 @@ describe("lesson 9: msg context", () => {
     expect(result.objectives).toEqual(["Make the caller the last visitor"]);
   });
 });
+
+describe("lesson 10: Access control", () => {
+  it("accepts the comparison either way round", () => {
+    expect(variant(10, "if caller != self.owner.get() {", "if self.owner.get() != caller {").passed).toBe(true);
+  });
+
+  it("refuses an owner taken from msg_sender in the constructor", () => {
+    const result = variant(10, "self.owner.set(owner);", "self.owner.set(self.vm().msg_sender());");
+    expect(result.objectives).toEqual(["Store the owner chosen at deployment"]);
+  });
+
+  it("refuses a guard that checks tx_origin", () => {
+    const result = variant(10, "let caller = self.vm().msg_sender();", "let caller = self.vm().tx_origin();");
+    expect(result.objectives).toEqual(["Find out who is calling"]);
+  });
+
+  it("refuses a guard called after the write", () => {
+    const result = variant(10, "self.only_owner()?;\n        self.fee.set(fee);", "self.fee.set(fee);\n        self.only_owner()?;");
+    expect(result.objectives).toEqual(["Let only the owner change the fee"]);
+  });
+
+  it("refuses a transfer_ownership left unguarded", () => {
+    const result = variant(10, "self.only_owner()?;\n        self.owner.set(new_owner);", "self.owner.set(new_owner);");
+    expect(result.objectives).toEqual(["Let only the owner hand over the contract"]);
+  });
+});
