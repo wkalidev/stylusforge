@@ -2020,6 +2020,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  12: {
+    slug: 'view-pure-gas',
+    difficulty: 'Intermediate',
+    preview: 'A fee quote with pure, view and write methods that reads storage only when it must.',
+    minutes: 20,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
