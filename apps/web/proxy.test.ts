@@ -22,10 +22,11 @@ function matches(url: string, headers: Record<string, string> = {}): boolean {
 }
 
 describe("proxy", () => {
-  it("sends the report-only Content Security Policy with a nonce", () => {
-    const policy = run().headers.get(CSP_HEADER);
-    expect(policy).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
-    expect(run().headers.get("content-security-policy")).toBeNull();
+  it("enforces the Content Security Policy with a nonce", () => {
+    const response = run();
+    expect(CSP_HEADER).toBe("Content-Security-Policy");
+    expect(response.headers.get(CSP_HEADER)).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+    expect(response.headers.get("content-security-policy-report-only")).toBeNull();
   });
 
   it("passes the same policy on to the request, where Next.js reads the nonce", () => {

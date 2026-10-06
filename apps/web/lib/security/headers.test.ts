@@ -20,7 +20,7 @@ describe("securityHeaders", () => {
   it("leaves the Content Security Policy, which carries a nonce per request, to the proxy", () => {
     const keys = securityHeaders().map((candidate) => candidate.key.toLowerCase());
     expect(keys).not.toContain("content-security-policy");
-    expect(keys).not.toContain(CSP_HEADER.toLowerCase());
+    expect(keys).not.toContain("content-security-policy-report-only");
   });
 
   it("forbids framing by any site", () => {
@@ -52,8 +52,8 @@ describe("securityHeaders", () => {
 describe("contentSecurityPolicy", () => {
   const policy = contentSecurityPolicy(production);
 
-  it("is report-only", () => {
-    expect(CSP_HEADER).toBe("Content-Security-Policy-Report-Only");
+  it("is enforced, not report-only", () => {
+    expect(CSP_HEADER).toBe("Content-Security-Policy");
   });
 
   it("runs only scripts that carry the request's nonce, or that they load", () => {
