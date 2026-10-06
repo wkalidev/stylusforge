@@ -17,6 +17,18 @@ describe("glossaryAt", () => {
     expect(idAt("    pub fn constructor(&mut self, owner: Address) {", 12)).toBeNull();
   });
 
+  it("explains receiving and sending ETH", () => {
+    expect(idAt("    #[payable]", 7)).toBe("payable");
+    const total = "        let total = self.deposits.get(account) + self.vm().msg_value();";
+    expect(idAt(total, total.indexOf("msg_value") + 1)).toBe("msg_value");
+    const held = "        self.vm().balance(self.vm().contract_address())";
+    expect(idAt(held, held.indexOf("balance") + 1)).toBe("balance");
+    expect(idAt(held, held.indexOf("contract_address") + 1)).toBe("contract_address");
+    const send = "        transfer_eth(self.vm(), account, amount)?;";
+    expect(idAt(send, send.indexOf("transfer_eth") + 1)).toBe("transfer_eth");
+    expect(idAt("    pub fn balance(&self) -> U256 {", 12)).toBeNull();
+  });
+
   it("tells sol! apart from sol_storage!", () => {
     expect(idAt("sol! {", 2)).toBe("sol");
     expect(idAt("sol_storage! {", 2)).toBe("sol_storage");

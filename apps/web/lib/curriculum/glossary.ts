@@ -47,6 +47,12 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
       'Runs once, when the contract is deployed; the SDK refuses any later call. With `cargo stylus deploy`, `msg_sender()` there is the StylusDeployer contract, so pass the owner as a parameter.',
   },
   {
+    id: 'payable',
+    pattern: /#\[payable\]/,
+    title: '#[payable]',
+    description: 'Lets a method receive ETH. A call that sends ETH to a method without it reverts.',
+  },
+  {
     id: 'cfg_attr',
     pattern: /#!\[cfg_attr\(/,
     title: 'no_main outside export-abi',
@@ -90,6 +96,31 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     title: 'tx_origin()',
     description:
       'The wallet that signed the transaction, like `tx.origin` in Solidity. Never use it for authorization: any contract the owner calls would pass the check. Use `msg_sender()`.',
+  },
+  {
+    id: 'msg_value',
+    pattern: /\bmsg_value\(\)/,
+    title: 'msg_value()',
+    description: 'The wei sent with the call, as a `U256`, like `msg.value` in Solidity. Only `#[payable]` methods accept a value above zero.',
+  },
+  {
+    id: 'balance',
+    pattern: /(?<=vm\(\)\.)balance\(/,
+    title: 'vm().balance(address)',
+    description: 'The ETH balance in wei of any account. `self.vm().balance(self.vm().contract_address())` is the ETH this contract holds.',
+  },
+  {
+    id: 'contract_address',
+    pattern: /\bcontract_address\(\)/,
+    title: 'contract_address()',
+    description: 'The address of this contract, like `address(this)` in Solidity.',
+  },
+  {
+    id: 'transfer_eth',
+    pattern: /\btransfer_eth\b/,
+    title: 'transfer_eth(host, to, amount)',
+    description:
+      'Sends `amount` wei from the contract to `to`, from `stylus_sdk::call::transfer`. It calls the recipient with all the remaining gas and returns `Result<(), Vec<u8>>`: update storage before calling it.',
   },
   {
     id: 'block_timestamp',
