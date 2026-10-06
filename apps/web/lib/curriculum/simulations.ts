@@ -292,6 +292,44 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  10: {
+    contract: 'FeeConfig',
+    note: 'The model is deployed with Alice as the owner, as if the constructor received her address.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ owner: SIM_ACCOUNTS[0].address, fee: 0n }),
+    functions: [
+      {
+        name: 'owner',
+        abiName: 'owner',
+        view: true,
+        params: [],
+        returns: 'address',
+        run: (state) => ({ returns: state.owner as string }),
+      },
+      {
+        name: 'fee',
+        abiName: 'fee',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.fee as bigint }),
+      },
+      {
+        name: 'set_fee',
+        abiName: 'setFee',
+        view: false,
+        params: [{ name: 'fee', type: 'uint256' }],
+        run: (state, args, caller) => onlyOwner(state, caller) ?? { state: { ...state, fee: args.fee } },
+      },
+      {
+        name: 'transfer_ownership',
+        abiName: 'transferOwnership',
+        view: false,
+        params: [{ name: 'new_owner', type: 'address' }],
+        run: (state, args, caller) => onlyOwner(state, caller) ?? { state: { ...state, owner: args.new_owner } },
+      },
+    ],
+  },
 };
 
 /** A task of the lesson 8 to-do list. */
@@ -301,6 +339,12 @@ type Task = { title: string; done: boolean };
 function findTask(state: SimState, id: bigint): Task | { revert: { error: string; args: { id: bigint } } } {
   const tasks = state.tasks as Task[];
   return id < BigInt(tasks.length) ? tasks[Number(id)] : { revert: { error: 'UnknownTask', args: { id } } };
+}
+
+/** The Unauthorized revert of lesson 10's only_owner guard, or null when the caller is the owner. */
+function onlyOwner(state: SimState, caller: SimAccount): { revert: { error: string; args: { caller: string } } } | null {
+  const owner = state.owner as string;
+  return caller.address.toLowerCase() === owner.toLowerCase() ? null : { revert: { error: 'Unauthorized', args: { caller: caller.address } } };
 }
 
 export function getSimulation(lessonId: number): LessonSimulation | null {

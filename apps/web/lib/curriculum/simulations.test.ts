@@ -61,7 +61,11 @@ describe("lesson simulations", () => {
     for (const lesson of LESSONS.filter((candidate) => candidate.available)) {
       const simulation = getSimulation(lesson.id);
       expect(simulation, lesson.title).not.toBeNull();
-      const publicFns = [...SOLUTIONS[lesson.id].matchAll(/pub fn (\w+)/g)].map((match) => match[1]).sort();
+      // A #[constructor] runs once at deployment: the model starts deployed instead.
+      const publicFns = [...SOLUTIONS[lesson.id].matchAll(/(#\[constructor\]\s*)?pub fn (\w+)/g)]
+        .filter((match) => !match[1])
+        .map((match) => match[2])
+        .sort();
       expect(simulation!.functions.map((fn) => fn.name).sort(), lesson.title).toEqual(publicFns);
     }
   });
