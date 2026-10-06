@@ -1776,7 +1776,12 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'fn only_owner(',
         },
         {
-          anyOf: ['Err(AccessError::Unauthorized(Unauthorized { caller }))'],
+          anyOf: [
+            'Err(AccessError::Unauthorized(Unauthorized { caller }))',
+            // The error built in a local first.
+            'let $x = Unauthorized { caller }; return Err(AccessError::Unauthorized($x))',
+            'let $x = AccessError::Unauthorized(Unauthorized { caller }); return Err($x)',
+          ],
           objective: 'Refuse every caller but the owner',
           hints: [
             'Returning an `Err` from the guard makes every method that uses it revert.',

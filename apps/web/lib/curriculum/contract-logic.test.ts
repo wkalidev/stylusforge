@@ -70,6 +70,18 @@ describe("lesson 10: Access control", () => {
     expect(variant(10, "if caller != self.owner.get() {", "if self.owner.get() != caller {").passed).toBe(true);
   });
 
+  const refuse = "return Err(AccessError::Unauthorized(Unauthorized { caller }));";
+
+  it("accepts the error built in a local variable first", () => {
+    expect(variant(10, refuse, "let error = Unauthorized { caller };\n            return Err(AccessError::Unauthorized(error));").passed).toBe(true);
+    expect(variant(10, refuse, "let error = AccessError::Unauthorized(Unauthorized { caller });\n            return Err(error);").passed).toBe(true);
+  });
+
+  it("refuses an error built in a local but never returned", () => {
+    const result = variant(10, refuse, "let _error = Unauthorized { caller };\n            return Ok(());");
+    expect(result.objectives).toEqual(["Refuse every caller but the owner"]);
+  });
+
   it("refuses an owner taken from msg_sender in the constructor", () => {
     const result = variant(10, "self.owner.set(owner);", "self.owner.set(self.vm().msg_sender());");
     expect(result.objectives).toEqual(["Store the owner chosen at deployment"]);
