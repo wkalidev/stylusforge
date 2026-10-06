@@ -439,4 +439,52 @@ impl PiggyBank {
     }
 }
 `,
+  12: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{alloy_primitives::U256, alloy_sol_types::sol, prelude::*};
+
+sol! {
+    error FeeOverflow(uint256 amount, uint256 rate_bps);
+}
+
+#[derive(SolidityError)]
+pub enum QuoteError {
+    FeeOverflow(FeeOverflow),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct FeeQuote {
+        uint256 rate_bps;
+    }
+}
+
+#[public]
+impl FeeQuote {
+    pub fn fee(amount: U256, rate_bps: U256) -> Result<U256, QuoteError> {
+        let scaled = amount
+            .checked_mul(rate_bps)
+            .ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?;
+        Ok(scaled / U256::from(10_000))
+    }
+
+    pub fn rate(&self) -> U256 {
+        self.rate_bps.get()
+    }
+
+    pub fn set_rate(&mut self, rate_bps: U256) {
+        self.rate_bps.set(rate_bps);
+    }
+
+    pub fn quote(&self, amount: U256) -> Result<U256, QuoteError> {
+        Self::fee(amount, self.rate_bps.get())
+    }
+
+    pub fn quote_pair(&self, first: U256, second: U256) -> Result<(U256, U256), QuoteError> {
+        let rate = self.rate_bps.get();
+        Ok((Self::fee(first, rate)?, Self::fee(second, rate)?))
+    }
+}
+`,
 };
