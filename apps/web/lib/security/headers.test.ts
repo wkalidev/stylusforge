@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import { CSP_HEADER, contentSecurityPolicy, securityHeaders } from "./headers";
 
 const SEPOLIA_RPC = "https://sepolia-rollup.arbitrum.io/rpc";
-const production = { rpcUrls: [SEPOLIA_RPC], development: false };
+const NONCE = "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAw";
+const production = { rpcUrls: [SEPOLIA_RPC], development: false, nonce: NONCE };
 
 function header(name: string): string | undefined {
-  return securityHeaders(production).find((candidate) => candidate.key === name)?.value;
+  return securityHeaders().find((candidate) => candidate.key === name)?.value;
 }
 
 /** The sources of one directive, or undefined when the policy does not set it. */
@@ -16,9 +17,10 @@ function directive(policy: string, name: string): string[] | undefined {
 }
 
 describe("securityHeaders", () => {
-  it("sends the Content Security Policy in report-only mode", () => {
-    expect(CSP_HEADER).toBe("Content-Security-Policy-Report-Only");
-    expect(header(CSP_HEADER)).toBe(contentSecurityPolicy(production));
+  it("leaves the Content Security Policy, which carries a nonce per request, to the proxy", () => {
+    const keys = securityHeaders().map((candidate) => candidate.key.toLowerCase());
+    expect(keys).not.toContain("content-security-policy");
+    expect(keys).not.toContain(CSP_HEADER.toLowerCase());
   });
 
   it("forbids framing by any site", () => {
@@ -42,7 +44,7 @@ describe("securityHeaders", () => {
   });
 
   it("sends each header once", () => {
-    const keys = securityHeaders(production).map((candidate) => candidate.key.toLowerCase());
+    const keys = securityHeaders().map((candidate) => candidate.key.toLowerCase());
     expect(new Set(keys).size).toBe(keys.length);
   });
 });
@@ -50,13 +52,25 @@ describe("securityHeaders", () => {
 describe("contentSecurityPolicy", () => {
   const policy = contentSecurityPolicy(production);
 
-  it("runs scripts from the app only", () => {
-    expect(directive(policy, "script-src")).toEqual(["'self'"]);
+  it("is report-only", () => {
+    expect(CSP_HEADER).toBe("Content-Security-Policy-Report-Only");
+  });
+
+  it("runs only scripts that carry the request's nonce, or that they load", () => {
+    expect(directive(policy, "script-src")).toEqual(["'self'", `'nonce-${NONCE}'`, "'strict-dynamic'"]);
+  });
+
+  it("does not allow inline scripts without the nonce", () => {
+    expect(directive(policy, "script-src")).not.toContain("'unsafe-inline'");
   });
 
   it("allows eval in development only, for React's debugging information", () => {
     const development = contentSecurityPolicy({ ...production, development: true });
-    expect(directive(development, "script-src")).toEqual(["'self'", "'unsafe-eval'"]);
+    expect(directive(development, "script-src")).toEqual(["'self'", `'nonce-${NONCE}'`, "'strict-dynamic'", "'unsafe-eval'"]);
+  });
+
+  it("allows inline styles without a nonce, for Monaco and RainbowKit", () => {
+    expect(directive(policy, "style-src")).toEqual(["'self'", "'unsafe-inline'"]);
   });
 
   it("runs workers, such as Monaco's editor worker, from the app only", () => {
@@ -79,12 +93,12 @@ describe("contentSecurityPolicy", () => {
   });
 
   it("connects to the local Hardhat node when it is the configured chain", () => {
-    const local = contentSecurityPolicy({ rpcUrls: ["http://127.0.0.1:8545"], development: true });
+    const local = contentSecurityPolicy({ rpcUrls: ["http://127.0.0.1:8545"], development: true, nonce: NONCE });
     expect(directive(local, "connect-src")).toContain("http://127.0.0.1:8545");
   });
 
   it("lists each RPC origin once", () => {
-    const twice = contentSecurityPolicy({ rpcUrls: [SEPOLIA_RPC, `${SEPOLIA_RPC}/backup`], development: false });
+    const twice = contentSecurityPolicy({ ...production, rpcUrls: [SEPOLIA_RPC, `${SEPOLIA_RPC}/backup`] });
     const connect = directive(twice, "connect-src") ?? [];
     expect(connect.filter((source) => source === "https://sepolia-rollup.arbitrum.io")).toHaveLength(1);
   });
