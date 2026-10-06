@@ -20,9 +20,9 @@ function run(simulation: LessonSimulation, calls: [string, Record<string, string
 const MAX = UINT256_MAX;
 
 /**
- * One call per lesson whose reference solution adds or subtracts U256 values, from a state at the
- * edge of uint256, with the state Rust would end in: `U256` `+` and `-` wrap around instead of
- * reverting, so the simulation must not revert either.
+ * One call per lesson whose reference solution adds, subtracts or multiplies U256 values with
+ * operators, from a state at the edge of uint256, with the state Rust would end in: `U256` `+`, `-`
+ * and `*` wrap around instead of reverting, so the simulation must not revert either.
  */
 const OVERFLOW_CASES: Record<
   number,
@@ -48,13 +48,29 @@ const OVERFLOW_CASES: Record<
   },
 };
 
-/** Whether Rust code adds or subtracts with the binary + or - operators (not `->`). */
-const usesArithmetic = (code: string) => /\s[+-]=?\s/.test(code);
+/** Whether Rust code uses the binary +, - or * operators (not `->` or a dereference). */
+const usesArithmetic = (code: string) => /\s[-+*]=?\s/.test(code);
 
 describe("overflow in lesson simulations", () => {
-  it("has a case for every available lesson whose solution adds or subtracts", () => {
+  it("has a case for every available lesson whose solution adds, subtracts or multiplies", () => {
     const arithmetic = LESSONS.filter((lesson) => lesson.available && usesArithmetic(SOLUTIONS[lesson.id])).map((lesson) => lesson.id);
     expect(Object.keys(OVERFLOW_CASES).map(Number).sort((a, b) => a - b)).toEqual(arithmetic.sort((a, b) => a - b));
+  });
+
+  it("lesson 12 reverts with FeeOverflow where checked_mul overflows, instead of wrapping", () => {
+    const simulation = getSimulation(12)!;
+    const max = MAX.toString();
+    expect(callSimulation(simulation, { rate_bps: 0n }, "fee", { amount: max, rate_bps: "2" }, alice)).toMatchObject({
+      ok: false,
+      error: { error: "FeeOverflow", args: { amount: MAX, rate_bps: 2n } },
+    });
+    // The largest product that fits does not revert.
+    expect(callSimulation(simulation, { rate_bps: 0n }, "fee", { amount: max, rate_bps: "1" }, alice).returns).toBe(MAX / 10_000n);
+    expect(callSimulation(simulation, { rate_bps: 2n }, "quote", { amount: max }, alice)).toMatchObject({ ok: false, error: { error: "FeeOverflow" } });
+    expect(callSimulation(simulation, { rate_bps: 2n }, "quote_pair", { first: "1", second: max }, alice)).toMatchObject({
+      ok: false,
+      error: { error: "FeeOverflow", args: { amount: MAX, rate_bps: 2n } },
+    });
   });
 
   it.each(Object.entries(OVERFLOW_CASES))("lesson %s wraps around like U256 instead of reverting", (id, { state, call, with: how, expected }) => {
@@ -265,6 +281,25 @@ describe("lesson simulations", () => {
   it("lesson 11 refuses ETH sent to a function that is not payable", () => {
     const result = callSimulation(getSimulation(11)!, { deposits: { [alice.address]: 5n } }, "withdraw", { amount: "1" }, alice, { value: "1", balance: 5n });
     expect(result).toMatchObject({ ok: false, error: { error: "method withdraw not payable" }, balance: 5n });
+  });
+
+  it("lesson 12 quotes fees in basis points at the stored rate", () => {
+    const results = run(getSimulation(12)!, [
+      ["quote", { amount: "1000" }, alice],
+      ["set_rate", { rate_bps: "250" }, alice],
+      ["rate", {}, bob],
+      ["quote", { amount: "1000" }, bob],
+      ["quote_pair", { first: "1000", second: "4000" }, bob],
+      ["fee", { amount: "1", rate_bps: "9999" }, bob],
+      ["fee", { amount: "200", rate_bps: "10000" }, bob],
+    ]);
+    expect(results[0].returns).toBe(0n);
+    expect(results[2].returns).toBe(250n);
+    expect(results[3].returns).toBe(25n);
+    expect(results[4].returns).toEqual([25n, 100n]);
+    // Integer division rounds down; 10,000 basis points are the whole amount.
+    expect(results[5].returns).toBe(0n);
+    expect(results[6].returns).toBe(200n);
   });
 
   it("lesson 4 behaves like an ERC-20 transfer", () => {

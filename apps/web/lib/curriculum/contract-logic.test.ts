@@ -90,3 +90,37 @@ describe("lesson 11: Payable and sending ETH", () => {
     expect(result.objectives).toEqual(["Check the deposit before paying anything out"]);
   });
 });
+
+describe("lesson 12: View/pure and gas", () => {
+  it("accepts the product either way round and 10000 without a separator", () => {
+    expect(variant(12, "let scaled = amount\n            .checked_mul(rate_bps)", "let scaled = rate_bps.checked_mul(amount)").passed).toBe(true);
+    expect(variant(12, "U256::from(10_000)", "U256::from(10000)").passed).toBe(true);
+  });
+
+  it("refuses a fee that multiplies with the wrapping operator", () => {
+    const result = variant(
+      12,
+      "let scaled = amount\n            .checked_mul(rate_bps)\n            .ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?;",
+      "let scaled = amount * rate_bps;",
+    );
+    expect(result.objectives).toEqual(["Multiply without silently wrapping around", "Revert with FeeOverflow when the product does not fit"]);
+  });
+
+  it("refuses a fee that keeps self, and a quote that takes &mut self", () => {
+    expect(variant(12, "pub fn fee(amount: U256", "pub fn fee(&self, amount: U256").objectives).toEqual([
+      "Declare fee as pure, since it uses no storage",
+    ]);
+    expect(variant(12, "pub fn quote(&self, amount: U256)", "pub fn quote(&mut self, amount: U256)").objectives).toEqual([
+      "Declare quote as a view, since it only reads storage",
+    ]);
+  });
+
+  it("refuses a quote_pair that reads the rate twice", () => {
+    const result = variant(
+      12,
+      "let rate = self.rate_bps.get();\n        Ok((Self::fee(first, rate)?, Self::fee(second, rate)?))",
+      "Ok((Self::fee(first, self.rate_bps.get())?, Self::fee(second, self.rate_bps.get())?))",
+    );
+    expect(result.objectives).toEqual(["Read the rate from storage only once"]);
+  });
+});
