@@ -1503,6 +1503,37 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn last_visitor(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Who is calling",
+          question: "Alice calls a Router contract, which calls Vault. What does self.vm().msg_sender() return inside Vault?",
+          options: ["Alice", "Router", "Vault"],
+          answer: 1,
+          explanation: "msg_sender() is the direct caller of the current contract: Router. tx_origin() would return Alice, who signed the transaction.",
+        },
+        {
+          afterStep: "Never authorize with tx_origin",
+          question: "Why must a contract never check tx_origin() == owner to authorize a call?",
+          options: [
+            "Any contract the owner is tricked into calling can pass the check",
+            "tx_origin() is not available in Stylus",
+            "tx_origin() changes with every block",
+          ],
+          answer: 0,
+          explanation: "The owner signed the transaction, so tx_origin() is the owner even inside a malicious contract's call. Check msg_sender() instead: it is the malicious contract.",
+        },
+        {
+          afterStep: "Block and chain",
+          question: "On Arbitrum, what does self.vm().block_number() return?",
+          options: [
+            "The number of the current Arbitrum block",
+            "The number of transactions in the current block",
+            "An estimate of the L1 block number at which the sequencer sequenced the transaction",
+          ],
+          answer: 2,
+          explanation: "On Arbitrum, block_number() is a bounded estimate of the Ethereum (L1) block number, so many Arbitrum blocks report the same number.",
+        },
+      ],
     },
   },
 };
