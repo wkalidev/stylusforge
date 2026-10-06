@@ -830,7 +830,18 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn score_of(',
         },
         {
-          anyOf: ['self.scores.get(player) + points', 'points + self.scores.get(player)'],
+          anyOf: [
+            'self.scores.get(player) + points',
+            'points + self.scores.get(player)',
+            // The current score kept in a local first, then added and written back or added in place.
+            'let $x = self.scores.get(player); self.scores.insert(player, $x + points)',
+            'let $x = self.scores.get(player); self.scores.insert(player, points + $x)',
+            'let $x = self.scores.get(player); self.scores.setter(player).set($x + points)',
+            'let $x = self.scores.get(player); self.scores.setter(player).set(points + $x)',
+            'let $x = self.scores.get(player); let $y = $x + points;',
+            'let $x = self.scores.get(player); let $y = points + $x;',
+            'let mut $x = self.scores.get(player); $x += points;',
+          ],
           objective: "Add the points to the caller's current score",
           hints: [
             'Start from the score the caller already has: read it from the mapping before writing anything.',

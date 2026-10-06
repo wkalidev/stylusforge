@@ -56,6 +56,26 @@ describe("lesson 6: Mappings", () => {
     expect(variant(6, "self.scores.get(player) + points", "points + self.scores.get(player)").passed).toBe(true);
   });
 
+  const record = "let total = self.scores.get(player) + points;\n        self.scores.insert(player, total);";
+
+  it("accepts the current score kept in a local variable first", () => {
+    // The attempt reported by a student.
+    expect(variant(6, record, "let current = self.scores.get(player);\n        self.scores.insert(player, current + points);").passed).toBe(true);
+    expect(variant(6, record, "let current = self.scores.get(player);\n        self.scores.setter(player).set(points + current);").passed).toBe(true);
+    expect(
+      variant(6, record, "let current = self.scores.get(player);\n        let total = current + points;\n        self.scores.insert(player, total);").passed,
+    ).toBe(true);
+    expect(variant(6, record, "let mut score = self.scores.get(player);\n        score += points;\n        self.scores.insert(player, score);").passed).toBe(true);
+  });
+
+  it("refuses a local score that is not the one the points are added to", () => {
+    expect(variant(6, record, "let current = self.scores.get(player);\n        self.scores.insert(player, points);").objectives).toEqual([
+      "Add the points to the caller's current score",
+    ]);
+    const other = variant(6, record, "let current = self.scores.get(player);\n        let other = U256::ZERO;\n        self.scores.insert(player, other + points);");
+    expect(other.objectives).toEqual(["Add the points to the caller's current score"]);
+  });
+
   it("refuses a mapping with another name or value type", () => {
     expect(variant(6, "mapping(address => uint256) scores;", "mapping(address => uint256) score;").passed).toBe(false);
     expect(variant(6, "mapping(address => uint256) scores;", "mapping(address => bool) scores;").passed).toBe(false);
