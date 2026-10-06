@@ -618,7 +618,14 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn balance_of(',
         },
         {
-          anyOf: ['Err(Erc20Error::InsufficientBalance(InsufficientBalance {'],
+          anyOf: [
+            'Err(Erc20Error::InsufficientBalance(InsufficientBalance {',
+            // The error built in a local first, with the fields of the hints (rustfmt may add a trailing comma).
+            'let $x = InsufficientBalance { from, have, want: value }; return Err(Erc20Error::InsufficientBalance($x))',
+            'let $x = InsufficientBalance { from, have, want: value, }; return Err(Erc20Error::InsufficientBalance($x))',
+            'let $x = Erc20Error::InsufficientBalance(InsufficientBalance { from, have, want: value }); return Err($x)',
+            'let $x = Erc20Error::InsufficientBalance(InsufficientBalance { from, have, want: value, }); return Err($x)',
+          ],
           objective: "Revert a transfer larger than the sender's balance",
           hints: [
             'Read the balance of `from` and compare it with `value` before moving anything.',
@@ -628,7 +635,12 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'let from = self.vm().msg_sender();',
         },
         {
-          anyOf: ['self.vm().log(Transfer {'],
+          anyOf: [
+            'self.vm().log(Transfer {',
+            // The event built in a local first, with the fields of the hints (rustfmt may add a trailing comma).
+            'let $x = Transfer { from, to, value }; self.vm().log($x)',
+            'let $x = Transfer { from, to, value, }; self.vm().log($x)',
+          ],
           objective: 'Emit Transfer when tokens move',
           hints: [
             'Events are emitted through the host, which `self.vm()` returns.',
