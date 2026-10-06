@@ -54,6 +54,22 @@ describe("glossaryAt", () => {
     expect(idAt("let grow = 1;", 5)).toBeNull();
   });
 
+  it("explains the message and block context", () => {
+    const now = "        let now = U256::from(self.vm().block_timestamp());";
+    expect(idAt(now, now.indexOf("block_timestamp") + 1)).toBe("block_timestamp");
+    const number = "U256::from(self.vm().block_number())";
+    expect(idAt(number, number.indexOf("block_number") + 1)).toBe("block_number");
+    const origin = "let is_owner = self.vm().tx_origin() == owner;";
+    expect(idAt(origin, origin.indexOf("tx_origin") + 1)).toBe("tx_origin");
+    expect(idAt("let block_number = 1;", 5)).toBeNull();
+  });
+
+  it("explains an address storage field, but not address in a mapping or an event", () => {
+    expect(glossaryAt("        address last_visitor;", 10)).toMatchObject({ entry: { id: "address_field" }, startColumn: 9, endColumn: 16 });
+    expect(idAt("        mapping(address => uint256) check_ins;", 18)).toBeNull();
+    expect(idAt("    event Transfer(address indexed from, address indexed to, uint256 value);", 21)).toBeNull();
+  });
+
   it("does not match inside longer identifiers", () => {
     expect(idAt("let my_U256x = 1;", 8)).toBeNull();
     expect(idAt("uint2567", 2)).toBeNull();

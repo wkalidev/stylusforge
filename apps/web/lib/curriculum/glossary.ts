@@ -78,6 +78,33 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'The address that called the current method, like `msg.sender` in Solidity.',
   },
   {
+    id: 'tx_origin',
+    pattern: /\btx_origin\(\)/,
+    title: 'tx_origin()',
+    description:
+      'The wallet that signed the transaction, like `tx.origin` in Solidity. Never use it for authorization: any contract the owner calls would pass the check. Use `msg_sender()`.',
+  },
+  {
+    id: 'block_timestamp',
+    pattern: /\bblock_timestamp\(\)/,
+    title: 'block_timestamp()',
+    description:
+      'Unix time in seconds, as a `u64`: a bounded estimate of when the sequencer sequenced the transaction. Convert it with `U256::from(...)` to store it.',
+  },
+  {
+    id: 'block_number',
+    pattern: /\bblock_number\(\)/,
+    title: 'block_number()',
+    description:
+      'A `u64`. On Arbitrum, a bounded estimate of the L1 (Ethereum) block number at which the sequencer sequenced the transaction, not the Arbitrum block number.',
+  },
+  {
+    id: 'address_field',
+    pattern: /\baddress(?=\s+\w+\s*;)/,
+    title: 'address',
+    description: 'A storage field holding one `Address`: `get()` reads it (the zero address until written), `set(value)` writes it.',
+  },
+  {
     id: 'log',
     pattern: /(?<=vm\(\)\.)log\b/,
     title: 'vm().log(event)',
