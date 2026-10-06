@@ -1303,6 +1303,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  9: {
+    slug: 'msg-context',
+    difficulty: 'Beginner',
+    preview: 'A check-in book that records who called and when.',
+    minutes: 15,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
