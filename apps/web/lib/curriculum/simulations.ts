@@ -7,6 +7,9 @@ export const SIM_ACCOUNTS: SimAccount[] = [
   { name: 'Carol', address: '0x00000000000000000000000000000000000ca201' },
 ];
 
+/** `Address::ZERO`, the value of an address field never written. */
+export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
 /** "Try it" models of each lesson's contract, keyed by lesson id. */
 export const SIMULATIONS: Record<number, LessonSimulation> = {
   1: {
@@ -252,6 +255,40 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
           const tasks = (state.tasks as Task[]).map((entry, index) => (BigInt(index) === args.id ? { ...entry, done: true } : entry));
           return { state: { ...state, tasks } };
         },
+      },
+    ],
+  },
+  9: {
+    contract: 'Attendance',
+    note: 'The block time is a simplified simulated clock: each sent transaction runs 12 seconds after the previous one, while real Arbitrum blocks are much faster.',
+    accounts: SIM_ACCOUNTS,
+    clock: true,
+    initialState: () => ({ check_ins: {}, last_visitor: ZERO_ADDRESS }),
+    functions: [
+      {
+        name: 'check_in',
+        abiName: 'checkIn',
+        view: false,
+        params: [],
+        run: (state, _args, caller, block) => ({
+          state: { ...writeMapping(state, 'check_ins', caller.address, block.timestamp), last_visitor: caller.address },
+        }),
+      },
+      {
+        name: 'checked_in_at',
+        abiName: 'checkedInAt',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'check_ins', args.account as string) }),
+      },
+      {
+        name: 'last_visitor',
+        abiName: 'lastVisitor',
+        view: true,
+        params: [],
+        returns: 'address',
+        run: (state) => ({ returns: state.last_visitor as string }),
       },
     ],
   },
