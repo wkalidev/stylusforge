@@ -40,6 +40,13 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
       'Exposes the methods of this `impl` block in the contract ABI. Rust `snake_case` names are exported in Solidity `camelCase`.',
   },
   {
+    id: 'constructor',
+    pattern: /#\[constructor\]/,
+    title: '#[constructor]',
+    description:
+      'Runs once, when the contract is deployed; the SDK refuses any later call. With `cargo stylus deploy`, `msg_sender()` there is the StylusDeployer contract, so pass the owner as a parameter.',
+  },
+  {
     id: 'cfg_attr',
     pattern: /#!\[cfg_attr\(/,
     title: 'no_main outside export-abi',

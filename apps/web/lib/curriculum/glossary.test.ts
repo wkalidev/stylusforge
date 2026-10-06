@@ -12,6 +12,11 @@ describe("glossaryAt", () => {
     expect(idAt("#[public]", 1)).toBe("public");
   });
 
+  it("explains #[constructor]", () => {
+    expect(glossaryAt("    #[constructor]", 8)).toMatchObject({ entry: { id: "constructor" }, startColumn: 5, endColumn: 19 });
+    expect(idAt("    pub fn constructor(&mut self, owner: Address) {", 12)).toBeNull();
+  });
+
   it("tells sol! apart from sol_storage!", () => {
     expect(idAt("sol! {", 2)).toBe("sol");
     expect(idAt("sol_storage! {", 2)).toBe("sol_storage");
