@@ -12,3 +12,6 @@ ignoredBuiltDependencies:
 overrides:
   # cdp-sdk >=1.53 statically imports optional @x402/* peers that break the Next.js build
   '@coinbase/cdp-sdk': 1.52.0
+  # cuer 0.0.3 (RainbowKit's QR code) passes border: 0, which qr >=0.6 rejects ("invalid border=0").
+  # Fixed upstream in wevm/cuer#11 but unreleased (wevm/cuer#12): drop this once cuer ships it.
+  'cuer>qr': 0.5.5
