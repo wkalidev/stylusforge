@@ -5,6 +5,7 @@ import { buttonClasses } from '@/components/ui/button';
 import {
   callSimulation,
   formatSimValue,
+  simTimestamp,
   type LessonSimulation,
   type SimAccount,
   type SimCallResult,
@@ -66,6 +67,12 @@ function FunctionForm({ fn, onCall }: { fn: SimFunction; onCall: (args: Record<s
   );
 }
 
+/** A Unix time as `1767225612 (2026-01-01 00:00:12 UTC)`. */
+function formatTimestamp(seconds: bigint): string {
+  const date = new Date(Number(seconds) * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC');
+  return `${seconds} (${date})`;
+}
+
 const EMPTY = <span className='text-steel-600'>(empty)</span>;
 
 /** Storage fields: scalars inline, vectors by index, mappings by key. */
@@ -117,6 +124,8 @@ function StorageView({ state, accounts }: { state: SimState; accounts: SimAccoun
 export function TryPanel({ simulation, passed }: { simulation: LessonSimulation | null; passed: boolean }) {
   const [state, setState] = useState<SimState | null>(() => simulation?.initialState() ?? null);
   const [callerIndex, setCallerIndex] = useState(0);
+  // Transactions sent so far: each one runs in the next block of the simulated clock.
+  const [sent, setSent] = useState(0);
   const [log, setLog] = useState<LogEntry[]>([]);
 
   if (!simulation || !state) {
@@ -133,7 +142,9 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
 
   const caller = simulation.accounts[callerIndex];
   const call = (fn: SimFunction, args: Record<string, string>) => {
-    const result = callSimulation(simulation, state, fn.name, args, caller);
+    const block = fn.view ? sent : sent + 1;
+    const result = callSimulation(simulation, state, fn.name, args, caller, { timestamp: simTimestamp(block) });
+    setSent(block);
     setState(result.state);
     setLog((entries) => [{ id: (entries[0]?.id ?? 0) + 1, caller, fn, args, result }, ...entries].slice(0, 20));
   };
@@ -170,12 +181,16 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
           type='button'
           onClick={() => {
             setState(simulation.initialState());
+            setSent(0);
             setLog([]);
           }}
           className='text-sm text-steel-400 underline-offset-4 hover:text-steel-100 hover:underline'
         >
           Reset the simulation
         </button>
+        {simulation.clock && (
+          <p className='w-full font-mono text-xs text-steel-400'>Simulated block time: {formatTimestamp(simTimestamp(sent))}</p>
+        )}
       </div>
 
       <div className='space-y-2'>

@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  SIM_BLOCK_TIME,
+  SIM_START_TIME,
   UINT256_MAX,
   callSimulation,
   deleteMapping,
   formatSimValue,
   parseArgument,
   readMapping,
+  simTimestamp,
   wrappingAdd,
   wrappingSub,
   writeMapping,
@@ -105,6 +108,39 @@ describe("callSimulation", () => {
 
   it("reports invalid arguments as failed calls", () => {
     expect(callSimulation(vault, state, "add", { amount: "abc" }, alice).error?.error).toMatch(/unsigned/);
+  });
+});
+
+describe("simulated clock", () => {
+  const clock: LessonSimulation = {
+    contract: "Clock",
+    accounts: [alice],
+    clock: true,
+    initialState: () => ({ stamped: 0n }),
+    functions: [
+      {
+        name: "stamp",
+        abiName: "stamp",
+        view: false,
+        params: [],
+        run: (state, _args, _caller, context) => ({ state: { ...state, stamped: context.timestamp } }),
+      },
+    ],
+  };
+
+  it("starts at SIM_START_TIME and moves forward by SIM_BLOCK_TIME per sent transaction", () => {
+    expect(simTimestamp(0)).toBe(SIM_START_TIME);
+    expect(simTimestamp(3)).toBe(SIM_START_TIME + 3n * SIM_BLOCK_TIME);
+    expect(SIM_BLOCK_TIME).toBe(12n);
+  });
+
+  it("passes the block time to the function", () => {
+    const result = callSimulation(clock, clock.initialState(), "stamp", {}, alice, { timestamp: simTimestamp(2) });
+    expect(result.state.stamped).toBe(SIM_START_TIME + 24n);
+  });
+
+  it("runs at the start time when no block is given", () => {
+    expect(callSimulation(clock, clock.initialState(), "stamp", {}, alice).state.stamped).toBe(SIM_START_TIME);
   });
 });
 

@@ -28,6 +28,24 @@ export interface SimEvent {
   args: Record<string, SimValue>;
 }
 
+/** The block a simulated call runs in. */
+export interface SimContext {
+  /** Block time, in Unix seconds. */
+  timestamp: bigint;
+}
+
+/**
+ * The simplified clock of the Try it panel: it starts at SIM_START_TIME and each sent transaction
+ * runs SIM_BLOCK_TIME seconds after the previous one. Real Arbitrum blocks are much faster.
+ */
+export const SIM_START_TIME = 1_767_225_600n; // 2026-01-01 00:00:00 UTC
+export const SIM_BLOCK_TIME = 12n;
+
+/** The simulated block time once a number of transactions have been sent. */
+export function simTimestamp(sent: number): bigint {
+  return SIM_START_TIME + SIM_BLOCK_TIME * BigInt(sent);
+}
+
 /** What a function body returns: a revert, or a new state with an optional value and events. */
 export type SimOutcome =
   | { revert: { error: string; args?: Record<string, SimValue> } }
@@ -43,8 +61,8 @@ export interface SimFunction {
   params: { name: string; type: SimType }[];
   /** Return type; an array for a tuple, such as `(string, bool)`. */
   returns?: SimType | 'bool' | (SimType | 'bool')[];
-  /** Pure: receives a copy of the state, the parsed arguments and the caller. */
-  run(state: SimState, args: Record<string, SimValue>, caller: SimAccount): SimOutcome;
+  /** Pure: receives a copy of the state, the parsed arguments, the caller and the block. */
+  run(state: SimState, args: Record<string, SimValue>, caller: SimAccount, context: SimContext): SimOutcome;
 }
 
 export interface LessonSimulation {
@@ -55,6 +73,8 @@ export interface LessonSimulation {
   accounts: SimAccount[];
   initialState(): SimState;
   functions: SimFunction[];
+  /** Whether the contract reads the block time, so the panel shows the simulated clock. */
+  clock?: boolean;
 }
 
 export const UINT256_MAX = (1n << 256n) - 1n;
@@ -142,6 +162,7 @@ export function callSimulation(
   functionName: string,
   rawArgs: Record<string, string>,
   caller: SimAccount,
+  context: SimContext = { timestamp: SIM_START_TIME },
 ): SimCallResult {
   const fn = simulation.functions.find((candidate) => candidate.name === functionName);
   if (!fn) throw new Error(`Unknown simulated function ${functionName}`);
@@ -151,7 +172,7 @@ export function callSimulation(
       args[param.name] = parseArgument(param.type, rawArgs[param.name] ?? '', simulation.accounts);
     }
     const snapshot = structuredClone(state);
-    const outcome = fn.run(snapshot, args, caller);
+    const outcome = fn.run(snapshot, args, caller, context);
     if ('revert' in outcome) {
       return { ok: false, state, events: [], error: outcome.revert };
     }
