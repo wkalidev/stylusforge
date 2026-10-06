@@ -39,6 +39,20 @@ interface LessonContent {
   exercise?: LessonExercise;
 }
 
+/**
+ * Snippets for a lesson 8 lookup that reverts with UnknownTask past the end of the list: `ok_or`,
+ * `ok_or_else`, or a `match` whose arms, up to the `Err(`, are one of `arms`. Each snippet starts at
+ * the lookup, so a revert written for another lookup does not count.
+ */
+function revertingLookups(lookups: string[], arms: string[]): string[] {
+  const unknownTask = 'TodoError::UnknownTask(UnknownTask {';
+  return lookups.flatMap((lookup) => [
+    `${lookup}.ok_or(${unknownTask}`,
+    `${lookup}.ok_or_else(|| ${unknownTask}`,
+    ...arms.map((arm) => `match ${lookup} { ${arm} Err(${unknownTask}`),
+  ]);
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -1281,10 +1295,17 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           // The revert is bound to the lookup, so the one in complete does not count for task.
-          anyOf: [
-            'self.tasks.getter(id).ok_or(TodoError::UnknownTask(UnknownTask {',
-            'self.tasks.getter(id).ok_or_else(|| TodoError::UnknownTask(UnknownTask {',
-          ],
+          // get(id) reads like getter(id); the match arms are the forms that compile in task.
+          anyOf: revertingLookups(
+            ['self.tasks.getter(id)', 'self.tasks.get(id)'],
+            [
+              'None =>',
+              'None => return',
+              'Some($x) => $x, None => return',
+              'Some($x) => Ok($x), None =>',
+              'Some($x) => Ok(($x.title.get_string(), $x.done.get())), None =>',
+            ],
+          ),
           objective: 'Look a task up by its id, and revert when there is no such task',
           hints: [
             'The id of a task is its position in the vector. Past the end there is no task, and that case must revert instead of returning an empty task.',
@@ -1305,10 +1326,18 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn task(',
         },
         {
-          anyOf: [
-            'self.tasks.setter(id).ok_or(TodoError::UnknownTask(UnknownTask {',
-            'self.tasks.setter(id).ok_or_else(|| TodoError::UnknownTask(UnknownTask {',
-          ],
+          // get_mut(id) writes like setter(id); the match arms are the forms that compile in complete.
+          anyOf: revertingLookups(
+            ['self.tasks.setter(id)', 'self.tasks.get_mut(id)'],
+            [
+              'None =>',
+              'None => return',
+              'Some($x) => $x, None => return',
+              'Some($x) => Ok($x), None =>',
+              'Some(mut $x) => { $x.done.set(true); Ok(()) } None =>',
+              'Some(mut $x) => { $x.done.set(true); Ok(()) }, None =>',
+            ],
+          ),
           alsoAnyOf: [['.done.set(true)']],
           objective: 'Mark the task as done, and revert when there is no such task',
           hints: [
