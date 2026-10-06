@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
+import type { BeforeMount, OnMount } from '@monaco-editor/react';
 import { ClaimCertificate } from '@/components/claim/ClaimCertificate';
 import { SparkBurst } from '@/components/feedback/SparkBurst';
 import { LessonXpBar } from '@/components/progress/LessonXpBar';
@@ -21,12 +22,19 @@ import { playAnvilStrike } from '@/lib/sound/anvil';
 import { isSoundEnabled } from '@/lib/sound/preference';
 import { LessonIngot } from './LessonIngot';
 import { CompareView } from './CompareView';
+import { EditorLoading } from './EditorLoading';
 import { ExplanationSteps } from './ExplanationSteps';
 import { Objectives } from './Objectives';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 import { registerGlossaryHover } from './glossaryHover';
 import { RightPaneSwitch, WorkspaceTabs, tabId, tabPanelId, type WorkspaceTab } from './WorkspaceTabs';
 import { TryPanel } from './TryPanel';
+
+// Self-hosted Monaco (see monaco.ts), on the client only: it needs the DOM as soon as it loads.
+const Editor = dynamic(() => import('./monaco').then((module) => module.Editor), {
+  ssr: false,
+  loading: () => <EditorLoading />,
+});
 
 const beforeEditorMount: BeforeMount = (monaco) => {
   defineForgeEditorTheme(monaco);

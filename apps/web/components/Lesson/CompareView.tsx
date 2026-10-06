@@ -1,9 +1,17 @@
 'use client';
 
-import { DiffEditor, type BeforeMount } from '@monaco-editor/react';
+import dynamic from 'next/dynamic';
+import type { BeforeMount } from '@monaco-editor/react';
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
+import { EditorLoading } from './EditorLoading';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 import { registerGlossaryHover } from './glossaryHover';
+
+// Self-hosted Monaco (see monaco.ts), on the client only: it needs the DOM as soon as it loads.
+const DiffEditor = dynamic(() => import('./monaco').then((module) => module.DiffEditor), {
+  ssr: false,
+  loading: () => <EditorLoading />,
+});
 
 const beforeMount: BeforeMount = (monaco) => {
   defineForgeEditorTheme(monaco);
