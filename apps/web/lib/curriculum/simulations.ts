@@ -1,4 +1,4 @@
-import { deleteMapping, readMapping, wrappingAdd, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
+import { UINT256_MAX, deleteMapping, readMapping, wrappingAdd, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -383,6 +383,65 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  12: {
+    contract: 'FeeQuote',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ rate_bps: 0n }),
+    functions: [
+      {
+        name: 'fee',
+        abiName: 'fee',
+        view: true,
+        params: [
+          { name: 'amount', type: 'uint256' },
+          { name: 'rate_bps', type: 'uint256' },
+        ],
+        returns: 'uint256',
+        run: (_state, args) => quoteFee(args.amount as bigint, args.rate_bps as bigint),
+      },
+      {
+        name: 'rate',
+        abiName: 'rate',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.rate_bps as bigint }),
+      },
+      {
+        name: 'set_rate',
+        abiName: 'setRate',
+        view: false,
+        params: [{ name: 'rate_bps', type: 'uint256' }],
+        run: (state, args) => ({ state: { ...state, rate_bps: args.rate_bps } }),
+      },
+      {
+        name: 'quote',
+        abiName: 'quote',
+        view: true,
+        params: [{ name: 'amount', type: 'uint256' }],
+        returns: 'uint256',
+        run: (state, args) => quoteFee(args.amount as bigint, state.rate_bps as bigint),
+      },
+      {
+        name: 'quote_pair',
+        abiName: 'quotePair',
+        view: true,
+        params: [
+          { name: 'first', type: 'uint256' },
+          { name: 'second', type: 'uint256' },
+        ],
+        returns: ['uint256', 'uint256'],
+        run: (state, args) => {
+          const rate = state.rate_bps as bigint;
+          const first = quoteFee(args.first as bigint, rate);
+          if ('revert' in first) return first;
+          const second = quoteFee(args.second as bigint, rate);
+          if ('revert' in second) return second;
+          return { returns: [first.returns, second.returns] };
+        },
+      },
+    ],
+  },
 };
 
 /** A task of the lesson 8 to-do list. */
@@ -398,6 +457,16 @@ function findTask(state: SimState, id: bigint): Task | { revert: { error: string
 function onlyOwner(state: SimState, caller: SimAccount): { revert: { error: string; args: { caller: string } } } | null {
   const owner = state.owner as string;
   return caller.address.toLowerCase() === owner.toLowerCase() ? null : { revert: { error: 'Unauthorized', args: { caller: caller.address } } };
+}
+
+/**
+ * Lesson 12's fee in basis points: `checked_mul` turns an overflow into the FeeOverflow revert
+ * instead of wrapping around like `*`.
+ */
+function quoteFee(amount: bigint, rateBps: bigint): { returns: bigint } | { revert: { error: string; args: Record<string, bigint> } } {
+  const scaled = amount * rateBps;
+  if (scaled > UINT256_MAX) return { revert: { error: 'FeeOverflow', args: { amount, rate_bps: rateBps } } };
+  return { returns: scaled / 10_000n };
 }
 
 export function getSimulation(lessonId: number): LessonSimulation | null {
