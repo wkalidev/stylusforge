@@ -29,6 +29,16 @@ describe("glossaryAt", () => {
     expect(idAt("    pub fn balance(&self) -> U256 {", 12)).toBeNull();
   });
 
+  it("explains checked arithmetic and the gas left", () => {
+    const scaled = "        let scaled = amount.checked_mul(rate_bps)";
+    expect(idAt(scaled, scaled.indexOf("checked_mul") + 1)).toBe("checked");
+    const sum = "a.checked_add(b)";
+    expect(idAt(sum, sum.indexOf("checked_add") + 1)).toBe("checked");
+    expect(idAt("let checked_mul = 1;", 5)).toBeNull();
+    expect(idAt("self.vm().evm_gas_left()", 11)).toBe("gas_left");
+    expect(idAt("self.vm().evm_ink_left()", 11)).toBe("gas_left");
+  });
+
   it("tells sol! apart from sol_storage!", () => {
     expect(idAt("sol! {", 2)).toBe("sol");
     expect(idAt("sol_storage! {", 2)).toBe("sol_storage");

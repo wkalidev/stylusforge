@@ -123,6 +123,19 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
       'Sends `amount` wei from the contract to `to`, from `stylus_sdk::call::transfer`. It calls the recipient with all the remaining gas and returns `Result<(), Vec<u8>>`: update storage before calling it.',
   },
   {
+    id: 'gas_left',
+    pattern: /\bevm_(?:gas|ink)_left\(\)/,
+    title: 'evm_gas_left() / evm_ink_left()',
+    description: 'The gas, or the ink, left for the call. Stylus meters its WebAssembly in ink, a finer unit that converts to gas.',
+  },
+  {
+    id: 'checked',
+    pattern: /(?<=\.)checked_(?:add|sub|mul|div)\(/,
+    title: 'checked arithmetic',
+    description:
+      '`checked_add`, `checked_sub`, `checked_mul` and `checked_div` return `None` on overflow (or division by zero) instead of wrapping around like `+`, `-` and `*`. Turn the `None` into an error with `ok_or`.',
+  },
+  {
     id: 'block_timestamp',
     pattern: /\bblock_timestamp\(\)/,
     title: 'block_timestamp()',
