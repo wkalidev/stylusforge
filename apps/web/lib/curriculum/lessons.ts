@@ -1983,6 +1983,41 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn withdraw(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Receiving ETH",
+          question: "What happens when a call sends ETH to a method that is not marked #[payable]?",
+          options: [
+            "The ETH is kept by the contract and the method runs",
+            "The ETH is sent back and the method runs",
+            "The call reverts",
+          ],
+          answer: 2,
+          explanation: "Methods refuse ETH unless they are #[payable]: the call reverts, so no ETH gets stuck in a method that does not expect it.",
+        },
+        {
+          afterStep: "The contract balance",
+          question: "Where is the ETH a contract has received?",
+          options: [
+            "In the balance of the contract account, read with self.vm().balance(self.vm().contract_address())",
+            "In a storage field that the SDK adds to every contract",
+            "In the balance of the account that deployed it",
+          ],
+          answer: 0,
+          explanation: "ETH is the balance of the contract account, not storage. Keep track of whose ETH it is yourself, in a mapping.",
+        },
+        {
+          afterStep: "Checks, effects, interactions",
+          question: "Why does claim delete the reward before calling transfer_eth?",
+          options: [
+            "transfer_eth refuses to send while a reward is stored",
+            "So that a recipient calling back into claim finds nothing owed",
+            "Deleting after a call is not allowed in Rust",
+          ],
+          answer: 1,
+          explanation: "Updating storage before calling out means a reentrant call sees the new state. Stylus also rejects reentrant calls by default, but checks, effects, interactions does not depend on it.",
+        },
+      ],
     },
   },
 };
