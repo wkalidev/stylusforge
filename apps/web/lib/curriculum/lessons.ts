@@ -2220,6 +2220,37 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn quote_pair(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "State mutability from self",
+          question: "Which state mutability does Stylus give a #[public] method that takes &self?",
+          options: ["pure", "view", "payable"],
+          answer: 1,
+          explanation: "&self can read storage but not write it: view. No self at all is pure, &mut self writes, and #[payable] lets a method also receive ETH.",
+        },
+        {
+          afterStep: "Checked arithmetic",
+          question: "What does U256::MAX * U256::from(2) give in Rust?",
+          options: [
+            "A wrapped-around value, without any error",
+            "A revert with an overflow error",
+            "None",
+          ],
+          answer: 0,
+          explanation: "U256 operators wrap around. checked_mul returns None on overflow instead, which you can turn into an error with ok_or.",
+        },
+        {
+          afterStep: "Gas and storage",
+          question: "Why read a storage field once into a local variable when you use it twice?",
+          options: [
+            "Storage can change between two reads in the same call",
+            "The second read would revert",
+            "Each read is a call to the host, which costs more than a local variable, even with the Stylus storage cache",
+          ],
+          answer: 2,
+          explanation: "Stylus caches storage, so repeated reads cost less than in the EVM, but a local variable is still cheaper than a host call.",
+        },
+      ],
     },
   },
 };
