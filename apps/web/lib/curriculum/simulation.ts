@@ -28,10 +28,30 @@ export interface SimEvent {
   args: Record<string, SimValue>;
 }
 
-/** The block a simulated call runs in. */
+/** What a function body sees of its call besides the arguments: the block and the ETH. */
 export interface SimContext {
   /** Block time, in Unix seconds. */
   timestamp: bigint;
+  /** Wei sent with the call (`msg_value()`); zero unless the function is payable. */
+  value: bigint;
+  /** The contract's ETH balance in wei during the call, the value sent included. */
+  balance: bigint;
+}
+
+/** Wei sent by the contract to an address (`transfer_eth`). */
+export interface SimTransfer {
+  to: string;
+  amount: bigint;
+}
+
+/** How a call is made: in which block, with how much ETH, on a contract holding how much. */
+export interface SimCall {
+  /** Block time; SIM_START_TIME when not given. */
+  timestamp?: bigint;
+  /** Wei sent with the call, as typed by the student; empty or missing for none. */
+  value?: string;
+  /** The contract's ETH balance before the call, in wei; zero when not given. */
+  balance?: bigint;
 }
 
 /**
@@ -49,7 +69,7 @@ export function simTimestamp(sent: number): bigint {
 /** What a function body returns: a revert, or a new state with an optional value and events. */
 export type SimOutcome =
   | { revert: { error: string; args?: Record<string, SimValue> } }
-  | { state?: SimState; returns?: SimReturn; events?: SimEvent[] };
+  | { state?: SimState; returns?: SimReturn; events?: SimEvent[]; transfers?: SimTransfer[] };
 
 export interface SimFunction {
   /** Rust name, as in the lesson code. */
@@ -58,10 +78,12 @@ export interface SimFunction {
   abiName: string;
   /** View functions read; the others write and can revert. */
   view: boolean;
+  /** `#[payable]`: accepts ETH. A call sending ETH to any other function reverts. */
+  payable?: boolean;
   params: { name: string; type: SimType }[];
   /** Return type; an array for a tuple, such as `(string, bool)`. */
   returns?: SimType | 'bool' | (SimType | 'bool')[];
-  /** Pure: receives a copy of the state, the parsed arguments, the caller and the block. */
+  /** Pure: receives a copy of the state, the parsed arguments, the caller, the block and the ETH. */
   run(state: SimState, args: Record<string, SimValue>, caller: SimAccount, context: SimContext): SimOutcome;
 }
 
@@ -148,13 +170,22 @@ export interface SimCallResult {
   state: SimState;
   returns?: SimReturn;
   events: SimEvent[];
+  /** Wei the contract sent during the call. */
+  transfers: SimTransfer[];
+  /** The contract's ETH balance after the call: unchanged by a revert, which refunds the value. */
+  balance: bigint;
   /** Set when the call reverted or the arguments were invalid. */
   error?: { error: string; args?: Record<string, SimValue> };
 }
 
+/** Whether a simulation has payable functions, so the panel shows the contract's ETH balance. */
+export function holdsEth(simulation: LessonSimulation): boolean {
+  return simulation.functions.some((fn) => fn.payable);
+}
+
 /**
- * Calls one function of a simulation. Arguments are parsed by type; a revert or an invalid argument
- * leaves the state unchanged, like a reverted transaction.
+ * Calls one function of a simulation. Arguments and the value are parsed by type; a revert or an
+ * invalid argument leaves the state and the ETH balance unchanged, like a reverted transaction.
  */
 export function callSimulation(
   simulation: LessonSimulation,
@@ -162,30 +193,45 @@ export function callSimulation(
   functionName: string,
   rawArgs: Record<string, string>,
   caller: SimAccount,
-  context: SimContext = { timestamp: SIM_START_TIME },
+  call: SimCall = {},
 ): SimCallResult {
   const fn = simulation.functions.find((candidate) => candidate.name === functionName);
   if (!fn) throw new Error(`Unknown simulated function ${functionName}`);
+  const before = call.balance ?? 0n;
+  const failed = (error: { error: string; args?: Record<string, SimValue> }): SimCallResult => ({
+    ok: false,
+    state,
+    events: [],
+    transfers: [],
+    balance: before,
+    error,
+  });
   try {
+    const value = call.value?.trim() ? (parseArgument('uint256', call.value, []) as bigint) : 0n;
+    // Like the SDK: a function without #[payable] reverts, with no error data, when it receives ETH.
+    if (value > 0n && !fn.payable) return failed({ error: `method ${fn.name} not payable` });
     const args: Record<string, SimValue> = {};
     for (const param of fn.params) {
       args[param.name] = parseArgument(param.type, rawArgs[param.name] ?? '', simulation.accounts);
     }
+    const context: SimContext = { timestamp: call.timestamp ?? SIM_START_TIME, value, balance: before + value };
     const snapshot = structuredClone(state);
     const outcome = fn.run(snapshot, args, caller, context);
-    if ('revert' in outcome) {
-      return { ok: false, state, events: [], error: outcome.revert };
-    }
+    if ('revert' in outcome) return failed(outcome.revert);
+    const transfers = outcome.transfers ?? [];
+    const sent = transfers.reduce((total, transfer) => total + transfer.amount, 0n);
+    // A transfer the contract cannot cover fails, and transfer_eth(...)? reverts the whole call.
+    if (sent > context.balance) return failed({ error: 'ETH transfer failed: the contract balance is too low' });
     return {
       ok: true,
       state: fn.view ? state : (outcome.state ?? snapshot),
       returns: outcome.returns,
       events: outcome.events ?? [],
+      transfers,
+      balance: context.balance - sent,
     };
   } catch (error) {
-    if (error instanceof SimArgumentError) {
-      return { ok: false, state, events: [], error: { error: error.message } };
-    }
+    if (error instanceof SimArgumentError) return failed({ error: error.message });
     throw error;
   }
 }

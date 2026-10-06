@@ -7,6 +7,7 @@ import {
   callSimulation,
   deleteMapping,
   formatSimValue,
+  holdsEth,
   parseArgument,
   readMapping,
   simTimestamp,
@@ -141,6 +142,94 @@ describe("simulated clock", () => {
 
   it("runs at the start time when no block is given", () => {
     expect(callSimulation(clock, clock.initialState(), "stamp", {}, alice).state.stamped).toBe(SIM_START_TIME);
+  });
+});
+
+describe("payable calls", () => {
+  const jar: LessonSimulation = {
+    contract: "Jar",
+    accounts: [alice, bob],
+    initialState: () => ({ held: 0n }),
+    functions: [
+      {
+        name: "fill",
+        abiName: "fill",
+        view: false,
+        payable: true,
+        params: [],
+        run: (state, _args, _caller, context) => ({ state: { ...state, held: wrappingAdd(state.held as bigint, context.value) } }),
+      },
+      {
+        name: "seen",
+        abiName: "seen",
+        view: true,
+        params: [],
+        returns: "uint256",
+        run: (_state, _args, _caller, context) => ({ returns: context.balance }),
+      },
+      {
+        name: "pay",
+        abiName: "pay",
+        view: false,
+        params: [{ name: "amount", type: "uint256" }],
+        run: (state, args, caller) => ({ state, transfers: [{ to: caller.address, amount: args.amount as bigint }] }),
+      },
+      {
+        name: "fill_then_fail",
+        abiName: "fillThenFail",
+        view: false,
+        payable: true,
+        params: [],
+        run: () => ({ revert: { error: "Nope" } }),
+      },
+    ],
+  };
+
+  it("passes the value to a payable function and adds it to the contract balance", () => {
+    const result = callSimulation(jar, jar.initialState(), "fill", {}, alice, { value: "5", balance: 10n });
+    expect(result).toMatchObject({ ok: true, balance: 15n, transfers: [], state: { held: 5n } });
+  });
+
+  it("shows the balance during the call, the value included", () => {
+    expect(callSimulation(jar, jar.initialState(), "seen", {}, alice, { balance: 7n })).toMatchObject({ returns: 7n, balance: 7n });
+  });
+
+  it("treats an empty value as no ETH", () => {
+    expect(callSimulation(jar, jar.initialState(), "fill", {}, alice, { value: " ", balance: 3n })).toMatchObject({ ok: true, balance: 3n });
+  });
+
+  it("reverts when a function that is not payable receives ETH", () => {
+    const state = jar.initialState();
+    const result = callSimulation(jar, state, "pay", { amount: "1" }, alice, { value: "1", balance: 10n });
+    expect(result).toMatchObject({ ok: false, error: { error: "method pay not payable" }, balance: 10n });
+    expect(result.state).toBe(state);
+  });
+
+  it("refunds the value when a payable function reverts", () => {
+    const result = callSimulation(jar, jar.initialState(), "fill_then_fail", {}, alice, { value: "4", balance: 10n });
+    expect(result).toMatchObject({ ok: false, error: { error: "Nope" }, balance: 10n });
+  });
+
+  it("reports an invalid value as a failed call", () => {
+    expect(callSimulation(jar, jar.initialState(), "fill", {}, alice, { value: "-1" }).error?.error).toMatch(/unsigned/);
+  });
+
+  it("sends ETH out of the contract balance", () => {
+    const result = callSimulation(jar, jar.initialState(), "pay", { amount: "4" }, bob, { balance: 10n });
+    expect(result).toMatchObject({ ok: true, balance: 6n, transfers: [{ to: bob.address, amount: 4n }] });
+  });
+
+  it("reverts a transfer the contract cannot cover", () => {
+    const state = jar.initialState();
+    const result = callSimulation(jar, state, "pay", { amount: "11" }, bob, { balance: 10n });
+    expect(result).toMatchObject({ ok: false, balance: 10n, transfers: [] });
+    expect(result.error?.error).toMatch(/balance is too low/);
+    expect(result.state).toBe(state);
+  });
+
+  it("knows which simulations hold ETH", () => {
+    expect(holdsEth(jar)).toBe(true);
+    expect(holdsEth(vault)).toBe(false);
   });
 });
 
