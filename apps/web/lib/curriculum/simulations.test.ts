@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { LESSONS } from "./lessons";
-import { UINT256_MAX, callSimulation, readMapping, type LessonSimulation, type SimState } from "./simulation";
-import { SIM_ACCOUNTS, getSimulation } from "./simulations";
+import { SIM_START_TIME, UINT256_MAX, callSimulation, readMapping, simTimestamp, type LessonSimulation, type SimState } from "./simulation";
+import { SIM_ACCOUNTS, ZERO_ADDRESS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
 const [alice, bob] = SIM_ACCOUNTS;
@@ -181,6 +181,27 @@ describe("lesson simulations", () => {
     ]);
     expect(read).toMatchObject({ ok: false, error: { error: "UnknownTask", args: { id: 1n } } });
     expect(write).toMatchObject({ ok: false, error: { error: "UnknownTask", args: { id: 5n } }, state: { tasks: [{ title: "Only task", done: false }] } });
+  });
+
+  it("lesson 9 records each visitor's check-in time on the simulated clock", () => {
+    const simulation = getSimulation(9)!;
+    let state = simulation.initialState();
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, sent: number) => {
+      const result = callSimulation(simulation, state, fn, args, caller, { timestamp: simTimestamp(sent) });
+      state = result.state;
+      return result;
+    };
+    expect(call("last_visitor", {}, alice, 0).returns).toBe(ZERO_ADDRESS);
+    call("check_in", {}, alice, 1);
+    call("check_in", {}, bob, 2);
+    expect(call("checked_in_at", { account: "Alice" }, bob, 2).returns).toBe(SIM_START_TIME + 12n);
+    expect(call("checked_in_at", { account: "Bob" }, bob, 2).returns).toBe(SIM_START_TIME + 24n);
+    expect(call("checked_in_at", { account: "Carol" }, bob, 2).returns).toBe(0n);
+    expect(call("last_visitor", {}, alice, 2).returns).toBe(bob.address);
+    // Checking in again moves the time forward and makes Alice the last visitor.
+    call("check_in", {}, alice, 3);
+    expect(readMapping(state, "check_ins", alice.address)).toBe(SIM_START_TIME + 36n);
+    expect(state.last_visitor).toBe(alice.address);
   });
 
   it("lesson 4 behaves like an ERC-20 transfer", () => {
