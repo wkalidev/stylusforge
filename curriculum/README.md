@@ -79,9 +79,9 @@ Quizzes never block progress. Tests check that every lesson has titled steps end
 
 Each available lesson also has a reference solution in `apps/web/lib/curriculum/solutions.ts`. Solutions are only imported by tests, never by app code, so they do not reach the browser.
 
-Content targets the current `stylus-sdk` (0.10): `sol_storage!` with Solidity field syntax, `#[entrypoint]` and `#[public]`, events emitted with `self.vm().log(...)`, errors declared in `sol!` and wrapped in an enum deriving `SolidityError`, and `self.vm().msg_sender()` for the caller. Storage collections use the `StorageMap` and `StorageVec` accessors: `get`, `insert`, `setter(key).set`, `delete` on mappings; `len`, `push`, `get`, `getter`, `setter`, `pop` and `grow` on vectors.
+Content targets the current `stylus-sdk` (0.10): `sol_storage!` with Solidity field syntax, `#[entrypoint]` and `#[public]`, events emitted with `self.vm().log(...)`, errors declared in `sol!` and wrapped in an enum deriving `SolidityError`, and `self.vm().msg_sender()` for the caller. Module 2 adds the message and block context (`tx_origin`, `block_timestamp`, `block_number`, `msg_value`, `contract_address`, `balance`), `#[constructor]`, `#[payable]`, `transfer_eth` from `stylus_sdk::call::transfer`, and pure methods (no `self`). Storage collections use the `StorageMap` and `StorageVec` accessors: `get`, `insert`, `setter(key).set`, `delete` on mappings; `len`, `push`, `get`, `getter`, `setter`, `pop` and `grow` on vectors.
 
-Reference solutions and the code in explanations are compiled with `cargo check` against the latest `stylus-sdk` before a lesson is published (0.10.10 for module 1), in a crate that also depends on `alloy-primitives` and `alloy-sol-types`, as Stylus projects do.
+Reference solutions and the code in explanations are compiled with `cargo check` against the latest `stylus-sdk` before a lesson is published (0.10.10 for modules 1 and 2), in a crate that also depends on `alloy-primitives` and `alloy-sol-types`, as Stylus projects do. From module 2 on, starters compile too, and the ABI exported with `export-abi` gives the `abiName` of each simulated function.
 
 ### Module 1: Foundations
 
@@ -93,19 +93,37 @@ Reference solutions and the code in explanations are compiled with `cargo check`
 | 7 Storage vectors | `PriceLog` | `T[]`: `len`, `push`, `get` returning an `Option`, reverting with `ok_or`, `pop` |
 | 8 Nested structs | `TodoList` | Storage structs as fields, mapping values and vector elements; `grow`, `getter` and `setter` handles, and how they borrow the contract |
 
+### Module 2: Contract logic
+
+| Lesson | Contract | Teaches |
+|---|---|---|
+| 9 msg context | `Attendance` | `msg_sender` and `tx_origin` (never for authorization), `block_timestamp`, `block_number` (an estimate of the L1 block number on Arbitrum), `chain_id`, `contract_address`; `u64` to `U256`; `address` storage |
+| 3 Events and Errors | `Token` | `sol!` events and errors, `SolidityError`, reverting with `Err`, emitting with `vm().log` |
+| 10 Access control | `FeeConfig` | `#[constructor]` taking the owner as a parameter (`msg_sender` there is StylusDeployer), a guard in a plain `impl` block (every method of a `#[public]` block is exported), `?` |
+| 11 Payable and sending ETH | `PiggyBank` | `#[payable]` and `msg_value`, the contract balance, `transfer_eth` returning `Result<(), Vec<u8>>` and `.into()` for custom errors, checks-effects-interactions next to the default reentrancy guard |
+| 12 View/pure and gas | `FeeQuote` | State mutability from the receiver (pure, view, write, payable), `checked_mul` with `ok_or`, reading storage once, ink and gas |
+
+Lesson 3 comes before lesson 10 because it teaches the custom errors that access control reverts with. Module 2 lessons declare their errors in the starter when the lesson is about something else, so the starter compiles.
+
 ## Simulations
 
 After a pass, the lesson page offers "Try it": a JavaScript model of the lesson's contract (`apps/web/lib/curriculum/simulations.ts`, format in `simulation.ts`). It is labelled as a simulation and never runs the student's Rust.
 
-A simulation has a `contract` name, an optional `note` on its starting state (for example a seeded balance), `accounts` (Alice, Bob, Carol), an `initialState()` and `functions`. Each function has its Rust `name`, its ABI `abiName`, `view` or not, typed `params` (`uint256`, `address`, `string`), an optional `returns` (an array such as `['string', 'bool']` for a tuple), and a pure `run(state, args, caller)` that returns `{ state, returns, events }` or `{ revert: { error, args } }`.
+A simulation has a `contract` name, an optional `note` on its starting state (for example a seeded balance), `accounts` (Alice, Bob, Carol), an `initialState()` and `functions`. Each function has its Rust `name`, its ABI `abiName`, `view` or not, typed `params` (`uint256`, `address`, `string`), an optional `returns` (an array such as `['string', 'bool']` for a tuple), `payable` when it accepts ETH, and a pure `run(state, args, caller, context)` that returns `{ state, returns, events, transfers }` or `{ revert: { error, args } }`. A `#[constructor]` has no simulated function: the model starts deployed, and its `note` says with what.
 
 State fields are scalars (`bigint`, `string`, `boolean`), mappings (records keyed by lowercase address, read and written with `readMapping`, `writeMapping` and `deleteMapping`), vectors (arrays) and structs (records keyed by field name). The panel shows vectors by index and structs and tuples inline.
 
-The engine parses arguments by type (uint256 within range, addresses by hex or account name), runs the function on a copy of the state, and leaves the state unchanged on a revert or an invalid argument. Model the same order of operations and the same arithmetic as the reference solution: `U256` `+` and `-` wrap around modulo 2^256 in Rust, so use `wrappingAdd` and `wrappingSub`, and revert only where the Rust code does (an explicit `Err`, or `checked_add` turned into an error). Tests require a simulation for every available lesson, with the same functions as its reference solution, and a scenario per lesson. `simulations.test.ts` also needs an overflow case for every lesson whose solution uses `+` or `-`, and fails if the simulation reverts or does not wrap like `U256`.
+`context` holds what a call sees besides its arguments:
+
+- `timestamp`: the block time. The panel keeps a simplified clock that starts at 2026-01-01 00:00:00 UTC and moves 12 seconds per sent transaction (`simTimestamp`); a simulation that reads it sets `clock: true` so the panel shows it, and says in its `note` that real Arbitrum blocks are much faster.
+- `value`: the wei sent with the call. The panel adds a value field to payable functions; like the SDK, a function that is not payable reverts, with no error data, when it receives ETH.
+- `balance`: the contract's ETH balance during the call, the value included. The engine adds the value and takes out the `transfers` a function returns (`transfer_eth`); a revert refunds the value, and a transfer above the balance fails the call. The panel shows the balance under the storage, as it is not storage.
+
+The engine parses arguments by type (uint256 within range, addresses by hex or account name), runs the function on a copy of the state, and leaves the state unchanged on a revert or an invalid argument. Model the same order of operations and the same arithmetic as the reference solution: `U256` `+` and `-` wrap around modulo 2^256 in Rust, so use `wrappingAdd` and `wrappingSub` (`*` wraps too), and revert only where the Rust code does (an explicit `Err`, or `checked_add` or `checked_mul` turned into an error). Tests require a simulation for every available lesson, with the same functions as its reference solution, and a scenario per lesson. `simulations.test.ts` also needs an overflow case for every lesson whose solution uses `+`, `-` or `*`, and fails if the simulation reverts or does not wrap like `U256`. A lesson that uses checked arithmetic instead has a test that the simulation reverts where Rust does (lesson 12).
 
 ## Glossary
 
-`apps/web/lib/curriculum/glossary.ts` explains Stylus tokens on hover in the lesson editor: `sol_storage!`, `sol!`, `#[entrypoint]`, `#[public]`, the `no_main` `cfg_attr`, `extern crate alloc`, the prelude, `SolidityError`, `self.vm()`, `msg_sender()`, `vm().log`, `get_string`, `set_str`, `setter`, `mapping`, `insert`, `delete`, `getter`, `T[]`, `push`, `pop`, `len`, `grow`, `uint256`, `U256` and `Address`.
+`apps/web/lib/curriculum/glossary.ts` explains Stylus tokens on hover in the lesson editor: `sol_storage!`, `sol!`, `#[entrypoint]`, `#[public]`, the `no_main` `cfg_attr`, `extern crate alloc`, the prelude, `SolidityError`, `#[constructor]`, `#[payable]`, `self.vm()`, `msg_sender()`, `tx_origin()`, `msg_value()`, `vm().balance`, `contract_address()`, `transfer_eth`, `evm_gas_left()` and `evm_ink_left()`, checked arithmetic, `block_timestamp()`, `block_number()`, `vm().log`, `get_string`, `set_str`, `setter`, `mapping`, `insert`, `delete`, `getter`, `T[]`, `push`, `pop`, `len`, `grow`, `uint256`, an `address` storage field, `U256` and `Address`.
 
 Each entry has an `id`, a `pattern` (a regular expression without the `g` or `y` flag; the whole match is the hovered range), a `title` and a Markdown `description` written for stylus-sdk 0.10. Tokens in comments and strings get no tooltip. Tests check that every key token of the starter code has an entry; add one when a lesson introduces new syntax.
 

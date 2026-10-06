@@ -199,12 +199,13 @@ After the first deployment:
 - Four lessons with static checks, local progress, XP and ranks, the claim flow, the profile, certificate metadata and the forge redesign.
 - Lesson interactivity: live objectives, inline diagnostics in the editor, a "Try it" simulation of each contract, step-by-step explanations with quizzes, and a comparison with the reference solution once a lesson is passed.
 - Module 1, Foundations: mappings, storage vectors and nested structs join the first two lessons (seven lessons in all).
+- Module 2, Contract logic: message and block context, access control, payable methods and sending ETH, view/pure and gas join Events and Errors (eleven lessons in all).
 - Local development stack, CI on pull requests and the Vercel configuration.
 - Arbitrum Sepolia deployment: the verified contract and the web app on Vercel.
 
 **Next**
 
-- Curriculum expansion: modules 2 to 5 (contract logic, tokens, interoperability, Stylus specifics), registered on-chain with `addLesson` without redeploying.
+- Curriculum expansion: modules 3 to 5 (tokens, interoperability, Stylus specifics), registered on-chain with `addLesson` without redeploying.
 
 **Later**
 
