@@ -319,4 +319,68 @@ impl Attendance {
     }
 }
 `,
+  10: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol! {
+    error Unauthorized(address caller);
+}
+
+#[derive(SolidityError)]
+pub enum AccessError {
+    Unauthorized(Unauthorized),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct FeeConfig {
+        address owner;
+        uint256 fee;
+    }
+}
+
+#[public]
+impl FeeConfig {
+    #[constructor]
+    pub fn constructor(&mut self, owner: Address) {
+        self.owner.set(owner);
+    }
+
+    pub fn owner(&self) -> Address {
+        self.owner.get()
+    }
+
+    pub fn fee(&self) -> U256 {
+        self.fee.get()
+    }
+
+    pub fn set_fee(&mut self, fee: U256) -> Result<(), AccessError> {
+        self.only_owner()?;
+        self.fee.set(fee);
+        Ok(())
+    }
+
+    pub fn transfer_ownership(&mut self, new_owner: Address) -> Result<(), AccessError> {
+        self.only_owner()?;
+        self.owner.set(new_owner);
+        Ok(())
+    }
+}
+
+impl FeeConfig {
+    fn only_owner(&self) -> Result<(), AccessError> {
+        let caller = self.vm().msg_sender();
+        if caller != self.owner.get() {
+            return Err(AccessError::Unauthorized(Unauthorized { caller }));
+        }
+        Ok(())
+    }
+}
+`,
 };
