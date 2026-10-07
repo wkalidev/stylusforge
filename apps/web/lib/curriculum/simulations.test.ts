@@ -483,4 +483,35 @@ describe("lesson simulations", () => {
     expect(results[11]).toMatchObject({ ok: false, error: { error: "ERC20InvalidReceiver" } });
     expect(results[12].returns).toBe(200n);
   });
+  it("lesson 16 reads the mock feed, and refuses a stale round or an answer that is not positive", () => {
+    const simulation = getSimulation(16)!;
+    let state = simulation.initialState();
+    const call = (fn: string, args: Record<string, string>, sent: number) => {
+      const result = callSimulation(simulation, state, fn, args, alice, { timestamp: simTimestamp(sent) });
+      state = result.state;
+      return result;
+    };
+    expect(call("feed", {}, 0).returns).toBe(PRICE_FEED_ADDRESS);
+    expect(call("decimals", {}, 0).returns).toBe(8n);
+    expect(call("price", {}, 0)).toMatchObject({ ok: true, returns: 300_000_000_000n });
+    // A new answer is stamped with the block time and starts a new round.
+    expect(call("set_answer", { answer: "312345000000" }, 1)).toMatchObject({
+      ok: true,
+      events: [{ name: "AnswerUpdated", contract: "PriceFeed", args: { current: 312_345_000_000n, roundId: 2n, updatedAt: SIM_START_TIME + 12n } }],
+    });
+    expect(call("latest_round_data", {}, 1).returns).toEqual([2n, 312_345_000_000n, SIM_START_TIME + 12n, SIM_START_TIME + 12n, 2n]);
+    expect(call("price", {}, 1).returns).toBe(312_345_000_000n);
+    // An update older than max_age, or never completed (0), is stale.
+    call("set_updated_at", { updated_at: (SIM_START_TIME - 3600n).toString() }, 2);
+    expect(call("price", {}, 2)).toMatchObject({ ok: false, error: { error: "StalePrice", args: { updated_at: SIM_START_TIME - 3600n, now: SIM_START_TIME + 24n } } });
+    call("set_updated_at", { updated_at: "0" }, 3);
+    expect(call("price", {}, 3)).toMatchObject({ ok: false, error: { error: "StalePrice", args: { updated_at: 0n } } });
+    // An update in the future wraps now - updated_at around, like U256: stale too.
+    call("set_updated_at", { updated_at: (SIM_START_TIME + 1000n).toString() }, 4);
+    expect(call("price", {}, 4)).toMatchObject({ ok: false, error: { error: "StalePrice" } });
+    call("set_answer", { answer: "-1" }, 5);
+    expect(call("price", {}, 5)).toMatchObject({ ok: false, error: { error: "NegativePrice", args: { answer: -1n } } });
+    call("set_answer", { answer: "0" }, 6);
+    expect(call("price", {}, 6)).toMatchObject({ ok: false, error: { error: "NegativePrice", args: { answer: 0n } } });
+  });
 });
