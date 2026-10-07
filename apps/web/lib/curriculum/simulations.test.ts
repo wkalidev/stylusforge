@@ -323,4 +323,46 @@ describe("lesson simulations", () => {
     expect(results[2].returns).toBe(1000n);
     expect(results[3]).toMatchObject({ ok: false, error: { error: "InsufficientBalance", args: { have: 400n, want: 401n } } });
   });
+
+  it("lesson 13 approves a spender, spends the allowance and reverts past it", () => {
+    const results = run(getSimulation(13)!, [
+      ["approve", { spender: "Bob", value: "300" }, alice],
+      ["allowance", { owner: "Alice", spender: "Bob" }, carol],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "100" }, bob],
+      ["allowance", { owner: "Alice", spender: "Bob" }, carol],
+      ["balance_of", { account: "Carol" }, carol],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "201" }, bob],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "1" }, carol],
+    ]);
+    expect(results[0]).toMatchObject({ ok: true, returns: true, events: [{ name: "Approval", args: { owner: alice.address, spender: bob.address, value: 300n } }] });
+    expect(results[1].returns).toBe(300n);
+    expect(results[2]).toMatchObject({ ok: true, returns: true, events: [{ name: "Transfer", args: { from: alice.address, to: carol.address, value: 100n } }] });
+    expect(results[3].returns).toBe(200n);
+    expect(results[4].returns).toBe(100n);
+    expect(results[5]).toMatchObject({ ok: false, error: { error: "InsufficientAllowance", args: { spender: bob.address, have: 200n, want: 201n } } });
+    expect(results[6]).toMatchObject({ ok: false, error: { error: "InsufficientAllowance", args: { spender: carol.address, have: 0n, want: 1n } } });
+  });
+
+  it("lesson 13 never lowers an unlimited allowance, and replaces an allowance on approve", () => {
+    const results = run(getSimulation(13)!, [
+      ["approve", { spender: "Bob", value: MAX.toString() }, alice],
+      ["transfer_from", { from: "Alice", to: "Bob", value: "250" }, bob],
+      ["allowance", { owner: "Alice", spender: "Bob" }, bob],
+      ["approve", { spender: "Bob", value: "5" }, alice],
+      ["allowance", { owner: "Alice", spender: "Bob" }, bob],
+    ]);
+    expect(results[1]).toMatchObject({ ok: true });
+    expect(results[2].returns).toBe(MAX);
+    expect(results[4].returns).toBe(5n);
+  });
+
+  it("lesson 13 keeps the allowance when the owner's balance is too low", () => {
+    const results = run(getSimulation(13)!, [
+      ["approve", { spender: "Alice", value: "50" }, bob],
+      ["transfer_from", { from: "Bob", to: "Alice", value: "10" }, alice],
+      ["allowance", { owner: "Bob", spender: "Alice" }, alice],
+    ]);
+    expect(results[1]).toMatchObject({ ok: false, error: { error: "InsufficientBalance", args: { from: bob.address, have: 0n, want: 10n } } });
+    expect(results[2].returns).toBe(50n);
+  });
 });
