@@ -1,4 +1,5 @@
 import { certificateSvg } from '@/lib/certificate/svg';
+import { chain } from '@/lib/chain';
 import { LESSONS } from '@/lib/curriculum/lessons';
 import { TiltCard } from './TiltCard';
 
@@ -23,7 +24,7 @@ export function CertificatePreview() {
           <div
             className='[&>svg]:h-auto [&>svg]:w-full'
             // certificateSvg escapes every lesson field it embeds.
-            dangerouslySetInnerHTML={{ __html: certificateSvg(lesson) }}
+            dangerouslySetInnerHTML={{ __html: certificateSvg(lesson, chain.name) }}
           />
         </TiltCard>
       </div>

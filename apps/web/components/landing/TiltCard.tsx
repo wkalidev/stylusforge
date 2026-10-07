@@ -1,7 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
-import { useMediaQuery, usePrefersReducedMotion } from '@/lib/hooks/useMediaQuery';
+import { usePointerTilt } from '@/lib/hooks/usePointerTilt';
 
 const MAX_TILT = 12; // degrees
 
@@ -10,37 +9,15 @@ const MAX_TILT = 12; // degrees
  * the light. Static (a fixed, gentle angle) with reduced motion or without a fine pointer.
  */
 export function TiltCard({ children, label }: { children: React.ReactNode; label: string }) {
-  const card = useRef<HTMLDivElement>(null);
-  const frame = useRef(0);
-  const reducedMotion = usePrefersReducedMotion();
-  const finePointer = useMediaQuery('(hover: hover) and (pointer: fine)');
-  const interactive = finePointer && !reducedMotion;
-
-  function setTilt(x: number, y: number) {
-    cancelAnimationFrame(frame.current);
-    frame.current = requestAnimationFrame(() => {
-      const element = card.current;
-      if (!element) return;
-      element.style.setProperty('--tilt-x', `${(-y * MAX_TILT).toFixed(2)}deg`);
-      element.style.setProperty('--tilt-y', `${(x * MAX_TILT).toFixed(2)}deg`);
-      element.style.setProperty('--glare-x', `${((x + 1) * 50).toFixed(1)}%`);
-      element.style.setProperty('--glare-y', `${((y + 1) * 50).toFixed(1)}%`);
-    });
-  }
-
-  function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    setTilt(((event.clientX - rect.left) / rect.width) * 2 - 1, ((event.clientY - rect.top) / rect.height) * 2 - 1);
-  }
+  const { ref, interactive, handlers } = usePointerTilt<HTMLDivElement>(MAX_TILT);
 
   return (
     <div className='[perspective:1100px]'>
       <div
-        ref={card}
+        ref={ref}
         role='img'
         aria-label={label}
-        onPointerMove={interactive ? onPointerMove : undefined}
-        onPointerLeave={interactive ? () => setTilt(0, 0) : undefined}
+        {...handlers}
         className={
           'relative rounded-[22px] transition-transform duration-300 ease-out [transform-style:preserve-3d] ' +
           (interactive

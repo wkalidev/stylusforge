@@ -37,7 +37,7 @@ apps/web/
 │  ├─ landing/                  landing sections: Hero, HowItWorks (TypingCode), CertificatePreview (TiltCard), FinalCta
 │  ├─ claim/ClaimCertificate.tsx claim panel of a passed lesson
 │  ├─ claim/UnclaimedPrompt.tsx bar listing passed lessons whose certificate is not claimed
-│  ├─ profile/ProfileView.tsx   rank, XP and certificates read on-chain
+│  ├─ profile/ProfileView.tsx   rank, XP and the certificate collection read on-chain
 │  ├─ layout/SiteHeader.tsx     shared header (logo, navigation, player controls slot)
 │  ├─ layout/SiteFooter.tsx     footer: copyright, links, network badge
 │  ├─ layout/HeaderControls.tsx XP meter, anvil sound toggle and wallet button in the header
@@ -67,7 +67,7 @@ apps/web/
 │  ├─ claim.ts                  EIP-712 voucher types and signing (shared)
 │  ├─ claimErrors.ts            claim errors in plain words
 │  ├─ claimFees.ts              claim fees with a margin over the base fee
-│  ├─ certificate/              token id parsing, ERC-1155 metadata, SVG certificate
+│  ├─ certificate/              zones, SVG certificate, metadata, collection, claim records
 │  ├─ explorer.ts               block explorer links (none on the local chain)
 │  ├─ site.ts                   footer facts: handles, links, first commit date
 │  ├─ server/claimSigner.ts     server-only: loads CLAIM_SIGNER_PRIVATE_KEY
@@ -248,18 +248,39 @@ Every answer carries `cache-control: no-store`. Requests over the rate limit get
 
 ## Profile and metadata
 
-`/profile` shows what is on-chain for the connected wallet: the claimed certificates (rendered with the certificate SVG) and the XP they carry (`getTotalXP`), with the rank that XP reaches and a bar filled against the next rank's threshold, like the header meter. The header XP meter stays local, so both ranks can differ until every passed lesson is claimed; a line under the on-chain rank says so.
+`/profile` shows what is on-chain for the connected wallet: the XP its certificates carry (`getTotalXP`), with the rank that XP reaches and a bar filled against the next rank's threshold, like the header meter. The header XP meter stays local, so both ranks can differ until every passed lesson is claimed; a line under the on-chain rank says so.
 
-Below the certificates, **Ready to claim** (`components/profile/UnclaimedLessons.tsx`) lists the lessons passed in this browser that are registered on-chain but not owned by the wallet. Each has the regular claim action (`ClaimCertificate`), sent with the code saved for the lesson (`stylusforge:code:v1:<id>`); the server re-validates it as usual. When the saved code is missing or no longer passes the checks, the row offers "Open lesson" instead. A successful claim refreshes the on-chain reads, so the lesson moves to the certificates.
+**Collection** (`components/profile/CertificateCollection.tsx`, laid out by `lib/certificate/collection.ts`) counts the claimed certificates against the available lessons ("6 / 11") and shows every lesson as a card.
+- **Layout:** cards are grouped under their module's forge zone, in curriculum order: 4 per row on wide screens, 3 from 1024 px, 2 from 640 px, 1 below.
+- **Claimed:** a `CertificateCard` with the certificate SVG on its front.
+  - With a fine pointer and motion allowed, it tilts towards the pointer and a metallic sheen follows it on hover.
+  - A click, Enter or Space turns it over. The back shows the claim date, the claim transaction on Arbiscan, a button that copies that link, and the lesson; Escape or Flip back turns it back.
+  - The contract stores no date, so `useClaimRecords` reads the wallet's `LessonCompleted` events (`lib/certificate/claimScan.ts`).
+    - **Chunks:** newest first, at most 50,000 blocks per call, halved when the RPC refuses a range.
+    - **Early stop:** it stops as soon as every certificate the contract lists is found.
+    - **Cache:** the claims and the block up to which all of them are known are kept in localStorage (`stylusforge:claims:v1:<chain>:<contract>:<wallet>`), so a later visit only reads newer blocks, or nothing.
+    - **Fallback:** without a record, the card links the token page and says the date is unavailable.
+  - The hidden face is inert and focus follows the visible one. With `prefers-reduced-motion` there is no tilt, and the flip is a crossfade.
+- **Not claimed:** dimmed and locked; "Ready to claim" when passed in this browser; "Coming soon" for unavailable lessons.
+
+Below the collection, **Ready to claim** (`components/profile/UnclaimedLessons.tsx`) lists the lessons passed in this browser that are registered on-chain but not owned by the wallet. Each has the regular claim action (`ClaimCertificate`), sent with the code saved for the lesson (`stylusforge:code:v1:<id>`); the server re-validates it as usual. When the saved code is missing or no longer passes the checks, the row offers "Open lesson" instead. A successful claim refreshes the on-chain reads, so the lesson's card becomes its certificate.
 
 The contract's metadata URI is `<app origin>/api/metadata/{id}` (`pnpm deploy:local` sets `http://localhost:3000/api/metadata/{id}`):
 
 | Route | Returns |
 |---|---|
-| `GET /api/metadata/[id]` | ERC-1155 JSON: `name`, `description`, `image`, `external_url`, `attributes` (lesson, XP, difficulty, transferable) |
-| `GET /api/metadata/[id]/image` | The SVG certificate (`image/svg+xml`) |
+| `GET /api/metadata/[id]` | ERC-1155 JSON: `name`, `description`, `image`, `external_url`, `attributes` (lesson, XP, difficulty, module, zone, transferable) |
+| `GET /api/metadata/[id]/image` | The SVG certificate (`image/svg+xml`), 1000×1000 |
 
-`[id]` is the decimal id or the 64-hex-digit form clients substitute for `{id}`. Unknown and unavailable lessons return 404. Both responses are cacheable for an hour. The SVG is standalone (no external resources) so wallets and marketplaces can display it.
+`[id]` is the decimal id or the 64-hex-digit form clients substitute for `{id}`. Unknown and unavailable lessons return 404. Both responses are cacheable for an hour.
+
+The SVG certificate (`lib/certificate/svg.ts`) takes the look of its module's forge zone: accent, plate gradient, background motif and badge glyph, all defined in `lib/certificate/zones.ts`.
+- **Content:** the zone badge; "Certificate of completion" over the lesson title, in the largest type; the module; three plates (lesson number, difficulty as one to three pips, XP); the soul-bound line naming the configured chain.
+- **Standalone:** no scripts, external fonts or images, every lesson field escaped, so wallets and marketplaces can display it.
+- **Fonts:** viewers see their own fallback fonts, so each line's width is estimated for a wide font and an overflowing line is squeezed to fit.
+- **Ids:** gradient ids carry the lesson id, so several certificates can be inlined in one page.
+
+Wallets and marketplaces cache images: after a design change they may show the old one until they refresh the token's metadata.
 
 ## Lesson feedback
 

@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useAccount, useReadContracts } from 'wagmi';
 import { buttonClasses } from '@/components/ui/button';
-import { certificateSvg } from '@/lib/certificate/svg';
 import { chain } from '@/lib/chain';
 import { nftContractAddress, stylusForgeNftAbi } from '@/lib/contract';
 import { LESSONS } from '@/lib/curriculum/lessons';
 import { useCompletedLessons } from '@/lib/progress/progress';
 import { rankProgress } from '@/lib/progress/ranks';
+import { useClaimRecords } from '@/lib/useClaimRecords';
+import { CertificateCollection } from './CertificateCollection';
 import { UnclaimedLessons } from './UnclaimedLessons';
 
 function Notice({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,9 @@ export function ProfileView() {
     allowFailure: false,
     query: { enabled: Boolean(address && nftContractAddress) },
   });
+  const completed = reads.data?.[1] as readonly [readonly bigint[], readonly boolean[]] | undefined;
+  const claimedIds = completed ? new Set(completed[0].filter((_, index) => completed[1][index]).map(Number)) : undefined;
+  const records = useClaimRecords(address, claimedIds);
 
   if (!nftContractAddress) {
     return <Notice>Certificates are not available here: no contract address is configured.</Notice>;
@@ -53,13 +57,11 @@ export function ProfileView() {
       </Notice>
     );
   }
-  if (!reads.data) {
+  if (!reads.data || !claimedIds) {
     return <p className='text-steel-400'>Reading your certificates on {chain.name}…</p>;
   }
 
-  const [totalXp, [registeredIds, done]] = reads.data as [bigint, readonly [readonly bigint[], readonly boolean[]]];
-  const claimedIds = new Set(registeredIds.filter((_, index) => done[index]).map(Number));
-  const certificates = LESSONS.filter((lesson) => claimedIds.has(lesson.id));
+  const [totalXp, [registeredIds]] = reads.data as [bigint, readonly [readonly bigint[], readonly boolean[]]];
   // Passed in this browser, registered on-chain, not owned yet: ready to claim.
   const registered = new Set(registeredIds.map(Number));
   const unclaimed = LESSONS.filter(
@@ -96,39 +98,27 @@ export function ProfileView() {
         </p>
       </section>
 
-      <section aria-labelledby='certificates-heading'>
-        <h2 id='certificates-heading' className='mb-6 font-display text-3xl font-bold'>
-          Certificates <span className='text-steel-400'>{certificates.length}</span>
-        </h2>
-        {certificates.length === 0 ? (
-          <Notice>
-            {unclaimed.length > 0 ? (
-              <p>No certificates yet. Claim the lessons you passed, listed below, to see them here.</p>
-            ) : (
-              <>
-                <p>No certificates yet. Pass a lesson, then claim its certificate to see it here.</p>
-                <Link href='/learn' className={buttonClasses('heat', 'md')}>
-                  Go to the lessons
-                </Link>
-              </>
-            )}
-          </Notice>
-        ) : (
-          <ul className='grid gap-6 md:grid-cols-2'>
-            {certificates.map((lesson) => (
-              <li key={lesson.id}>
-                <Link href={`/learn/${lesson.slug}`} aria-label={`${lesson.title} certificate`} className='block rounded-[22px]'>
-                  <div
-                    className='[&>svg]:h-auto [&>svg]:w-full'
-                    // certificateSvg escapes every lesson field it embeds.
-                    dangerouslySetInnerHTML={{ __html: certificateSvg(lesson) }}
-                  />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {claimedIds.size === 0 && (
+        <Notice>
+          {unclaimed.length > 0 ? (
+            <p>No certificates yet. Claim the lessons you passed, listed below, to see them in your collection.</p>
+          ) : (
+            <>
+              <p>No certificates yet. Pass a lesson, then claim its certificate to see it in your collection.</p>
+              <Link href='/learn' className={buttonClasses('heat', 'md')}>
+                Go to the lessons
+              </Link>
+            </>
+          )}
+        </Notice>
+      )}
+
+      <CertificateCollection
+        claimed={claimedIds}
+        ready={new Set(unclaimed.map((lesson) => lesson.id))}
+        records={records}
+        network={chain.name}
+      />
 
       {unclaimed.length > 0 && <UnclaimedLessons lessons={unclaimed} />}
     </div>
