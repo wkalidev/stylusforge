@@ -40,6 +40,20 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
       'Exposes the methods of this `impl` block in the contract ABI. Rust `snake_case` names are exported in Solidity `camelCase`.',
   },
   {
+    id: 'storage',
+    pattern: /#\[storage\]/,
+    title: '#[storage]',
+    description:
+      'Declares storage as a Rust struct whose fields are storage types: `StorageU256`, `StorageMap`, or components such as the `Erc20` of OpenZeppelin. `sol_storage!` declares the same with Solidity syntax.',
+  },
+  {
+    id: 'implements',
+    pattern: /#\[implements\(/,
+    title: '#[implements(...)]',
+    description:
+      'Lists the traits, such as `IErc20`, whose `#[public]` impl blocks the contract exports. Calls are only routed to the traits listed here.',
+  },
+  {
     id: 'constructor',
     pattern: /#\[constructor\]/,
     title: '#[constructor]',

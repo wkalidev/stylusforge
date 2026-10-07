@@ -56,6 +56,13 @@ describe("glossaryAt", () => {
     expect(idAt("fn is_zero() {}", 4)).toBeNull();
   });
 
+  it("explains #[storage] and #[implements(...)]", () => {
+    expect(glossaryAt("#[storage]", 3)).toMatchObject({ entry: { id: "storage" }, startColumn: 1, endColumn: 11 });
+    const routes = "#[implements(IErc20<Error = erc20::Error>, IErc20Metadata, IErc165)]";
+    expect(glossaryAt(routes, 4)).toMatchObject({ entry: { id: "implements" }, startColumn: 1, endColumn: 14 });
+    expect(idAt("    erc20: Erc20,", 7)).toBeNull();
+  });
+
   it("tells sol! apart from sol_storage!", () => {
     expect(idAt("sol! {", 2)).toBe("sol");
     expect(idAt("sol_storage! {", 2)).toBe("sol_storage");
