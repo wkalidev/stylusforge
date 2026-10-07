@@ -557,4 +557,55 @@ describe("lesson simulations", () => {
     expect(call("set_answer", { answer: "1" }, bob, 3)).toMatchObject({ ok: false, error: { error: "NotOwner", args: { caller: bob.address } } });
     expect(state).toMatchObject({ round_id: 2n, answer: -5n });
   });
+  it("lesson 5 pulls approved tokens into the vault and pays them back", () => {
+    const results = run(getSimulation(5)!, [
+      ["deposit", { amount: "100" }, alice],
+      ["approve", { spender: "TokenVault", value: "300" }, alice],
+      ["deposit", { amount: "100" }, alice],
+      ["deposit_of", { account: "Alice" }, bob],
+      ["balance_of", { account: "TokenVault" }, bob],
+      ["allowance", { owner: "Alice", spender: "TokenVault" }, bob],
+      ["withdraw", { amount: "101" }, alice],
+      ["withdraw", { amount: "40" }, alice],
+      ["balance_of", { account: "Alice" }, bob],
+      ["deposit_of", { account: "Alice" }, bob],
+    ]);
+    // Without an approval, the token refuses, and the vault reverts with its error.
+    expect(results[0]).toMatchObject({ ok: false, error: { error: "ERC20InsufficientAllowance", args: { spender: SIM_CONTRACT_ADDRESS, allowance: 0n, needed: 100n } } });
+    expect(results[2]).toMatchObject({
+      ok: true,
+      events: [
+        { name: "Transfer", contract: "Token", args: { from: alice.address, to: SIM_CONTRACT_ADDRESS, value: 100n } },
+        { name: "Deposited", args: { account: alice.address, amount: 100n } },
+      ],
+    });
+    expect(results[3].returns).toBe(100n);
+    expect(results[4].returns).toBe(100n);
+    expect(results[5].returns).toBe(200n);
+    expect(results[6]).toMatchObject({ ok: false, error: { error: "InsufficientDeposit", args: { available: 100n, requested: 101n } } });
+    expect(results[7]).toMatchObject({ ok: true, events: [{ name: "Transfer", contract: "Token" }, { name: "Withdrawn", args: { amount: 40n } }] });
+    expect(results[8].returns).toBe(940n);
+    expect(results[9].returns).toBe(60n);
+  });
+
+  it("lesson 5 reverts with TransferFailed, and undoes every write, when the token returns false", () => {
+    const simulation = getSimulation(5)!;
+    let state = simulation.initialState();
+    const call = (fn: string, args: Record<string, string>) => {
+      const result = callSimulation(simulation, state, fn, args, alice);
+      state = result.state;
+      return result;
+    };
+    call("approve", { spender: "TokenVault", value: "100" });
+    call("deposit", { amount: "50" });
+    call("set_returns_false", { enabled: "1" });
+    const before = state;
+    expect(call("deposit", { amount: "10" })).toMatchObject({ ok: false, error: { error: "TransferFailed", args: { token: TOKEN_ADDRESS } } });
+    // The lowered deposit of a failed withdrawal is undone with the rest of the call.
+    expect(call("withdraw", { amount: "10" })).toMatchObject({ ok: false, error: { error: "TransferFailed" } });
+    expect(state).toBe(before);
+    expect(readMapping(state, "deposits", alice.address)).toBe(50n);
+    call("set_returns_false", { enabled: "0" });
+    expect(call("withdraw", { amount: "10" }).ok).toBe(true);
+  });
 });

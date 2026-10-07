@@ -154,3 +154,67 @@ describe("lesson 17: Being called (export-abi)", () => {
     expect(variant(17, time, "").objectives).toEqual(["Record when the answer was published"]);
   });
 });
+
+describe("lesson 5: DeFi Interaction", () => {
+  const pull = "let ok = token.transfer_from(self.vm(), config, account, vault, amount)?;\n        if !ok {";
+  const pullBlock =
+    "let token = IERC20::new(self.token.get());\n        let config = Call::new_mutating(self);\n        let ok = token.transfer_from(self.vm(), config, account, vault, amount)?;";
+  const credit = "let total = self.deposits.get(account) + amount;\n        self.deposits.insert(account, total);";
+  const send =
+    "self.deposits.insert(account, available - amount);\n        let token = IERC20::new(self.token.get());\n        let config = Call::new_mutating(self);\n        let ok = token.transfer(self.vm(), config, account, amount)?;";
+  const failed = "return Err(VaultError::TransferFailed(TransferFailed { token: self.token.get() }).into());";
+
+  it("accepts the token built inline, the vault address inline and the bool tested inline", () => {
+    const inline =
+      "let config = Call::new_mutating(self);\n        if !IERC20::new(self.token.get()).transfer_from(self.vm(), config, account, self.vm().contract_address(), amount)? {";
+    expect(variant(5, `${pullBlock}\n        if !ok {`, inline).passed).toBe(true);
+  });
+
+  it("accepts the bool compared with false, and the error built in a local first", () => {
+    expect(variant(5, pull, "let ok = token.transfer_from(self.vm(), config, account, vault, amount)?;\n        if ok == false {").passed).toBe(true);
+    expect(variant(5, failed, "let error = TransferFailed { token: self.token.get() };\n            return Err(VaultError::TransferFailed(error).into());").passed).toBe(true);
+  });
+
+  it("accepts the credit in either order, from a local, with setter", () => {
+    expect(variant(5, credit, "let total = amount + self.deposits.get(account);\n        self.deposits.setter(account).set(total);").passed).toBe(true);
+    expect(variant(5, credit, "self.deposits.insert(account, self.deposits.get(account) + amount);").passed).toBe(true);
+  });
+
+  it("accepts the token and the configuration prepared before the deposit is lowered", () => {
+    const prepared =
+      "let token = IERC20::new(self.token.get());\n        let config = Call::new_mutating(self);\n        let left = available - amount;\n        self.deposits.setter(account).set(left);\n        let ok = token.transfer(self.vm(), config, account, amount)?;";
+    expect(variant(5, send, prepared).passed).toBe(true);
+  });
+
+  it("refuses a writing configuration built inline next to self.vm(), which does not compile", () => {
+    const inline = "let token = IERC20::new(self.token.get());\n        let ok = token.transfer_from(self.vm(), Call::new_mutating(self), account, vault, amount)?;";
+    expect(variant(5, pullBlock, inline).objectives).toEqual([
+      "Pull the deposit from the caller to the vault",
+      "Refuse a deposit when the token reports a failed transfer",
+    ]);
+  });
+
+  it("refuses a deposit that ignores the bool of transfer_from, or never pulls the tokens", () => {
+    expect(variant(5, `${pull}\n            ${failed}\n        }`, "token.transfer_from(self.vm(), config, account, vault, amount)?;").objectives).toEqual([
+      "Refuse a deposit when the token reports a failed transfer",
+    ]);
+    expect(variant(5, pullBlock, "let ok = true;").objectives).toEqual([
+      "Pull the deposit from the caller to the vault",
+      "Refuse a deposit when the token reports a failed transfer",
+    ]);
+  });
+
+  it("refuses a withdrawal that sends the tokens before lowering the deposit", () => {
+    const checked = `${send}\n        if !ok {\n            ${failed}\n        }`;
+    const late = `let token = IERC20::new(self.token.get());\n        let config = Call::new_mutating(self);\n        let ok = token.transfer(self.vm(), config, account, amount)?;\n        if !ok {\n            ${failed}\n        }\n        self.deposits.insert(account, available - amount);`;
+    expect(variant(5, checked, late).objectives).toEqual(["Lower the deposit before sending any token"]);
+  });
+
+  it("refuses a withdrawal that never lowers the deposit, or sends the tokens to the vault", () => {
+    expect(variant(5, "self.deposits.insert(account, available - amount);\n", "").objectives).toEqual(["Lower the deposit before sending any token"]);
+    expect(variant(5, "token.transfer(self.vm(), config, account, amount)?", "token.transfer(self.vm(), config, self.vm().contract_address(), amount)?").objectives).toEqual([
+      "Lower the deposit before sending any token",
+      "Refuse a withdrawal when the token reports a failed transfer",
+    ]);
+  });
+});
