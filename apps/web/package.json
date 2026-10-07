@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "export:rust": "tsx --conditions=react-server scripts/export-rust.ts"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -35,6 +36,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "16.3.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.3"
   },
