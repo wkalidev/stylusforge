@@ -49,3 +49,43 @@ jobs:
 
       - name: Build web app
         run: pnpm build
+
+  rust-lessons:
+    name: Rust lesson checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The exporter reads the lessons from the web app; the contracts are not needed.
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter web
+
+      # curriculum/rust/rust-toolchain.toml pins the toolchain of both check crates.
+      - name: Install the Rust toolchain
+        working-directory: curriculum/rust
+        run: rustup toolchain install
+
+      # Caches the cargo registry and both target directories, keyed on the lockfiles and rustc.
+      # Only main saves, so pull requests reuse its cache instead of each storing their own.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            curriculum/rust/stylus
+            curriculum/rust/openzeppelin
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Export lesson Rust
+        run: pnpm --filter web export:rust "$RUNNER_TEMP/lesson-rust"
+
+      - name: cargo check lesson Rust
+        run: curriculum/rust/check.sh "$RUNNER_TEMP/lesson-rust"
