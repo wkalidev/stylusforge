@@ -3348,6 +3348,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  16: {
+    slug: 'calling-solidity',
+    difficulty: 'Intermediate',
+    preview: 'A price consumer that reads a Chainlink-style feed with typed static calls.',
+    minutes: 25,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
