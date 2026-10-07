@@ -3887,6 +3887,37 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn set_answer(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Selectors",
+          question: "A Solidity contract calls latestRoundData() on a Stylus contract whose method is latest_round, without a selector attribute. What happens?",
+          options: [
+            "Stylus matches the closest name and runs latest_round",
+            "The call reverts: no method has the selector of latestRoundData()",
+            "The call returns empty data without reverting",
+          ],
+          answer: 1,
+          explanation: "latest_round is exported as latestRound(), whose selector differs. Without a fallback, an unknown selector reverts with no error data.",
+        },
+        {
+          afterStep: "Types",
+          question: "Which Rust return type gives a Solidity uint8 in the ABI that export-abi prints?",
+          options: ["u8", "U256", "u128"],
+          answer: 0,
+          explanation: "A u8 is exported as uint8 (so is U8 from alloy_primitives::aliases). A U256 would export as uint256 and a u128 as uint128, and no longer match the interface that callers expect.",
+        },
+        {
+          afterStep: "Reading and writing",
+          question: "Why keep &self on latest_round_data, which only reads?",
+          options: [
+            "A &mut self method cannot read storage",
+            "It saves the gas of the storage cache",
+            "It makes the method view in the ABI, which matches the interface and lets Solidity call it with STATICCALL",
+          ],
+          answer: 2,
+          explanation: "The receiver sets the state mutability. Solidity calls view functions with STATICCALL, so the ABI should say view for a method that only reads.",
+        },
+      ],
     },
   },
 };
