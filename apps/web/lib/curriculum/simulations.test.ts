@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { LESSONS } from "./lessons";
-import { SIM_START_TIME, UINT256_MAX, callSimulation, functionSelector, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
-import { PRICE_FEED_ADDRESS, SIM_ACCOUNTS, ZERO_ADDRESS, getSimulation } from "./simulations";
+import { SIM_CONTRACT_ADDRESS, SIM_START_TIME, UINT256_MAX, callSimulation, functionSelector, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
+import { PRICE_FEED_ADDRESS, SIM_ACCOUNTS, TOKEN_ADDRESS, ZERO_ADDRESS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
 const [alice, bob, carol] = SIM_ACCOUNTS;
@@ -56,6 +56,23 @@ const OVERFLOW_CASES: Record<
     call: ["price", {}, alice],
     with: { timestamp: SIM_START_TIME },
     expected: { feed: PRICE_FEED_ADDRESS, max_age: MAX, PriceFeed: { decimals: 8n, round_id: 1n, answer: 5n, updated_at: SIM_START_TIME + 1n } },
+  },
+  5: {
+    state: {
+      token: TOKEN_ADDRESS,
+      deposits: { [alice.address]: MAX },
+      Token: { balances: { [alice.address]: 1n }, allowances: { [alice.address]: { [SIM_CONTRACT_ADDRESS]: 1n } }, returns_false: 0n },
+    },
+    call: ["deposit", { amount: "1" }, alice],
+    expected: {
+      token: TOKEN_ADDRESS,
+      deposits: { [alice.address]: 0n },
+      Token: {
+        balances: { [alice.address]: 0n, [SIM_CONTRACT_ADDRESS]: 1n },
+        allowances: { [alice.address]: { [SIM_CONTRACT_ADDRESS]: 0n } },
+        returns_false: 0n,
+      },
+    },
   },
   // The round id is a U80: + 1 wraps around at 2^80.
   17: {

@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { LESSONS } from "@/lib/curriculum/lessons";
 import { SOLUTIONS } from "@/lib/curriculum/solutions";
 import { POST } from "./route";
+import { UNAVAILABLE_LESSON } from "@/test/unavailableLesson";
+
+vi.mock("@/lib/curriculum/lessons", async (importOriginal) =>
+  (await import("@/test/unavailableLesson")).withUnavailableLesson(importOriginal),
+);
 
 function post(body: unknown) {
   return POST(
@@ -46,7 +51,7 @@ describe("POST /api/solution", () => {
     ["a non-integer lesson id", { lessonId: "1", code: "" }, 400],
     ["oversized code", { lessonId: 1, code: "x".repeat(50_001) }, 400],
     ["an unknown lesson", { lessonId: 99, code: "" }, 404],
-    ["an unavailable lesson", { lessonId: 5, code: "" }, 404],
+    ["an unavailable lesson", { lessonId: UNAVAILABLE_LESSON, code: "" }, 404],
   ])("rejects %s", async (_label, body, status) => {
     expect((await post(body)).status).toBe(status);
   });

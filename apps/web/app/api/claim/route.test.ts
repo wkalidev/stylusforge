@@ -6,6 +6,11 @@ import { CLAIM_TYPES, claimDomain } from "@/lib/claim";
 import { LESSONS } from "@/lib/curriculum/lessons";
 import { SOLUTIONS } from "@/lib/curriculum/solutions";
 import { POST } from "./route";
+import { UNAVAILABLE_LESSON } from "@/test/unavailableLesson";
+
+vi.mock("@/lib/curriculum/lessons", async (importOriginal) =>
+  (await import("@/test/unavailableLesson")).withUnavailableLesson(importOriginal),
+);
 
 const CONTRACT = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 const STUDENT = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
@@ -85,7 +90,7 @@ describe("POST /api/claim", () => {
     ["a non-integer lesson id", { address: STUDENT, lessonId: "1", code: "" }, 400],
     ["oversized code", { address: STUDENT, lessonId: 1, code: "x".repeat(50_001) }, 400],
     ["an unknown lesson", { address: STUDENT, lessonId: 99, code: "" }, 404],
-    ["an unavailable lesson", { address: STUDENT, lessonId: 5, code: "" }, 404],
+    ["an unavailable lesson", { address: STUDENT, lessonId: UNAVAILABLE_LESSON, code: "" }, 404],
   ])("rejects %s", async (_label, body, status) => {
     const response = await POST(post(body));
     expect(response.status).toBe(status);
