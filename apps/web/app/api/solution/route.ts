@@ -2,8 +2,12 @@ import { LESSONS } from '@/lib/curriculum/lessons';
 import type { SolutionResponse } from '@/lib/curriculum/reference';
 import { SOLUTIONS } from '@/lib/curriculum/solutions';
 import { validateCode } from '@/lib/curriculum/validate';
+import { readJsonBody } from '@/lib/server/jsonBody';
 
 const MAX_CODE_LENGTH = 50_000;
+
+/** Body size limit, checked before parsing; as for /api/claim, room for the longest code as JSON. */
+const MAX_BODY_BYTES = 4 * MAX_CODE_LENGTH;
 
 function error(status: number, message: string, objectives?: string[]) {
   return Response.json({ error: message, ...(objectives ? { objectives } : {}) }, { status, headers: { 'cache-control': 'no-store' } });
@@ -15,13 +19,13 @@ function error(status: number, message: string, objectives?: string[]) {
  * lesson checks, run again here.
  */
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return error(400, 'The request body must be JSON: { lessonId, code }.');
+  const body = await readJsonBody(request, MAX_BODY_BYTES);
+  if (!body.ok) {
+    return body.reason === 'too-large'
+      ? error(413, 'The request body is too large.')
+      : error(400, 'The request body must be JSON: { lessonId, code }.');
   }
-  const { lessonId, code } = (body ?? {}) as Record<string, unknown>;
+  const { lessonId, code } = (body.value ?? {}) as Record<string, unknown>;
   if (typeof lessonId !== 'number' || !Number.isSafeInteger(lessonId)) {
     return error(400, 'lessonId must be an integer.');
   }
