@@ -63,6 +63,15 @@ describe("parseArgument", () => {
     expect(() => parseArgument("address", "0x123", [])).toThrow(/address/);
   });
 
+  it("parses int256 values within range, negative ones included", () => {
+    expect(parseArgument("int256", " -42 ", [])).toBe(-42n);
+    expect(parseArgument("int256", (2n ** 255n - 1n).toString(), [])).toBe(2n ** 255n - 1n);
+    expect(parseArgument("int256", (-(2n ** 255n)).toString(), [])).toBe(-(2n ** 255n));
+    expect(() => parseArgument("int256", (2n ** 255n).toString(), [])).toThrow(/int256/);
+    expect(() => parseArgument("int256", "1.5", [])).toThrow(/integer/);
+    expect(formatSimValue(-1234n, [])).toBe("-1,234");
+  });
+
   it("parses bytes4 values as lowercase hex", () => {
     expect(parseArgument("bytes4", " 0x36372B07 ", [])).toBe("0x36372b07");
     expect(() => parseArgument("bytes4", "0x3637", [])).toThrow(/bytes4/);

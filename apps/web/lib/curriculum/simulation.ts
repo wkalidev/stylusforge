@@ -3,8 +3,11 @@
  * pass. They show what the contract does; they never execute the student's Rust.
  */
 
-/** Argument types; a `bytes4` (such as an ERC-165 interface id) is kept as lowercase hex. */
-export type SimType = 'uint256' | 'address' | 'string' | 'bytes4';
+/**
+ * Argument types; a `bytes4` (such as an ERC-165 interface id) is kept as lowercase hex, an `int256`
+ * is a bigint that may be negative.
+ */
+export type SimType = 'uint256' | 'int256' | 'address' | 'string' | 'bytes4';
 export type SimValue = bigint | string;
 
 /**
@@ -101,8 +104,8 @@ export interface SimFunction {
   /** `#[payable]`: accepts ETH. A call sending ETH to any other function reverts. */
   payable?: boolean;
   params: { name: string; type: SimType }[];
-  /** Return type, as shown in the panel; an array for a tuple, such as `(string, bool)`. A `uint8` is returned as a bigint. */
-  returns?: SimType | 'bool' | 'uint8' | (SimType | 'bool')[];
+  /** Return type, as shown in the panel; an array for a tuple, such as `(string, bool)`. A `uint8` or `uint80` is returned as a bigint. */
+  returns?: SimType | 'bool' | 'uint8' | (SimType | 'bool' | 'uint80')[];
   /** The mock contract the function belongs to; absent for the lesson's contract. */
   contract?: string;
   /**
@@ -147,6 +150,8 @@ export function writeMockState(state: SimState, mock: string, fields: SimState):
 }
 
 export const UINT256_MAX = (1n << 256n) - 1n;
+export const INT256_MIN = -(1n << 255n);
+export const INT256_MAX = (1n << 255n) - 1n;
 
 export class SimArgumentError extends Error {}
 
@@ -158,6 +163,12 @@ export function parseArgument(type: SimType, raw: string, accounts: SimAccount[]
     if (!/^\d+$/.test(text)) throw new SimArgumentError(`"${raw}" is not an unsigned integer`);
     const value = BigInt(text);
     if (value > UINT256_MAX) throw new SimArgumentError(`${text} does not fit in a uint256`);
+    return value;
+  }
+  if (type === 'int256') {
+    if (!/^-?\d+$/.test(text)) throw new SimArgumentError(`"${raw}" is not an integer`);
+    const value = BigInt(text);
+    if (value < INT256_MIN || value > INT256_MAX) throw new SimArgumentError(`${text} does not fit in an int256`);
     return value;
   }
   if (type === 'bytes4') {
