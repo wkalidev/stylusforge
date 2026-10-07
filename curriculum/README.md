@@ -81,9 +81,9 @@ Each available lesson also has a reference solution in `apps/web/lib/curriculum/
 
 Content targets the current `stylus-sdk` (0.10): `sol_storage!` with Solidity field syntax, `#[entrypoint]` and `#[public]`, events emitted with `self.vm().log(...)`, errors declared in `sol!` and wrapped in an enum deriving `SolidityError`, and `self.vm().msg_sender()` for the caller. Module 2 adds the message and block context (`tx_origin`, `block_timestamp`, `block_number`, `msg_value`, `contract_address`, `balance`), `#[constructor]`, `#[payable]`, `transfer_eth` from `stylus_sdk::call::transfer`, and pure methods (no `self`). Module 3 adds nested mapping handles (`getter(owner).get(spender)`, `setter(owner).insert(spender, value)`), `uint256` mapping keys, `Address::ZERO` and `is_zero()`, and `U256::MAX`. Storage collections use the `StorageMap` and `StorageVec` accessors: `get`, `insert`, `setter(key).set`, `delete` on mappings; `len`, `push`, `get`, `getter`, `setter`, `pop` and `grow` on vectors.
 
-Reference solutions and the code in explanations are compiled with `cargo check` against the latest `stylus-sdk` before a lesson is published (0.10.10 for modules 1 to 3, lesson 15 excepted), in a crate that also depends on `alloy-primitives` and `alloy-sol-types`, as Stylus projects do. From module 2 on, starters compile too, and the ABI exported with `export-abi` gives the `abiName` of each simulated function.
+Reference solutions, starters and the code in explanations compile with `cargo check` against the latest `stylus-sdk` (0.10.10 for modules 1 to 3, lesson 15 excepted), in a crate that also depends on `alloy-primitives` and `alloy-sol-types`, as Stylus projects do. CI checks it on every pull request (see [Checking the lesson Rust](#checking-the-lesson-rust)). From module 2 on, the ABI exported with `export-abi` gives the `abiName` of each simulated function.
 
-Lesson 15 is the exception: `openzeppelin-stylus` 0.3.0, its latest release, pins `stylus-sdk =0.9.0` and `alloy-primitives`/`alloy-sol-types` `=0.8.20`, which cannot share a crate with stylus-sdk 0.10.10. It is checked in a separate crate with those four exact versions and `ruint` held at 1.14.0, the version in the lockfile of openzeppelin-stylus 0.3.0 (later `ruint` releases fail to build stylus-sdk 0.9.0). Check it with `--features export-abi` or for `wasm32-unknown-unknown`: on the host without `export-abi`, openzeppelin-stylus 0.3.0 expects the stylus-sdk test VM and does not compile. The 0.10.10 crate of the other lessons is unaffected. Its `export-abi` leaves out the methods of `#[implements]` traits, so the `abiName`s of lesson 15 follow the snake_case to camelCase rule of `#[public]`. Moving lesson 15 to stylus-sdk 0.10 is tracked in [#123](https://github.com/wkalidev/stylusforge/issues/123).
+Lesson 15 is the exception: `openzeppelin-stylus` 0.3.0, its latest release, pins `stylus-sdk =0.9.0` and `alloy-primitives`/`alloy-sol-types` `=0.8.20`, which cannot share a crate with stylus-sdk 0.10.10. It is checked in a separate crate (`curriculum/rust/openzeppelin`) with those four exact versions and `ruint` held at 1.14.0, the version in the lockfile of openzeppelin-stylus 0.3.0 (later `ruint` releases fail to build stylus-sdk 0.9.0). Check it with `--features export-abi` or for `wasm32-unknown-unknown`: on the host without `export-abi`, openzeppelin-stylus 0.3.0 expects the stylus-sdk test VM and does not compile. The 0.10.10 crate of the other lessons is unaffected. Its `export-abi` leaves out the methods of `#[implements]` traits, so the `abiName`s of lesson 15 follow the snake_case to camelCase rule of `#[public]`. Moving lesson 15 to stylus-sdk 0.10 is tracked in [#123](https://github.com/wkalidev/stylusforge/issues/123).
 
 ### Module 1: Foundations
 
@@ -117,6 +117,31 @@ Lesson 3 comes before lesson 10 because it teaches the custom errors that access
 | 15 OpenZeppelin for Stylus | `ForgeToken` | `openzeppelin-stylus` 0.3.0 on stylus-sdk 0.9.0: `#[storage]` components, `#[implements]` routing, forwarding trait impls, a constructor calling `Erc20Metadata::constructor` and `_mint`, ERC-165, and the API differences a student meets in 0.9 (`log(self.vm(), event)`, `self.vm().transfer_eth`, `export-abi`) |
 
 Lesson 13 continues the token of lesson 4: its starter moves tokens with a `move_tokens` helper in a plain `impl` block, shared by `transfer` and `transfer_from`. Lesson 14 leaves out operators and safe transfers, which call the receiver: calls between contracts are module 4.
+
+### Checking the lesson Rust
+
+The **Rust lesson checks** job of CI compiles the Rust of every available lesson: its reference solution, its starter code and its explanation snippets.
+
+| Path | Role |
+|---|---|
+| `curriculum/rust/stylus` | Check crate for every lesson but 15: `stylus-sdk =0.10.10`, alloy 1.7.3 |
+| `curriculum/rust/openzeppelin` | Check crate for lesson 15: `openzeppelin-stylus =0.3.0`, `stylus-sdk =0.9.0`, alloy 0.8.20, checked with `--features export-abi` |
+| `curriculum/rust/rust-toolchain.toml` | The Rust toolchain of both crates |
+| `curriculum/rust/snippets/lesson-<id>.rs` | A compiled harness per lesson holding the code of its explanation |
+| `apps/web/scripts/export-rust.ts` | Writes each lesson's solution, starter and harness, sorted by crate |
+| `curriculum/rust/check.sh` | Copies each written file to its crate's `src/lib.rs` and runs `cargo check --locked` |
+
+Both crates commit their `Cargo.lock`, so CI resolves the exact versions checked here (the `ruint` 1.14.0 pin lives in the lockfile of the openzeppelin crate). `apps/web/lib/curriculum/rust.ts` maps each lesson to its crate; lesson 15 moves to the stylus crate with #123.
+
+Explanation snippets are fragments (a field, a few statements, an `impl` shortened with `// ...`), so they compile inside the lesson's harness: a contract that holds every line of every ```` ```rust ```` block of the explanation, in order, with whatever it needs around them. A unit test in `lessons.test.ts` fails when a block of an explanation is missing from its harness, so edit the harness with the explanation. Warnings are allowed (starters have unused parameters); an error fails the job, which lists the failing files.
+
+To run it locally from the repository root, with rustup installed (`rustup toolchain install` in `curriculum/rust` installs the pinned toolchain):
+
+```sh
+out="$(mktemp -d)"
+pnpm --filter web export:rust "$out"
+bash curriculum/rust/check.sh "$out"
+```
 
 ## Simulations
 
