@@ -7,6 +7,7 @@ import { useMediaQuery } from '@/lib/hooks/useMediaQuery';
 import { EditorLoading } from './EditorLoading';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 import { registerGlossaryHover } from './glossaryHover';
+import { nameImeTextAreas } from './nameImeTextAreas';
 
 // Self-hosted Monaco (see monaco.ts), on the client only: it needs the DOM as soon as it loads.
 const DiffEditor = dynamic(() => import('./monaco').then((module) => module.DiffEditor), {
@@ -30,6 +31,7 @@ export function CompareView({ code, solution }: { code: string; solution: string
   const modelsRef = useRef<ReturnType<MonacoDiffEditor['getModel']>>(null);
   const onMount: DiffOnMount = (editor) => {
     modelsRef.current = editor.getModel();
+    nameImeTextAreas(editor.getContainerDomNode(), 'compare-editor-ime');
   };
   useEffect(
     () => () => {

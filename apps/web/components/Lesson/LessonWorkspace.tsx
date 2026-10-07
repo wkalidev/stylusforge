@@ -27,6 +27,7 @@ import { ExplanationSteps } from './ExplanationSteps';
 import { Objectives } from './Objectives';
 import { FORGE_EDITOR_THEME, defineForgeEditorTheme } from './forgeEditorTheme';
 import { registerGlossaryHover } from './glossaryHover';
+import { nameImeTextAreas } from './nameImeTextAreas';
 import { RightPaneSwitch, WorkspaceTabs, tabId, tabPanelId, type WorkspaceTab } from './WorkspaceTabs';
 import { TryPanel } from './TryPanel';
 
@@ -103,6 +104,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => checkRef.current());
     editorRef.current = editor;
     monacoRef.current = monaco;
+    nameImeTextAreas(editor.getDomNode(), 'lesson-editor-ime');
     setEditorReady(true);
   };
 
