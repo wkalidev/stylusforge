@@ -50,4 +50,50 @@ describe("POST /api/solution", () => {
   ])("rejects %s", async (_label, body, status) => {
     expect((await post(body)).status).toBe(status);
   });
+
+  it("answers 413 to a declared body over 200,000 bytes, before reading it", async () => {
+    let pulled = false;
+    const body = new ReadableStream(
+      {
+        pull(controller) {
+          pulled = true;
+          controller.close();
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const response = await POST(
+      new Request("http://localhost/api/solution", {
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": "200001" },
+        body,
+        duplex: "half",
+      } as RequestInit),
+    );
+    expect(response.status).toBe(413);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect((await response.json()).error).toBe("The request body is too large.");
+    expect(pulled).toBe(false);
+  });
+
+  it("answers 413 to a chunked body that grows past 200,000 bytes", async () => {
+    const chunk = new TextEncoder().encode("x".repeat(64 * 1024));
+    let sent = 0;
+    const body = new ReadableStream({
+      pull(controller) {
+        sent += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+    });
+    const response = await POST(new Request("http://localhost/api/solution", { method: "POST", body, duplex: "half" } as RequestInit));
+    expect(response.status).toBe(413);
+    expect(sent).toBeLessThan(400_000);
+  });
+
+  it("still answers code of the maximum length, mostly escaped quotes", async () => {
+    // 50,000 characters, about 49,000 of them quotes that JSON escapes to 2 bytes: ~100 kB.
+    const code = `${SOLUTIONS[2]}${'"'.repeat(50_000)}`.slice(0, 50_000);
+    const response = await post({ lessonId: 2, code });
+    expect(response.status).toBe(200);
+  });
 });
