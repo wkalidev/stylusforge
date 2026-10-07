@@ -3317,6 +3317,37 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'fn supports_interface(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Versions",
+          question: "Why does this lesson use stylus-sdk 0.9.0 instead of 0.10?",
+          options: [
+            "Version 0.10 cannot compile ERC-20 tokens",
+            "openzeppelin-stylus 0.3.0 pins stylus-sdk to exactly 0.9.0",
+            "OpenZeppelin components need the deprecated APIs of 0.9",
+          ],
+          answer: 1,
+          explanation: "openzeppelin-stylus 0.3.0, its latest release, depends on stylus-sdk =0.9.0. An exact pin cannot share a crate with another version of the SDK, so the project uses 0.9.0.",
+        },
+        {
+          afterStep: "Composing components",
+          question: "ForgeToken implements IErc20 in a #[public] block, but IErc20 is missing from #[implements(...)]. What does a call to transfer do?",
+          options: [
+            "It moves the tokens, since the trait is implemented",
+            "It moves the tokens, but emits no event",
+            "It reverts: no method matches its selector",
+          ],
+          answer: 2,
+          explanation: "The #[implements] list is what routes calls to the traits. Without IErc20 in it, the selector of transfer matches nothing, and without a fallback the call reverts with no error data.",
+        },
+        {
+          afterStep: "The constructor",
+          question: "Once ForgeToken is deployed, who can call _mint to create more tokens?",
+          options: ["Nobody: _mint is not exported", "Only the recipient of the supply", "Anyone"],
+          answer: 0,
+          explanation: "_mint is a plain Rust method of the Erc20 component, never exported. Only the constructor calls it, so the supply is fixed at deployment.",
+        },
+      ],
     },
   },
 };
