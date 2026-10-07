@@ -187,6 +187,55 @@ function nextRounds(): string[] {
   return [...values.flatMap((value) => [`self.round_id.set(${value})`, `let $n = ${value}; self.round_id.set($n)`]), ...fromRead];
 }
 
+/** Receivers of lesson 5's token calls: the token kept in a local of any name, or built inline. */
+const VAULT_TOKENS = ['$t', 'IERC20::new(self.token.get())', 'IERC20::from(self.token.get())'];
+
+/**
+ * Snippets for a writing call of lesson 5 to `method` of the token with one of `argLists`, the
+ * configuration kept in a local (`Call::new_mutating(self)` written inline does not compile next to
+ * `self.vm()`) and the result passed on with `?`. With `checked`, the call is followed by the test of
+ * its `bool`: kept in a local of any name, or tested inline, with `!` or `== false`.
+ */
+function tokenCalls(method: string, argLists: string[], checked: boolean): string[] {
+  return VAULT_TOKENS.flatMap((token) =>
+    argLists.flatMap((args) => {
+      const call = `${token}.${method}(self.vm(), $c, ${args})?`;
+      return checked ? [`let $ok = ${call}; if !$ok {`, `let $ok = ${call}; if $ok == false {`, `if !${call} {`, `if ${call} == false {`] : [call];
+    }),
+  );
+}
+
+/** Snippets for lesson 5's credit: the deposit plus `amount` (either order), written with `insert` or `setter`, directly or from a local. */
+function credits(): string[] {
+  const sums = ['self.deposits.get(account) + amount', 'amount + self.deposits.get(account)'];
+  return sums.flatMap((sum) => [
+    `self.deposits.insert(account, ${sum})`,
+    `let $x = ${sum}; self.deposits.insert(account, $x)`,
+    `let $x = ${sum}; self.deposits.setter(account).set($x)`,
+  ]);
+}
+
+/**
+ * Snippets for lesson 5's withdrawal in checks-effects-interactions order: the deposit lowered, then
+ * the token called. The token and the configuration may be kept in locals in between, in any order.
+ */
+function lowerThenSend(): string[] {
+  const lowers = [
+    'self.deposits.insert(account, available - amount);',
+    'self.deposits.setter(account).set(available - amount);',
+    'let $l = available - amount; self.deposits.insert(account, $l);',
+    'let $l = available - amount; self.deposits.setter(account).set($l);',
+  ];
+  const setups = [
+    '',
+    'let $c = Call::new_mutating(self);',
+    'let $t = IERC20::new(self.token.get()); let $c = Call::new_mutating(self);',
+    'let $c = Call::new_mutating(self); let $t = IERC20::new(self.token.get());',
+  ];
+  const sends = tokenCalls('transfer', ['account, amount'], false).flatMap((call) => [`let $ok = ${call}`, `if !${call}`]);
+  return lowers.flatMap((lower) => setups.flatMap((setup) => sends.map((send) => `${lower} ${setup} ${send}`)));
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -893,8 +942,133 @@ const CONTENT: Record<number, LessonContent> = {
         '',
         'Stuck? Each objective has hints, from a nudge to the exact code.',
       ].join('\n'),
-      starterCode: '',
-      checks: [],
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use alloc::vec::Vec;',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{Address, U256},',
+        '    alloy_sol_types::sol,',
+        '    prelude::*,',
+        '};',
+        '',
+        'sol_interface! {',
+        '    interface IERC20 {',
+        '        function transfer(address to, uint256 value) external returns (bool);',
+        '        function transferFrom(address from, address to, uint256 value) external returns (bool);',
+        '    }',
+        '}',
+        '',
+        'sol! {',
+        '    event Deposited(address indexed account, uint256 amount);',
+        '    event Withdrawn(address indexed account, uint256 amount);',
+        '    error TransferFailed(address token);',
+        '    error InsufficientDeposit(uint256 available, uint256 requested);',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum VaultError {',
+        '    TransferFailed(TransferFailed),',
+        '    InsufficientDeposit(InsufficientDeposit),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct TokenVault {',
+        '        address token;',
+        '        mapping(address => uint256) deposits;',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl TokenVault {',
+        '    #[constructor]',
+        '    pub fn constructor(&mut self, token: Address) {',
+        '        self.token.set(token);',
+        '    }',
+        '',
+        '    pub fn deposit_of(&self, account: Address) -> U256 {',
+        '        self.deposits.get(account)',
+        '    }',
+        '',
+        '    pub fn deposit(&mut self, amount: U256) -> Result<(), Vec<u8>> {',
+        '        let account = self.vm().msg_sender();',
+        '        let vault = self.vm().contract_address();',
+        '        // TODO: pull amount tokens from account to the vault, revert with TransferFailed',
+        '        // when the token returns false, then add amount to the deposit of account',
+        '        self.vm().log(Deposited { account, amount });',
+        '        Ok(())',
+        '    }',
+        '',
+        '    pub fn withdraw(&mut self, amount: U256) -> Result<(), Vec<u8>> {',
+        '        let account = self.vm().msg_sender();',
+        '        let available = self.deposits.get(account);',
+        '        if available < amount {',
+        '            return Err(VaultError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into());',
+        '        }',
+        '        // TODO: lower the deposit, then send amount tokens to account and revert with',
+        '        // TransferFailed when the token returns false',
+        '        self.vm().log(Withdrawn { account, amount });',
+        '        Ok(())',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          anyOf: tokenCalls('transfer_from', ['account, vault, amount', 'account, self.vm().contract_address(), amount'], false),
+          alsoAnyOf: [['let $c = Call::new_mutating(self);']],
+          objective: 'Pull the deposit from the caller to the vault',
+          hints: [
+            'The caller approved the vault on the token: the vault now asks the token to move the tokens, a call that writes.',
+            'Build `Call::new_mutating(self)` into a local first, then call `transfer_from` on `IERC20::new(self.token.get())` from `account` to `vault`.',
+            'Write `let token = IERC20::new(self.token.get()); let config = Call::new_mutating(self);` then `let ok = token.transfer_from(self.vm(), config, account, vault, amount)?;`.',
+          ],
+          anchor: 'pub fn deposit(',
+        },
+        {
+          anyOf: tokenCalls('transfer_from', ['account, vault, amount', 'account, self.vm().contract_address(), amount'], true),
+          alsoAnyOf: [intoErrorReturns('VaultError', 'TransferFailed', ['token: self.token.get()', 'token: *$t', 'token: $t.address', 'token'])],
+          objective: 'Refuse a deposit when the token reports a failed transfer',
+          hints: [
+            'Some tokens return `false` instead of reverting: the vault must not count tokens that never arrived.',
+            'Test the `bool` that `transfer_from` returns, and return the `TransferFailed` error converted with `.into()` when it is `false`.',
+            'Write `let ok = token.transfer_from(self.vm(), config, account, vault, amount)?; if !ok { return Err(VaultError::TransferFailed(TransferFailed { token: self.token.get() }).into()); }`.',
+          ],
+          anchor: 'pub fn deposit(',
+        },
+        {
+          anyOf: credits(),
+          objective: 'Credit the deposit to the caller',
+          hints: [
+            'Once the tokens are in the vault, the deposit of the caller grows by the same amount.',
+            'Read the deposit of `account`, add `amount`, and write it back with `insert`.',
+            'Write `let total = self.deposits.get(account) + amount; self.deposits.insert(account, total);`.',
+          ],
+          anchor: 'pub fn deposit(',
+        },
+        {
+          anyOf: lowerThenSend(),
+          objective: 'Lower the deposit before sending any token',
+          hints: [
+            'Checks, effects, interactions: the deposit must already be lower when the token runs.',
+            'Write `available - amount` to the deposit of `account`, then build the configuration and call `transfer` on the token.',
+            'Write `self.deposits.insert(account, available - amount); let token = IERC20::new(self.token.get()); let config = Call::new_mutating(self); let ok = token.transfer(self.vm(), config, account, amount)?;`.',
+          ],
+          anchor: 'pub fn withdraw(',
+        },
+        {
+          anyOf: tokenCalls('transfer', ['account, amount'], true),
+          alsoAnyOf: [intoErrorReturns('VaultError', 'TransferFailed', ['token: self.token.get()', 'token: *$t', 'token: $t.address', 'token'])],
+          objective: 'Refuse a withdrawal when the token reports a failed transfer',
+          hints: [
+            'The token may return `false` instead of reverting: then the caller got nothing, and the lowered deposit must be undone.',
+            'Test the `bool` that `transfer` returns, and return the `TransferFailed` error converted with `.into()`: the revert undoes the lowered deposit too.',
+            'Write `let ok = token.transfer(self.vm(), config, account, amount)?; if !ok { return Err(VaultError::TransferFailed(TransferFailed { token: self.token.get() }).into()); }`.',
+          ],
+          anchor: 'pub fn withdraw(',
+        },
+      ],
     },
   },
   6: {
