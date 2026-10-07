@@ -49,6 +49,11 @@ const OVERFLOW_CASES: Record<
       allowances: { [alice.address]: { [carol.address]: 0n } },
     },
   },
+  14: {
+    state: { owners: { "7": alice.address }, balances: { [alice.address]: 1n, [bob.address]: MAX }, token_approvals: {} },
+    call: ["transfer_from", { from: "Alice", to: "Bob", token_id: "7" }, alice],
+    expected: { owners: { "7": bob.address }, balances: { [alice.address]: 0n, [bob.address]: 0n }, token_approvals: {} },
+  },
   11: {
     state: { deposits: { [alice.address]: MAX } },
     call: ["deposit", {}, alice],
