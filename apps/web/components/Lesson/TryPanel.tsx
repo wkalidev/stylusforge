@@ -141,6 +141,7 @@ function StorageView({ state, accounts }: { state: SimState; accounts: SimAccoun
 export function TryPanel({ simulation, passed }: { simulation: LessonSimulation | null; passed: boolean }) {
   const [state, setState] = useState<SimState | null>(() => simulation?.initialState() ?? null);
   const [callerIndex, setCallerIndex] = useState(0);
+  const callerId = useId();
   // Transactions sent so far: each one runs in the next block of the simulated clock.
   const [sent, setSent] = useState(0);
   // The contract's ETH balance, in wei: not storage, so kept next to it.
@@ -186,6 +187,7 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
         <label className='flex items-center gap-2 text-sm text-steel-300'>
           Call as
           <select
+            id={callerId}
             value={callerIndex}
             onChange={(event) => setCallerIndex(Number(event.target.value))}
             className='h-9 rounded-[var(--radius-forge)] border border-steel-700 bg-steel-950 px-2 text-steel-100'
