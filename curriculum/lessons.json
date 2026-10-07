@@ -10,5 +10,6 @@
   { "id": 11, "name": "Payable and sending ETH", "xp": 250, "available": true, "module": "contract-logic" },
   { "id": 12, "name": "View/pure and gas", "xp": 225, "available": true, "module": "contract-logic" },
   { "id": 4, "name": "ERC-20 Token", "xp": 300, "available": true, "module": "tokens" },
+  { "id": 13, "name": "Allowances", "xp": 300, "available": false, "module": "tokens" },
   { "id": 5, "name": "DeFi Interaction", "xp": 400, "available": false, "module": "interoperability" }
 ]

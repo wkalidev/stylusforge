@@ -2374,6 +2374,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  13: {
+    slug: 'erc20-allowances',
+    difficulty: 'Intermediate',
+    preview: 'Let another account spend your tokens: approve, allowance and transfer_from.',
+    minutes: 20,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
