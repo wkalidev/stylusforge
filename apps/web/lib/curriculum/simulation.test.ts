@@ -6,14 +6,17 @@ import {
   UINT256_MAX,
   callSimulation,
   deleteMapping,
+  formatSimKey,
   formatSimValue,
   holdsEth,
   parseArgument,
   readMapping,
+  readNestedMapping,
   simTimestamp,
   wrappingAdd,
   wrappingSub,
   writeMapping,
+  writeNestedMapping,
   type LessonSimulation,
 } from "./simulation";
 
@@ -83,6 +86,18 @@ describe("mappings", () => {
     expect(next.balances).toEqual({});
     expect(readMapping(next, "balances", bob.address)).toBe(0n);
     expect(readMapping(state, "balances", bob.address)).toBe(7n);
+  });
+
+  it("reads and writes nested mappings on copies, whatever the address case", () => {
+    const state = { allowances: {} };
+    const upper = (address: string) => address.toUpperCase().replace("0X", "0x");
+    const next = writeNestedMapping(state, "allowances", upper(alice.address), upper(bob.address), 5n);
+    const both = writeNestedMapping(next, "allowances", alice.address, alice.address, 9n);
+    expect(readNestedMapping(both, "allowances", alice.address, bob.address)).toBe(5n);
+    expect(readNestedMapping(both, "allowances", alice.address, alice.address)).toBe(9n);
+    expect(readNestedMapping(both, "allowances", bob.address, alice.address)).toBe(0n);
+    expect(readNestedMapping(state, "allowances", alice.address, bob.address)).toBe(0n);
+    expect(next.allowances).toEqual({ [alice.address]: { [bob.address]: 5n } });
   });
 });
 
@@ -245,6 +260,12 @@ describe("formatSimValue", () => {
   it("formats tuples and structs", () => {
     expect(formatSimValue(["Buy milk", false], [alice])).toBe('("Buy milk", false)');
     expect(formatSimValue({ title: "Buy milk", done: true }, [alice])).toBe('{ title: "Buy milk", done: true }');
+  });
+
+  it("shows the keys of an inner mapping like addresses", () => {
+    expect(formatSimValue({ [alice.address]: 5n, [bob.address]: 1000n }, [alice])).toBe("{ Alice: 5, 0x0000…0b0b: 1,000 }");
+    expect(formatSimKey(alice.address, [alice])).toBe("Alice");
+    expect(formatSimKey("title", [alice])).toBe("title");
   });
 });
 

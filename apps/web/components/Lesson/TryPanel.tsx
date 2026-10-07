@@ -4,6 +4,7 @@ import { useId, useState } from 'react';
 import { buttonClasses } from '@/components/ui/button';
 import {
   callSimulation,
+  formatSimKey,
   formatSimValue,
   holdsEth,
   simTimestamp,
@@ -118,7 +119,7 @@ function StorageView({ state, accounts }: { state: SimState; accounts: SimAccoun
                 ? EMPTY
                 : Object.entries(value).map(([key, entry]) => (
                     <div key={key} className='text-steel-100'>
-                      {formatSimValue(key, accounts)} → {formatSimValue(entry, accounts)}
+                      {formatSimKey(key, accounts)} → {formatSimValue(entry, accounts)}
                     </div>
                   ))}
             </dd>

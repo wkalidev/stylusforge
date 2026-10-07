@@ -149,16 +149,35 @@ export function deleteMapping(state: SimState, field: string, key: string): SimS
   return { ...state, [field]: Object.fromEntries(entries.filter(([entry]) => entry !== key.toLowerCase())) };
 }
 
+/** Reads an entry of a nested mapping (`mapping(address => mapping(address => uint256))`), zero when unset. */
+export function readNestedMapping(state: SimState, field: string, outer: string, inner: string): bigint {
+  const mapping = state[field] as Record<string, Record<string, SimValue>>;
+  return (mapping[outer.toLowerCase()]?.[inner.toLowerCase()] as bigint | undefined) ?? 0n;
+}
+
+/** Returns a state copy with one entry of a nested mapping written. */
+export function writeNestedMapping(state: SimState, field: string, outer: string, inner: string, value: bigint): SimState {
+  const mapping = state[field] as Record<string, Record<string, SimValue>>;
+  const entries = { ...mapping[outer.toLowerCase()], [inner.toLowerCase()]: value };
+  return { ...state, [field]: { ...mapping, [outer.toLowerCase()]: entries } };
+}
+
+/** A mapping key or struct field as the Try it panel shows it: addresses like values, names as they are. */
+export function formatSimKey(key: string, accounts: SimAccount[]): string {
+  return /^0x[0-9a-fA-F]{40}$/.test(key) ? formatSimValue(key, accounts) : key;
+}
+
 /**
  * A value as the Try it panel shows it: numbers with separators, known accounts by name, other
- * addresses shortened, strings quoted, tuples as `(a, b)` and structs as `{ field: value }`.
+ * addresses shortened, strings quoted, tuples as `(a, b)`, and structs and inner mappings as
+ * `{ key: value }`.
  */
 export function formatSimValue(value: SimStored, accounts: SimAccount[]): string {
   if (typeof value === 'bigint') return value.toLocaleString('en-US');
   if (typeof value === 'boolean') return String(value);
   if (Array.isArray(value)) return `(${value.map((item) => formatSimValue(item, accounts)).join(', ')})`;
   if (typeof value === 'object') {
-    return `{ ${Object.entries(value).map(([field, item]) => `${field}: ${formatSimValue(item, accounts)}`).join(', ')} }`;
+    return `{ ${Object.entries(value).map(([key, item]) => `${formatSimKey(key, accounts)}: ${formatSimValue(item, accounts)}`).join(', ')} }`;
   }
   const account = accounts.find((candidate) => candidate.address.toLowerCase() === value.toLowerCase());
   if (account) return account.name;
