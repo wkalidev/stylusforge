@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { LESSONS } from "./lessons";
-import { SIM_START_TIME, UINT256_MAX, callSimulation, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
+import { SIM_START_TIME, UINT256_MAX, callSimulation, functionSelector, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
 import { PRICE_FEED_ADDRESS, SIM_ACCOUNTS, ZERO_ADDRESS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
@@ -519,5 +519,25 @@ describe("lesson simulations", () => {
     expect(call("price", {}, 5)).toMatchObject({ ok: false, error: { error: "NegativePrice", args: { answer: -1n } } });
     call("set_answer", { answer: "0" }, 6);
     expect(call("price", {}, 6)).toMatchObject({ ok: false, error: { error: "NegativePrice", args: { answer: 0n } } });
+  });
+  it("lesson 17 publishes rounds from its owner only, under the selectors of the Chainlink interface", () => {
+    const simulation = getSimulation(17)!;
+    expect(simulation.selectors).toBe(true);
+    const selectors = Object.fromEntries(simulation.functions.map((fn) => [fn.abiName, functionSelector(fn)]));
+    expect(selectors).toEqual({ decimals: "0x313ce567", description: "0x7284e416", latestRoundData: "0xfeaf968c", setAnswer: "0x99213cd8" });
+    let state = simulation.initialState();
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, sent: number) => {
+      const result = callSimulation(simulation, state, fn, args, caller, { timestamp: simTimestamp(sent) });
+      state = result.state;
+      return result;
+    };
+    expect(call("decimals", {}, bob, 0).returns).toBe(8n);
+    expect(call("description", {}, bob, 0).returns).toBe("ETH / USD");
+    expect(call("latest_round", {}, bob, 0).returns).toEqual([0n, 0n, 0n, 0n, 0n]);
+    expect(call("set_answer", { answer: "312345000000" }, alice, 1).ok).toBe(true);
+    expect(call("set_answer", { answer: "-5" }, alice, 2).ok).toBe(true);
+    expect(call("latest_round", {}, bob, 2).returns).toEqual([2n, -5n, SIM_START_TIME + 24n, SIM_START_TIME + 24n, 2n]);
+    expect(call("set_answer", { answer: "1" }, bob, 3)).toMatchObject({ ok: false, error: { error: "NotOwner", args: { caller: bob.address } } });
+    expect(state).toMatchObject({ round_id: 2n, answer: -5n });
   });
 });

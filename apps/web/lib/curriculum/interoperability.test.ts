@@ -103,3 +103,54 @@ describe("lesson 16: Calling Solidity", () => {
     expect(variant(16, "Ok(answer.into_raw())", "Ok(U256::ZERO)").objectives).toEqual(["Return the answer as an unsigned number"]);
   });
 });
+
+describe("lesson 17: Being called (export-abi)", () => {
+  const selector = '#[selector(name = "latestRoundData")]\n    pub fn latest_round(&self) -> (U80, I256, U256, U256, U80) {';
+  const nextRound = "let round = self.round_id.get() + U80::from(1);\n        self.round_id.set(round);";
+  const time = "self.updated_at.set(U256::from(self.vm().block_timestamp()));";
+
+  it("accepts the method renamed instead of a selector attribute", () => {
+    expect(variant(17, selector, "pub fn latest_round_data(&self) -> (U80, I256, U256, U256, U80) {").passed).toBe(true);
+  });
+
+  it("accepts the new round with U80::ONE, either order, inline or from a local", () => {
+    expect(variant(17, nextRound, "self.round_id.set(self.round_id.get() + U80::ONE);").passed).toBe(true);
+    expect(variant(17, nextRound, "let current = self.round_id.get();\n        self.round_id.set(U80::ONE + current);").passed).toBe(true);
+    expect(variant(17, nextRound, "let round = U80::from(1) + self.round_id.get();\n        self.round_id.set(round);").passed).toBe(true);
+  });
+
+  it("accepts the block time kept in a local first", () => {
+    expect(variant(17, time, "let now = U256::from(self.vm().block_timestamp());\n        self.updated_at.set(now);").passed).toBe(true);
+  });
+
+  it("refuses decimals returned as a uint256", () => {
+    expect(variant(17, "pub fn decimals(&self) -> u8 {\n        8", "pub fn decimals(&self) -> U256 {\n        U256::from(8)").objectives).toEqual([
+      "Return the number of decimals with the type callers expect",
+    ]);
+  });
+
+  it("refuses round ids returned as u128 or U256, which export as uint128 or uint256", () => {
+    expect(variant(17, "(&self) -> (U80, I256, U256, U256, U80) {", "(&self) -> (u128, I256, U256, U256, u128) {").objectives).toEqual([
+      "Return the latest round with the types of the interface",
+    ]);
+    expect(variant(17, "(&self) -> (U80, I256, U256, U256, U80) {", "(&self) -> (U256, I256, U256, U256, U256) {").objectives).toEqual([
+      "Return the latest round with the types of the interface",
+    ]);
+  });
+
+  it("refuses a method that keeps the name latestRound", () => {
+    expect(variant(17, selector, "pub fn latest_round(&self) -> (U80, I256, U256, U256, U80) {").objectives).toEqual([
+      "Answer callers that call the latest round data function",
+    ]);
+  });
+
+  it("refuses an unsigned answer in storage", () => {
+    expect(variant(17, "int256 answer;", "uint256 answer;").objectives).toContain("Store the latest answer as a signed number");
+  });
+
+  it("refuses a set_answer that keeps the round, the answer or the time", () => {
+    expect(variant(17, nextRound, "").objectives).toEqual(["Start a new round with each answer"]);
+    expect(variant(17, "self.answer.set(answer);", "").objectives).toEqual(["Store the new answer"]);
+    expect(variant(17, time, "").objectives).toEqual(["Record when the answer was published"]);
+  });
+});
