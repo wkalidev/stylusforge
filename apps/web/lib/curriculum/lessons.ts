@@ -2653,6 +2653,33 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn transfer_from(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Approve, then transfer_from",
+          question: "Alice approved a router to spend her tokens. Who calls transfer_from to move them?",
+          options: ["Alice, the owner of the tokens", "The router, the spender", "The account that receives the tokens"],
+          answer: 1,
+          explanation: "The spender calls transfer_from, so msg_sender() is the spender, and the from argument names the owner whose allowance it spends.",
+        },
+        {
+          afterStep: "Nested mappings",
+          question: "approved maps a holder, then an operator, to a bool. Which expression reads whether operator may act for holder?",
+          options: [
+            "self.approved.getter(holder).get(operator)",
+            "self.approved.getter(operator).get(holder)",
+            "self.approved.get(operator)",
+          ],
+          answer: 0,
+          explanation: "The outer key comes first: getter(holder) reaches the inner mapping of holder, then get(operator) reads its entry. The keys the other way round read another entry, and compile all the same.",
+        },
+        {
+          afterStep: "The approve race",
+          question: "Bob may spend 100 of your tokens, and you call approve(Bob, 50). If Bob sees your transaction before it lands, how many tokens can he move in total?",
+          options: ["50", "100", "150"],
+          answer: 2,
+          explanation: "Bob spends the 100 before your approve lands, then the new 50 after it. Setting the allowance to 0 first, then to 50, closes the race.",
+        },
+      ],
     },
   },
 };
