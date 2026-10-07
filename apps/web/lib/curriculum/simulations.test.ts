@@ -40,6 +40,15 @@ const OVERFLOW_CASES: Record<
     expected: { total_supply: MAX, balances: { [alice.address]: 0n, [bob.address]: 0n }, allowances: {} },
   },
   6: { state: { scores: { [alice.address]: MAX } }, call: ["record", { points: "2" }, alice], expected: { scores: { [alice.address]: 1n } } },
+  13: {
+    state: { total_supply: MAX, balances: { [alice.address]: 1n, [bob.address]: MAX }, allowances: { [alice.address]: { [carol.address]: 1n } } },
+    call: ["transfer_from", { from: "Alice", to: "Bob", value: "1" }, carol],
+    expected: {
+      total_supply: MAX,
+      balances: { [alice.address]: 0n, [bob.address]: 0n },
+      allowances: { [alice.address]: { [carol.address]: 0n } },
+    },
+  },
   11: {
     state: { deposits: { [alice.address]: MAX } },
     call: ["deposit", {}, alice],
