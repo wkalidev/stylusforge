@@ -40,6 +40,20 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
       'Exposes the methods of this `impl` block in the contract ABI. Rust `snake_case` names are exported in Solidity `camelCase`.',
   },
   {
+    id: 'storage',
+    pattern: /#\[storage\]/,
+    title: '#[storage]',
+    description:
+      'Declares storage as a Rust struct whose fields are storage types: `StorageU256`, `StorageMap`, or components such as the `Erc20` of OpenZeppelin. `sol_storage!` declares the same with Solidity syntax.',
+  },
+  {
+    id: 'implements',
+    pattern: /#\[implements\(/,
+    title: '#[implements(...)]',
+    description:
+      'Lists the traits, such as `IErc20`, whose `#[public]` impl blocks the contract exports. Calls are only routed to the traits listed here.',
+  },
+  {
     id: 'constructor',
     pattern: /#\[constructor\]/,
     title: '#[constructor]',
@@ -244,10 +258,30 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'A 256-bit unsigned integer: `StorageU256` in storage, `U256` in Rust code.',
   },
   {
+    id: 'u256_max',
+    pattern: /\bU256::MAX\b/,
+    title: 'U256::MAX',
+    description:
+      'The largest `U256`, 2^256 − 1. ERC-20 tokens read an allowance of `U256::MAX` as unlimited: the `transfer_from` of OpenZeppelin never lowers it.',
+  },
+  {
     id: 'u256',
     pattern: /\bU256\b/,
     title: 'U256',
     description: 'The 256-bit unsigned integer of `alloy_primitives`: `U256::ZERO`, `U256::from(1)`, checked and wrapping arithmetic.',
+  },
+  {
+    id: 'address_zero',
+    pattern: /\bAddress::ZERO\b/,
+    title: 'Address::ZERO',
+    description:
+      'The zero address, `0x0000…0000`. An `address` never written reads as it, so an ERC-721 token owned by the zero address does not exist, and no token may be sent to it.',
+  },
+  {
+    id: 'is_zero',
+    pattern: /(?<=\.)is_zero\(\)/,
+    title: 'is_zero()',
+    description: 'Whether a value is zero: `owner.is_zero()` is the same as `owner == Address::ZERO`. `U256` has it too.',
   },
   {
     id: 'address',

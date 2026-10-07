@@ -4,6 +4,7 @@ import { useId, useState } from 'react';
 import { buttonClasses } from '@/components/ui/button';
 import {
   callSimulation,
+  formatSimKey,
   formatSimValue,
   holdsEth,
   simTimestamp,
@@ -12,6 +13,7 @@ import {
   type SimCallResult,
   type SimFunction,
   type SimState,
+  type SimType,
   type SimValue,
 } from '@/lib/curriculum/simulation';
 
@@ -30,6 +32,9 @@ function formatArgs(record: Record<string, SimValue> | undefined, accounts: SimA
     .map(([name, value]) => `${name}: ${formatSimValue(value, accounts)}`)
     .join(', ');
 }
+
+/** An example value for each argument type. */
+const PLACEHOLDERS: Record<SimType, string> = { address: 'Bob or 0x…', uint256: '0', string: 'text', bytes4: '0x01ffc9a7' };
 
 function FunctionForm({ fn, onCall }: { fn: SimFunction; onCall: (args: Record<string, string>, value: string) => void }) {
   const id = useId();
@@ -59,7 +64,7 @@ function FunctionForm({ fn, onCall }: { fn: SimFunction; onCall: (args: Record<s
               id={`${id}-${param.name}`}
               value={args[param.name] ?? ''}
               onChange={(event) => setArgs({ ...args, [param.name]: event.target.value })}
-              placeholder={param.type === 'address' ? 'Bob or 0x…' : param.type === 'uint256' ? '0' : 'text'}
+              placeholder={PLACEHOLDERS[param.type]}
               className='h-9 min-w-24 rounded-[var(--radius-forge)] border border-steel-700 bg-steel-950 px-2 font-mono text-sm text-steel-100'
             />
           </label>
@@ -118,7 +123,7 @@ function StorageView({ state, accounts }: { state: SimState; accounts: SimAccoun
                 ? EMPTY
                 : Object.entries(value).map(([key, entry]) => (
                     <div key={key} className='text-steel-100'>
-                      {formatSimValue(key, accounts)} → {formatSimValue(entry, accounts)}
+                      {formatSimKey(key, accounts)} → {formatSimValue(entry, accounts)}
                     </div>
                   ))}
             </dd>

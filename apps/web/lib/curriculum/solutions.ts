@@ -487,4 +487,296 @@ impl FeeQuote {
     }
 }
 `,
+  13: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol! {
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+    error InsufficientBalance(address from, uint256 have, uint256 want);
+    error InsufficientAllowance(address spender, uint256 have, uint256 want);
+}
+
+#[derive(SolidityError)]
+pub enum Erc20Error {
+    InsufficientBalance(InsufficientBalance),
+    InsufficientAllowance(InsufficientAllowance),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct Erc20 {
+        uint256 total_supply;
+        mapping(address => uint256) balances;
+        mapping(address => mapping(address => uint256)) allowances;
+    }
+}
+
+impl Erc20 {
+    fn move_tokens(&mut self, from: Address, to: Address, value: U256) -> Result<(), Erc20Error> {
+        let have = self.balances.get(from);
+        if have < value {
+            return Err(Erc20Error::InsufficientBalance(InsufficientBalance {
+                from,
+                have,
+                want: value,
+            }));
+        }
+
+        self.balances.setter(from).set(have - value);
+        let received = self.balances.get(to);
+        self.balances.setter(to).set(received + value);
+
+        self.vm().log(Transfer { from, to, value });
+        Ok(())
+    }
+}
+
+#[public]
+impl Erc20 {
+    pub fn total_supply(&self) -> U256 {
+        self.total_supply.get()
+    }
+
+    pub fn balance_of(&self, account: Address) -> U256 {
+        self.balances.get(account)
+    }
+
+    pub fn transfer(&mut self, to: Address, value: U256) -> Result<bool, Erc20Error> {
+        self.move_tokens(self.vm().msg_sender(), to, value)?;
+        Ok(true)
+    }
+
+    pub fn allowance(&self, owner: Address, spender: Address) -> U256 {
+        self.allowances.getter(owner).get(spender)
+    }
+
+    pub fn approve(&mut self, spender: Address, value: U256) -> bool {
+        let owner = self.vm().msg_sender();
+        self.allowances.setter(owner).insert(spender, value);
+        self.vm().log(Approval { owner, spender, value });
+        true
+    }
+
+    pub fn transfer_from(&mut self, from: Address, to: Address, value: U256) -> Result<bool, Erc20Error> {
+        let spender = self.vm().msg_sender();
+        let allowed = self.allowances.getter(from).get(spender);
+        if allowed < value {
+            return Err(Erc20Error::InsufficientAllowance(InsufficientAllowance {
+                spender,
+                have: allowed,
+                want: value,
+            }));
+        }
+        if allowed != U256::MAX {
+            self.allowances.setter(from).insert(spender, allowed - value);
+        }
+
+        self.move_tokens(from, to, value)?;
+        Ok(true)
+    }
+}
+`,
+  14: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol! {
+    event Transfer(address indexed from, address indexed to, uint256 indexed token_id);
+    event Approval(address indexed owner, address indexed approved, uint256 indexed token_id);
+    error NonexistentToken(uint256 token_id);
+    error AlreadyMinted(uint256 token_id);
+    error InvalidReceiver(address receiver);
+    error IncorrectOwner(address from, uint256 token_id, address owner);
+    error InsufficientApproval(address operator, uint256 token_id);
+}
+
+#[derive(SolidityError)]
+pub enum Erc721Error {
+    NonexistentToken(NonexistentToken),
+    AlreadyMinted(AlreadyMinted),
+    InvalidReceiver(InvalidReceiver),
+    IncorrectOwner(IncorrectOwner),
+    InsufficientApproval(InsufficientApproval),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct Erc721 {
+        mapping(uint256 => address) owners;
+        mapping(address => uint256) balances;
+        mapping(uint256 => address) token_approvals;
+    }
+}
+
+#[public]
+impl Erc721 {
+    pub fn balance_of(&self, owner: Address) -> U256 {
+        self.balances.get(owner)
+    }
+
+    pub fn owner_of(&self, token_id: U256) -> Result<Address, Erc721Error> {
+        let owner = self.owners.get(token_id);
+        if owner.is_zero() {
+            return Err(Erc721Error::NonexistentToken(NonexistentToken { token_id }));
+        }
+        Ok(owner)
+    }
+
+    pub fn mint(&mut self, receiver: Address, token_id: U256) -> Result<(), Erc721Error> {
+        if receiver.is_zero() {
+            return Err(Erc721Error::InvalidReceiver(InvalidReceiver { receiver }));
+        }
+        if !self.owners.get(token_id).is_zero() {
+            return Err(Erc721Error::AlreadyMinted(AlreadyMinted { token_id }));
+        }
+        let held = self.balances.get(receiver);
+        self.balances.insert(receiver, held + U256::from(1));
+        self.owners.insert(token_id, receiver);
+        self.vm().log(Transfer { from: Address::ZERO, to: receiver, token_id });
+        Ok(())
+    }
+
+    pub fn approve(&mut self, approved: Address, token_id: U256) -> Result<(), Erc721Error> {
+        let sender = self.vm().msg_sender();
+        if sender != self.owner_of(token_id)? {
+            return Err(Erc721Error::InsufficientApproval(InsufficientApproval { operator: sender, token_id }));
+        }
+        self.token_approvals.insert(token_id, approved);
+        self.vm().log(Approval { owner: sender, approved, token_id });
+        Ok(())
+    }
+
+    pub fn get_approved(&self, token_id: U256) -> Result<Address, Erc721Error> {
+        self.owner_of(token_id)?;
+        Ok(self.token_approvals.get(token_id))
+    }
+
+    pub fn transfer_from(&mut self, from: Address, to: Address, token_id: U256) -> Result<(), Erc721Error> {
+        let caller = self.vm().msg_sender();
+        if to.is_zero() {
+            return Err(Erc721Error::InvalidReceiver(InvalidReceiver { receiver: to }));
+        }
+        let owner = self.owner_of(token_id)?;
+        if owner != from {
+            return Err(Erc721Error::IncorrectOwner(IncorrectOwner { from, token_id, owner }));
+        }
+        if caller != owner && caller != self.token_approvals.get(token_id) {
+            return Err(Erc721Error::InsufficientApproval(InsufficientApproval { operator: caller, token_id }));
+        }
+
+        self.token_approvals.delete(token_id);
+        let sent = self.balances.get(from);
+        self.balances.insert(from, sent - U256::from(1));
+        let received = self.balances.get(to);
+        self.balances.insert(to, received + U256::from(1));
+        self.owners.insert(token_id, to);
+
+        self.vm().log(Transfer { from, to, token_id });
+        Ok(())
+    }
+}
+`,
+  15: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::string::String;
+use openzeppelin_stylus::{
+    token::erc20::{
+        self,
+        extensions::{Erc20Metadata, IErc20Metadata},
+        Erc20, IErc20,
+    },
+    utils::introspection::erc165::IErc165,
+};
+use stylus_sdk::{
+    alloy_primitives::{aliases::B32, Address, U256, U8},
+    prelude::*,
+};
+
+#[entrypoint]
+#[storage]
+struct ForgeToken {
+    erc20: Erc20,
+    metadata: Erc20Metadata,
+}
+
+#[public]
+#[implements(IErc20<Error = erc20::Error>, IErc20Metadata, IErc165)]
+impl ForgeToken {
+    #[constructor]
+    pub fn constructor(
+        &mut self,
+        name: String,
+        symbol: String,
+        recipient: Address,
+        supply: U256,
+    ) -> Result<(), erc20::Error> {
+        self.metadata.constructor(name, symbol);
+        self.erc20._mint(recipient, supply)
+    }
+}
+
+#[public]
+impl IErc20 for ForgeToken {
+    type Error = erc20::Error;
+
+    fn total_supply(&self) -> U256 {
+        self.erc20.total_supply()
+    }
+
+    fn balance_of(&self, account: Address) -> U256 {
+        self.erc20.balance_of(account)
+    }
+
+    fn transfer(&mut self, to: Address, value: U256) -> Result<bool, Self::Error> {
+        self.erc20.transfer(to, value)
+    }
+
+    fn allowance(&self, owner: Address, spender: Address) -> U256 {
+        self.erc20.allowance(owner, spender)
+    }
+
+    fn approve(&mut self, spender: Address, value: U256) -> Result<bool, Self::Error> {
+        self.erc20.approve(spender, value)
+    }
+
+    fn transfer_from(&mut self, from: Address, to: Address, value: U256) -> Result<bool, Self::Error> {
+        self.erc20.transfer_from(from, to, value)
+    }
+}
+
+#[public]
+impl IErc20Metadata for ForgeToken {
+    fn name(&self) -> String {
+        self.metadata.name()
+    }
+
+    fn symbol(&self) -> String {
+        self.metadata.symbol()
+    }
+
+    fn decimals(&self) -> U8 {
+        self.metadata.decimals()
+    }
+}
+
+#[public]
+impl IErc165 for ForgeToken {
+    fn supports_interface(&self, interface_id: B32) -> bool {
+        self.erc20.supports_interface(interface_id) || self.metadata.supports_interface(interface_id)
+    }
+}
+`,
 };

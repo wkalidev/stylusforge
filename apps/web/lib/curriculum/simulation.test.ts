@@ -4,16 +4,21 @@ import {
   SIM_BLOCK_TIME,
   SIM_START_TIME,
   UINT256_MAX,
+  ZERO_ADDRESS,
   callSimulation,
   deleteMapping,
+  formatSimKey,
   formatSimValue,
   holdsEth,
   parseArgument,
+  readAddressMapping,
   readMapping,
+  readNestedMapping,
   simTimestamp,
   wrappingAdd,
   wrappingSub,
   writeMapping,
+  writeNestedMapping,
   type LessonSimulation,
 } from "./simulation";
 
@@ -54,6 +59,12 @@ describe("parseArgument", () => {
     expect(() => parseArgument("address", "0x123", [])).toThrow(/address/);
   });
 
+  it("parses bytes4 values as lowercase hex", () => {
+    expect(parseArgument("bytes4", " 0x36372B07 ", [])).toBe("0x36372b07");
+    expect(() => parseArgument("bytes4", "0x3637", [])).toThrow(/bytes4/);
+    expect(() => parseArgument("bytes4", "36372b07", [])).toThrow(/bytes4/);
+  });
+
   it("keeps strings as typed", () => {
     expect(parseArgument("string", "  gm  ", [])).toBe("  gm  ");
   });
@@ -83,6 +94,27 @@ describe("mappings", () => {
     expect(next.balances).toEqual({});
     expect(readMapping(next, "balances", bob.address)).toBe(0n);
     expect(readMapping(state, "balances", bob.address)).toBe(7n);
+  });
+
+  it("keys mappings by token id, and reads unset address entries as the zero address", () => {
+    const state = writeMapping({ owners: {}, balances: {} }, "owners", 7n, bob.address);
+    expect(readAddressMapping(state, "owners", 7n)).toBe(bob.address);
+    expect(readAddressMapping(state, "owners", 8n)).toBe(ZERO_ADDRESS);
+    expect(state.owners).toEqual({ "7": bob.address });
+    expect(deleteMapping(state, "owners", 7n).owners).toEqual({});
+    expect(readMapping(writeMapping(state, "balances", 7n, 3n), "balances", 7n)).toBe(3n);
+  });
+
+  it("reads and writes nested mappings on copies, whatever the address case", () => {
+    const state = { allowances: {} };
+    const upper = (address: string) => address.toUpperCase().replace("0X", "0x");
+    const next = writeNestedMapping(state, "allowances", upper(alice.address), upper(bob.address), 5n);
+    const both = writeNestedMapping(next, "allowances", alice.address, alice.address, 9n);
+    expect(readNestedMapping(both, "allowances", alice.address, bob.address)).toBe(5n);
+    expect(readNestedMapping(both, "allowances", alice.address, alice.address)).toBe(9n);
+    expect(readNestedMapping(both, "allowances", bob.address, alice.address)).toBe(0n);
+    expect(readNestedMapping(state, "allowances", alice.address, bob.address)).toBe(0n);
+    expect(next.allowances).toEqual({ [alice.address]: { [bob.address]: 5n } });
   });
 });
 
@@ -245,6 +277,18 @@ describe("formatSimValue", () => {
   it("formats tuples and structs", () => {
     expect(formatSimValue(["Buy milk", false], [alice])).toBe('("Buy milk", false)');
     expect(formatSimValue({ title: "Buy milk", done: true }, [alice])).toBe('{ title: "Buy milk", done: true }');
+  });
+
+  it("shows the keys of an inner mapping like addresses", () => {
+    expect(formatSimValue({ [alice.address]: 5n, [bob.address]: 1000n }, [alice])).toBe("{ Alice: 5, 0x0000…0b0b: 1,000 }");
+    expect(formatSimKey(alice.address, [alice])).toBe("Alice");
+    expect(formatSimKey("title", [alice])).toBe("title");
+  });
+
+  it("shows token id keys as numbers", () => {
+    expect(formatSimKey("7", [alice])).toBe("7");
+    expect(formatSimKey("12345", [alice])).toBe("12,345");
+    expect(formatSimValue({ "7": alice.address }, [alice])).toBe("{ 7: Alice }");
   });
 });
 

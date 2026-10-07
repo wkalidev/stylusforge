@@ -36,12 +36,14 @@ describe("certificateCollection", () => {
     const collection = certificateCollection(new Set([1, 2, 6, 9, 11]), none);
     expect(collection.claimed).toBe(5);
     expect(collection.available).toBe(LESSONS.filter((lesson) => lesson.available).length);
+    const availableIn = (module: string) => LESSONS.filter((lesson) => lesson.available && lesson.module === module).length;
     expect(collection.groups.map((group) => [group.claimed, group.available])).toEqual([
-      [3, 5],
-      [2, 5],
-      [0, 1],
-      [0, 0],
+      [3, availableIn("foundations")],
+      [2, availableIn("contract-logic")],
+      [0, availableIn("tokens")],
+      [0, availableIn("interoperability")],
     ]);
+    expect(collection.groups.map((group) => group.available).slice(0, 2)).toEqual([5, 5]);
   });
 
   it("never counts a claimed id that is not an available lesson", () => {

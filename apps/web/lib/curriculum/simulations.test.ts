@@ -40,6 +40,20 @@ const OVERFLOW_CASES: Record<
     expected: { total_supply: MAX, balances: { [alice.address]: 0n, [bob.address]: 0n }, allowances: {} },
   },
   6: { state: { scores: { [alice.address]: MAX } }, call: ["record", { points: "2" }, alice], expected: { scores: { [alice.address]: 1n } } },
+  13: {
+    state: { total_supply: MAX, balances: { [alice.address]: 1n, [bob.address]: MAX }, allowances: { [alice.address]: { [carol.address]: 1n } } },
+    call: ["transfer_from", { from: "Alice", to: "Bob", value: "1" }, carol],
+    expected: {
+      total_supply: MAX,
+      balances: { [alice.address]: 0n, [bob.address]: 0n },
+      allowances: { [alice.address]: { [carol.address]: 0n } },
+    },
+  },
+  14: {
+    state: { owners: { "7": alice.address }, balances: { [alice.address]: 1n, [bob.address]: MAX }, token_approvals: {} },
+    call: ["transfer_from", { from: "Alice", to: "Bob", token_id: "7" }, alice],
+    expected: { owners: { "7": bob.address }, balances: { [alice.address]: 0n, [bob.address]: 0n }, token_approvals: {} },
+  },
   11: {
     state: { deposits: { [alice.address]: MAX } },
     call: ["deposit", {}, alice],
@@ -47,6 +61,17 @@ const OVERFLOW_CASES: Record<
     expected: { deposits: { [alice.address]: 1n } },
   },
 };
+
+/**
+ * The methods a solution exports: every fn of its `#[public]` blocks, trait impls included (with or
+ * without `pub`), but no #[constructor], which runs once at deployment: the model starts deployed
+ * instead. Plain `impl` blocks hold helpers, which are never exported.
+ */
+function exportedFunctions(solution: string): string[] {
+  return [...solution.matchAll(/#\[public\][^{]*\{([\s\S]*?)\n\}/g)].flatMap((block) =>
+    [...block[1].matchAll(/(#\[constructor\]\s*)?(?:pub )?fn (\w+)/g)].filter((match) => !match[1]).map((match) => match[2]),
+  );
+}
 
 /** Whether Rust code uses the binary +, - or * operators (not `->` or a dereference). */
 const usesArithmetic = (code: string) => /\s[-+*]=?\s/.test(code);
@@ -86,12 +111,7 @@ describe("lesson simulations", () => {
     for (const lesson of LESSONS.filter((candidate) => candidate.available)) {
       const simulation = getSimulation(lesson.id);
       expect(simulation, lesson.title).not.toBeNull();
-      // A #[constructor] runs once at deployment: the model starts deployed instead.
-      const publicFns = [...SOLUTIONS[lesson.id].matchAll(/(#\[constructor\]\s*)?pub fn (\w+)/g)]
-        .filter((match) => !match[1])
-        .map((match) => match[2])
-        .sort();
-      expect(simulation!.functions.map((fn) => fn.name).sort(), lesson.title).toEqual(publicFns);
+      expect(simulation!.functions.map((fn) => fn.name).sort(), lesson.title).toEqual(exportedFunctions(SOLUTIONS[lesson.id]).sort());
     }
   });
 
@@ -313,5 +333,144 @@ describe("lesson simulations", () => {
     expect(results[1].returns).toBe(400n);
     expect(results[2].returns).toBe(1000n);
     expect(results[3]).toMatchObject({ ok: false, error: { error: "InsufficientBalance", args: { have: 400n, want: 401n } } });
+  });
+
+  it("lesson 13 approves a spender, spends the allowance and reverts past it", () => {
+    const results = run(getSimulation(13)!, [
+      ["approve", { spender: "Bob", value: "300" }, alice],
+      ["allowance", { owner: "Alice", spender: "Bob" }, carol],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "100" }, bob],
+      ["allowance", { owner: "Alice", spender: "Bob" }, carol],
+      ["balance_of", { account: "Carol" }, carol],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "201" }, bob],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "1" }, carol],
+    ]);
+    expect(results[0]).toMatchObject({ ok: true, returns: true, events: [{ name: "Approval", args: { owner: alice.address, spender: bob.address, value: 300n } }] });
+    expect(results[1].returns).toBe(300n);
+    expect(results[2]).toMatchObject({ ok: true, returns: true, events: [{ name: "Transfer", args: { from: alice.address, to: carol.address, value: 100n } }] });
+    expect(results[3].returns).toBe(200n);
+    expect(results[4].returns).toBe(100n);
+    expect(results[5]).toMatchObject({ ok: false, error: { error: "InsufficientAllowance", args: { spender: bob.address, have: 200n, want: 201n } } });
+    expect(results[6]).toMatchObject({ ok: false, error: { error: "InsufficientAllowance", args: { spender: carol.address, have: 0n, want: 1n } } });
+  });
+
+  it("lesson 13 never lowers an unlimited allowance, and replaces an allowance on approve", () => {
+    const results = run(getSimulation(13)!, [
+      ["approve", { spender: "Bob", value: MAX.toString() }, alice],
+      ["transfer_from", { from: "Alice", to: "Bob", value: "250" }, bob],
+      ["allowance", { owner: "Alice", spender: "Bob" }, bob],
+      ["approve", { spender: "Bob", value: "5" }, alice],
+      ["allowance", { owner: "Alice", spender: "Bob" }, bob],
+    ]);
+    expect(results[1]).toMatchObject({ ok: true });
+    expect(results[2].returns).toBe(MAX);
+    expect(results[4].returns).toBe(5n);
+  });
+
+  it("lesson 13 keeps the allowance when the owner's balance is too low", () => {
+    const results = run(getSimulation(13)!, [
+      ["approve", { spender: "Alice", value: "50" }, bob],
+      ["transfer_from", { from: "Bob", to: "Alice", value: "10" }, alice],
+      ["allowance", { owner: "Bob", spender: "Alice" }, alice],
+    ]);
+    expect(results[1]).toMatchObject({ ok: false, error: { error: "InsufficientBalance", args: { from: bob.address, have: 0n, want: 10n } } });
+    expect(results[2].returns).toBe(50n);
+  });
+
+  it("lesson 14 mints, approves and transfers a token, clearing its approval", () => {
+    const results = run(getSimulation(14)!, [
+      ["mint", { receiver: "Alice", token_id: "7" }, carol],
+      ["owner_of", { token_id: "7" }, carol],
+      ["approve", { approved: "Bob", token_id: "7" }, alice],
+      ["get_approved", { token_id: "7" }, carol],
+      ["transfer_from", { from: "Alice", to: "Carol", token_id: "7" }, bob],
+      ["owner_of", { token_id: "7" }, carol],
+      ["get_approved", { token_id: "7" }, carol],
+      ["balance_of", { owner: "Alice" }, carol],
+      ["balance_of", { owner: "Carol" }, carol],
+      ["transfer_from", { from: "Carol", to: "Bob", token_id: "7" }, bob],
+    ]);
+    expect(results[0]).toMatchObject({ ok: true, events: [{ name: "Transfer", args: { from: ZERO_ADDRESS, to: alice.address, token_id: 7n } }] });
+    expect(results[1].returns).toBe(alice.address);
+    expect(results[2]).toMatchObject({ ok: true, events: [{ name: "Approval", args: { owner: alice.address, approved: bob.address, token_id: 7n } }] });
+    expect(results[3].returns).toBe(bob.address);
+    expect(results[4]).toMatchObject({ ok: true, events: [{ name: "Transfer", args: { from: alice.address, to: carol.address, token_id: 7n } }] });
+    expect(results[5].returns).toBe(carol.address);
+    expect(results[6].returns).toBe(ZERO_ADDRESS);
+    expect(results[7].returns).toBe(0n);
+    expect(results[8].returns).toBe(1n);
+    expect(results[9]).toMatchObject({ ok: false, error: { error: "InsufficientApproval", args: { operator: bob.address, token_id: 7n } } });
+  });
+
+  it("lesson 14 reverts for a missing token, a wrong owner, the zero address and a token minted twice", () => {
+    const results = run(getSimulation(14)!, [
+      ["owner_of", { token_id: "1" }, alice],
+      ["get_approved", { token_id: "1" }, alice],
+      ["mint", { receiver: "Alice", token_id: "1" }, alice],
+      ["mint", { receiver: "Bob", token_id: "1" }, alice],
+      ["transfer_from", { from: "Bob", to: "Carol", token_id: "1" }, alice],
+      ["transfer_from", { from: "Alice", to: ZERO_ADDRESS, token_id: "1" }, alice],
+      ["mint", { receiver: ZERO_ADDRESS, token_id: "2" }, alice],
+      ["approve", { approved: "Carol", token_id: "1" }, bob],
+    ]);
+    expect(results[0]).toMatchObject({ ok: false, error: { error: "NonexistentToken", args: { token_id: 1n } } });
+    expect(results[1]).toMatchObject({ ok: false, error: { error: "NonexistentToken" } });
+    expect(results[2].ok).toBe(true);
+    expect(results[3]).toMatchObject({ ok: false, error: { error: "AlreadyMinted", args: { token_id: 1n } } });
+    expect(results[4]).toMatchObject({ ok: false, error: { error: "IncorrectOwner", args: { from: bob.address, token_id: 1n, owner: alice.address } } });
+    expect(results[5]).toMatchObject({ ok: false, error: { error: "InvalidReceiver", args: { receiver: ZERO_ADDRESS } } });
+    expect(results[6]).toMatchObject({ ok: false, error: { error: "InvalidReceiver" } });
+    expect(results[7]).toMatchObject({ ok: false, error: { error: "InsufficientApproval", args: { operator: bob.address, token_id: 1n } } });
+  });
+
+  it("lesson 15 starts deployed with its metadata and supply, and answers ERC-165 queries", () => {
+    const results = run(getSimulation(15)!, [
+      ["name", {}, bob],
+      ["symbol", {}, bob],
+      ["decimals", {}, bob],
+      ["total_supply", {}, bob],
+      ["balance_of", { account: "Alice" }, bob],
+      ["supports_interface", { interface_id: "0x36372B07" }, bob],
+      ["supports_interface", { interface_id: "0xa219a025" }, bob],
+      ["supports_interface", { interface_id: "0x01ffc9a7" }, bob],
+      ["supports_interface", { interface_id: "0x80ac58cd" }, bob],
+      ["supports_interface", { interface_id: "0x1234" }, bob],
+    ]);
+    expect(results.slice(0, 5).map((result) => result.returns)).toEqual(["Forge Token", "FORGE", 18n, 1000n, 1000n]);
+    expect(results.slice(5, 9).map((result) => result.returns)).toEqual([true, true, true, false]);
+    expect(results[9]).toMatchObject({ ok: false, error: { error: '"0x1234" is not a bytes4 (0x and 8 hex digits)' } });
+  });
+
+  it("lesson 15 transfers and spends allowances with the errors of OpenZeppelin", () => {
+    const results = run(getSimulation(15)!, [
+      ["transfer", { to: "Bob", value: "1001" }, alice],
+      ["transfer", { to: ZERO_ADDRESS, value: "1" }, alice],
+      ["approve", { spender: ZERO_ADDRESS, value: "1" }, alice],
+      ["approve", { spender: "Bob", value: "300" }, alice],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "301" }, bob],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "100" }, bob],
+      ["allowance", { owner: "Alice", spender: "Bob" }, bob],
+      ["balance_of", { account: "Carol" }, bob],
+      ["approve", { spender: "Carol", value: MAX.toString() }, alice],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "50" }, carol],
+      ["allowance", { owner: "Alice", spender: "Carol" }, bob],
+      ["transfer_from", { from: "Alice", to: ZERO_ADDRESS, value: "50" }, bob],
+      ["allowance", { owner: "Alice", spender: "Bob" }, bob],
+    ]);
+    expect(results[0]).toMatchObject({ ok: false, error: { error: "ERC20InsufficientBalance", args: { sender: alice.address, balance: 1000n, needed: 1001n } } });
+    expect(results[1]).toMatchObject({ ok: false, error: { error: "ERC20InvalidReceiver", args: { receiver: ZERO_ADDRESS } } });
+    expect(results[2]).toMatchObject({ ok: false, error: { error: "ERC20InvalidSpender", args: { spender: ZERO_ADDRESS } } });
+    expect(results[3]).toMatchObject({ ok: true, returns: true, events: [{ name: "Approval", args: { owner: alice.address, spender: bob.address, value: 300n } }] });
+    expect(results[4]).toMatchObject({ ok: false, error: { error: "ERC20InsufficientAllowance", args: { spender: bob.address, allowance: 300n, needed: 301n } } });
+    // Spending an allowance emits only Transfer: OpenZeppelin lowers it without an Approval event.
+    expect(results[5]).toMatchObject({ ok: true, returns: true, events: [{ name: "Transfer", args: { from: alice.address, to: carol.address, value: 100n } }] });
+    expect(results[5].events).toHaveLength(1);
+    expect(results[6].returns).toBe(200n);
+    expect(results[7].returns).toBe(100n);
+    expect(results[9].ok).toBe(true);
+    expect(results[10].returns).toBe(MAX);
+    // A revert after the allowance is lowered undoes the whole call.
+    expect(results[11]).toMatchObject({ ok: false, error: { error: "ERC20InvalidReceiver" } });
+    expect(results[12].returns).toBe(200n);
   });
 });

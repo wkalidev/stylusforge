@@ -1,4 +1,4 @@
-import { UINT256_MAX, deleteMapping, readMapping, wrappingAdd, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
+import { UINT256_MAX, ZERO_ADDRESS, deleteMapping, readAddressMapping, readMapping, readNestedMapping, wrappingAdd, writeMapping, writeNestedMapping, type LessonSimulation, type SimAccount, type SimOutcome, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -7,8 +7,7 @@ export const SIM_ACCOUNTS: SimAccount[] = [
   { name: 'Carol', address: '0x00000000000000000000000000000000000ca201' },
 ];
 
-/** `Address::ZERO`, the value of an address field never written. */
-export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+export { ZERO_ADDRESS };
 
 /** "Try it" models of each lesson's contract, keyed by lesson id. */
 export const SIMULATIONS: Record<number, LessonSimulation> = {
@@ -128,18 +127,7 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
           { name: 'value', type: 'uint256' },
         ],
         returns: 'bool',
-        run: (state, args, caller) => {
-          const from = caller.address;
-          const to = args.to as string;
-          const value = args.value as bigint;
-          const have = readMapping(state, 'balances', from);
-          if (have < value) {
-            return { revert: { error: 'InsufficientBalance', args: { from, have, want: value } } };
-          }
-          let next = writeMapping(state, 'balances', from, have - value);
-          next = writeMapping(next, 'balances', to, wrappingAdd(readMapping(next, 'balances', to), value));
-          return { state: next, returns: true, events: [{ name: 'Transfer', args: { from, to, value } }] };
-        },
+        run: (state, args, caller) => moveTokens(state, caller.address, args.to as string, args.value as bigint),
       },
     ],
   },
@@ -442,7 +430,383 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  13: {
+    contract: 'Erc20',
+    note: 'The model starts with a supply of 1,000 tokens, all held by Alice. Approve another account, then call transfer_from as that account.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({
+      total_supply: 1000n,
+      balances: { [SIM_ACCOUNTS[0].address]: 1000n },
+      allowances: {},
+    }),
+    functions: [
+      {
+        name: 'total_supply',
+        abiName: 'totalSupply',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.total_supply as bigint }),
+      },
+      {
+        name: 'balance_of',
+        abiName: 'balanceOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'balances', args.account as string) }),
+      },
+      {
+        name: 'transfer',
+        abiName: 'transfer',
+        view: false,
+        params: [
+          { name: 'to', type: 'address' },
+          { name: 'value', type: 'uint256' },
+        ],
+        returns: 'bool',
+        run: (state, args, caller) => moveTokens(state, caller.address, args.to as string, args.value as bigint),
+      },
+      {
+        name: 'allowance',
+        abiName: 'allowance',
+        view: true,
+        params: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+        ],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readNestedMapping(state, 'allowances', args.owner as string, args.spender as string) }),
+      },
+      {
+        name: 'approve',
+        abiName: 'approve',
+        view: false,
+        params: [
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+        ],
+        returns: 'bool',
+        run: (state, args, caller) => {
+          const owner = caller.address;
+          const spender = args.spender as string;
+          const value = args.value as bigint;
+          return {
+            state: writeNestedMapping(state, 'allowances', owner, spender, value),
+            returns: true,
+            events: [{ name: 'Approval', args: { owner, spender, value } }],
+          };
+        },
+      },
+      {
+        name: 'transfer_from',
+        abiName: 'transferFrom',
+        view: false,
+        params: [
+          { name: 'from', type: 'address' },
+          { name: 'to', type: 'address' },
+          { name: 'value', type: 'uint256' },
+        ],
+        returns: 'bool',
+        run: (state, args, caller) => {
+          const spender = caller.address;
+          const from = args.from as string;
+          const value = args.value as bigint;
+          const allowed = readNestedMapping(state, 'allowances', from, spender);
+          if (allowed < value) {
+            return { revert: { error: 'InsufficientAllowance', args: { spender, have: allowed, want: value } } };
+          }
+          // An unlimited allowance is never lowered.
+          const spent = allowed === UINT256_MAX ? state : writeNestedMapping(state, 'allowances', from, spender, allowed - value);
+          return moveTokens(spent, from, args.to as string, value);
+        },
+      },
+    ],
+  },
+  14: {
+    contract: 'Erc721',
+    note: 'The model starts with no token: mint one first. Minting is open to anyone in this exercise only.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ owners: {}, balances: {}, token_approvals: {} }),
+    functions: [
+      {
+        name: 'balance_of',
+        abiName: 'balanceOf',
+        view: true,
+        params: [{ name: 'owner', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'balances', args.owner as string) }),
+      },
+      {
+        name: 'owner_of',
+        abiName: 'ownerOf',
+        view: true,
+        params: [{ name: 'token_id', type: 'uint256' }],
+        returns: 'address',
+        run: (state, args) => {
+          const owner = ownerOf(state, args.token_id as bigint);
+          return typeof owner === 'string' ? { returns: owner } : owner;
+        },
+      },
+      {
+        name: 'mint',
+        abiName: 'mint',
+        view: false,
+        params: [
+          { name: 'receiver', type: 'address' },
+          { name: 'token_id', type: 'uint256' },
+        ],
+        run: (state, args) => {
+          const receiver = args.receiver as string;
+          const tokenId = args.token_id as bigint;
+          if (receiver.toLowerCase() === ZERO_ADDRESS) return { revert: { error: 'InvalidReceiver', args: { receiver } } };
+          if (readAddressMapping(state, 'owners', tokenId) !== ZERO_ADDRESS) {
+            return { revert: { error: 'AlreadyMinted', args: { token_id: tokenId } } };
+          }
+          let next = writeMapping(state, 'balances', receiver, wrappingAdd(readMapping(state, 'balances', receiver), 1n));
+          next = writeMapping(next, 'owners', tokenId, receiver);
+          return { state: next, events: [{ name: 'Transfer', args: { from: ZERO_ADDRESS, to: receiver, token_id: tokenId } }] };
+        },
+      },
+      {
+        name: 'approve',
+        abiName: 'approve',
+        view: false,
+        params: [
+          { name: 'approved', type: 'address' },
+          { name: 'token_id', type: 'uint256' },
+        ],
+        run: (state, args, caller) => {
+          const tokenId = args.token_id as bigint;
+          const owner = ownerOf(state, tokenId);
+          if (typeof owner !== 'string') return owner;
+          if (caller.address.toLowerCase() !== owner.toLowerCase()) {
+            return { revert: { error: 'InsufficientApproval', args: { operator: caller.address, token_id: tokenId } } };
+          }
+          const approved = args.approved as string;
+          return {
+            state: writeMapping(state, 'token_approvals', tokenId, approved),
+            events: [{ name: 'Approval', args: { owner: caller.address, approved, token_id: tokenId } }],
+          };
+        },
+      },
+      {
+        name: 'get_approved',
+        abiName: 'getApproved',
+        view: true,
+        params: [{ name: 'token_id', type: 'uint256' }],
+        returns: 'address',
+        run: (state, args) => {
+          const tokenId = args.token_id as bigint;
+          const owner = ownerOf(state, tokenId);
+          return typeof owner === 'string' ? { returns: readAddressMapping(state, 'token_approvals', tokenId) } : owner;
+        },
+      },
+      {
+        name: 'transfer_from',
+        abiName: 'transferFrom',
+        view: false,
+        params: [
+          { name: 'from', type: 'address' },
+          { name: 'to', type: 'address' },
+          { name: 'token_id', type: 'uint256' },
+        ],
+        run: (state, args, caller) => {
+          const from = args.from as string;
+          const to = args.to as string;
+          const tokenId = args.token_id as bigint;
+          if (to.toLowerCase() === ZERO_ADDRESS) return { revert: { error: 'InvalidReceiver', args: { receiver: to } } };
+          const owner = ownerOf(state, tokenId);
+          if (typeof owner !== 'string') return owner;
+          if (owner.toLowerCase() !== from.toLowerCase()) {
+            return { revert: { error: 'IncorrectOwner', args: { from, token_id: tokenId, owner } } };
+          }
+          const sender = caller.address.toLowerCase();
+          if (sender !== owner.toLowerCase() && sender !== readAddressMapping(state, 'token_approvals', tokenId).toLowerCase()) {
+            return { revert: { error: 'InsufficientApproval', args: { operator: caller.address, token_id: tokenId } } };
+          }
+          // Same order as the lesson: clear the approval, move one token between the balances, then the owner.
+          let next = deleteMapping(state, 'token_approvals', tokenId);
+          next = writeMapping(next, 'balances', from, readMapping(next, 'balances', from) - 1n);
+          next = writeMapping(next, 'balances', to, wrappingAdd(readMapping(next, 'balances', to), 1n));
+          next = writeMapping(next, 'owners', tokenId, to);
+          return { state: next, events: [{ name: 'Transfer', args: { from, to, token_id: tokenId } }] };
+        },
+      },
+    ],
+  },
+  15: {
+    contract: 'ForgeToken',
+    note: 'The model is deployed as if the constructor received the name Forge Token, the symbol FORGE, Alice as the recipient and a supply of 1,000. It follows openzeppelin-stylus 0.3.0, whose errors are named as in ERC-6093.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({
+      total_supply: 1000n,
+      balances: { [SIM_ACCOUNTS[0].address]: 1000n },
+      allowances: {},
+      name: 'Forge Token',
+      symbol: 'FORGE',
+    }),
+    functions: [
+      {
+        name: 'total_supply',
+        abiName: 'totalSupply',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.total_supply as bigint }),
+      },
+      {
+        name: 'balance_of',
+        abiName: 'balanceOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'balances', args.account as string) }),
+      },
+      {
+        name: 'transfer',
+        abiName: 'transfer',
+        view: false,
+        params: [
+          { name: 'to', type: 'address' },
+          { name: 'value', type: 'uint256' },
+        ],
+        returns: 'bool',
+        run: (state, args, caller) => ozTransfer(state, caller.address, args.to as string, args.value as bigint),
+      },
+      {
+        name: 'allowance',
+        abiName: 'allowance',
+        view: true,
+        params: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+        ],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readNestedMapping(state, 'allowances', args.owner as string, args.spender as string) }),
+      },
+      {
+        name: 'approve',
+        abiName: 'approve',
+        view: false,
+        params: [
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+        ],
+        returns: 'bool',
+        run: (state, args, caller) => {
+          const owner = caller.address;
+          const spender = args.spender as string;
+          const value = args.value as bigint;
+          if (spender.toLowerCase() === ZERO_ADDRESS) return { revert: { error: 'ERC20InvalidSpender', args: { spender: ZERO_ADDRESS } } };
+          return {
+            state: writeNestedMapping(state, 'allowances', owner, spender, value),
+            returns: true,
+            events: [{ name: 'Approval', args: { owner, spender, value } }],
+          };
+        },
+      },
+      {
+        name: 'transfer_from',
+        abiName: 'transferFrom',
+        view: false,
+        params: [
+          { name: 'from', type: 'address' },
+          { name: 'to', type: 'address' },
+          { name: 'value', type: 'uint256' },
+        ],
+        returns: 'bool',
+        run: (state, args, caller) => {
+          const spender = caller.address;
+          const from = args.from as string;
+          const value = args.value as bigint;
+          // _spend_allowance: an unlimited allowance is never lowered, and lowering it emits no Approval.
+          const allowance = readNestedMapping(state, 'allowances', from, spender);
+          let next = state;
+          if (allowance !== UINT256_MAX) {
+            if (allowance < value) return { revert: { error: 'ERC20InsufficientAllowance', args: { spender, allowance, needed: value } } };
+            if (from.toLowerCase() === ZERO_ADDRESS) return { revert: { error: 'ERC20InvalidApprover', args: { approver: ZERO_ADDRESS } } };
+            next = writeNestedMapping(state, 'allowances', from, spender, allowance - value);
+          }
+          return ozTransfer(next, from, args.to as string, value);
+        },
+      },
+      {
+        name: 'name',
+        abiName: 'name',
+        view: true,
+        params: [],
+        returns: 'string',
+        run: (state) => ({ returns: state.name as string }),
+      },
+      {
+        name: 'symbol',
+        abiName: 'symbol',
+        view: true,
+        params: [],
+        returns: 'string',
+        run: (state) => ({ returns: state.symbol as string }),
+      },
+      {
+        name: 'decimals',
+        abiName: 'decimals',
+        view: true,
+        params: [],
+        returns: 'uint8',
+        run: () => ({ returns: 18n }),
+      },
+      {
+        name: 'supports_interface',
+        abiName: 'supportsInterface',
+        view: true,
+        params: [{ name: 'interface_id', type: 'bytes4' }],
+        returns: 'bool',
+        run: (_state, args) => ({ returns: FORGE_TOKEN_INTERFACES.includes(args.interface_id as string) }),
+      },
+    ],
+  },
 };
+
+/**
+ * Lesson 4's transfer, also lesson 13's move_tokens: debits the sender, then reads and credits the
+ * recipient (wrapping around like U256), emits Transfer and returns true, or reverts with
+ * InsufficientBalance.
+ */
+function moveTokens(state: SimState, from: string, to: string, value: bigint): SimOutcome {
+  const have = readMapping(state, 'balances', from);
+  if (have < value) {
+    return { revert: { error: 'InsufficientBalance', args: { from, have, want: value } } };
+  }
+  let next = writeMapping(state, 'balances', from, have - value);
+  next = writeMapping(next, 'balances', to, wrappingAdd(readMapping(next, 'balances', to), value));
+  return { state: next, returns: true, events: [{ name: 'Transfer', args: { from, to, value } }] };
+}
+
+/** Lesson 14's owner_of: the owner of a token, or the NonexistentToken revert when nobody owns it. */
+function ownerOf(state: SimState, tokenId: bigint): string | { revert: { error: string; args: { token_id: bigint } } } {
+  const owner = readAddressMapping(state, 'owners', tokenId);
+  return owner === ZERO_ADDRESS ? { revert: { error: 'NonexistentToken', args: { token_id: tokenId } } } : owner;
+}
+
+/**
+ * ERC-165 ids of the interfaces of lesson 15's ForgeToken (the XOR of the selectors of each one):
+ * IErc20, IErc20Metadata and IErc165 itself.
+ */
+const FORGE_TOKEN_INTERFACES = ['0x36372b07', '0xa219a025', '0x01ffc9a7'];
+
+/**
+ * The `_transfer` of openzeppelin-stylus 0.3.0, used by lesson 15: refuses the zero address on
+ * either side, then moves the tokens. Balances cannot overflow, since they add up to the supply.
+ */
+function ozTransfer(state: SimState, from: string, to: string, value: bigint): SimOutcome {
+  if (from.toLowerCase() === ZERO_ADDRESS) return { revert: { error: 'ERC20InvalidSender', args: { sender: ZERO_ADDRESS } } };
+  if (to.toLowerCase() === ZERO_ADDRESS) return { revert: { error: 'ERC20InvalidReceiver', args: { receiver: ZERO_ADDRESS } } };
+  const balance = readMapping(state, 'balances', from);
+  if (balance < value) return { revert: { error: 'ERC20InsufficientBalance', args: { sender: from, balance, needed: value } } };
+  let next = writeMapping(state, 'balances', from, balance - value);
+  next = writeMapping(next, 'balances', to, readMapping(next, 'balances', to) + value);
+  return { state: next, returns: true, events: [{ name: 'Transfer', args: { from, to, value } }] };
+}
 
 /** A task of the lesson 8 to-do list. */
 type Task = { title: string; done: boolean };
