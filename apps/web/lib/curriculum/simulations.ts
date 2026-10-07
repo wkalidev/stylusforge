@@ -1,4 +1,4 @@
-import { UINT256_MAX, deleteMapping, readMapping, readNestedMapping, wrappingAdd, writeMapping, writeNestedMapping, type LessonSimulation, type SimAccount, type SimOutcome, type SimState } from './simulation';
+import { UINT256_MAX, ZERO_ADDRESS, deleteMapping, readMapping, readNestedMapping, wrappingAdd, writeMapping, writeNestedMapping, type LessonSimulation, type SimAccount, type SimOutcome, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -7,8 +7,7 @@ export const SIM_ACCOUNTS: SimAccount[] = [
   { name: 'Carol', address: '0x00000000000000000000000000000000000ca201' },
 ];
 
-/** `Address::ZERO`, the value of an address field never written. */
-export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+export { ZERO_ADDRESS };
 
 /** "Try it" models of each lesson's contract, keyed by lesson id. */
 export const SIMULATIONS: Record<number, LessonSimulation> = {

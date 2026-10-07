@@ -131,22 +131,36 @@ export function wrappingSub(a: bigint, b: bigint): bigint {
   return (a - b) & UINT256_MAX;
 }
 
+/** `Address::ZERO`, the value of an address never written. */
+export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+/** A mapping key: an address in lowercase, or a uint256 (a token id) in decimal. */
+function mappingKey(key: string | bigint): string {
+  return typeof key === 'bigint' ? key.toString() : key.toLowerCase();
+}
+
 /** Reads a mapping entry, zero when unset (like a storage mapping). */
-export function readMapping(state: SimState, field: string, key: string): bigint {
+export function readMapping(state: SimState, field: string, key: string | bigint): bigint {
   const mapping = state[field] as Record<string, SimValue>;
-  return (mapping[key.toLowerCase()] as bigint | undefined) ?? 0n;
+  return (mapping[mappingKey(key)] as bigint | undefined) ?? 0n;
+}
+
+/** Reads an entry of a mapping to addresses, the zero address when unset. */
+export function readAddressMapping(state: SimState, field: string, key: string | bigint): string {
+  const mapping = state[field] as Record<string, SimValue>;
+  return (mapping[mappingKey(key)] as string | undefined) ?? ZERO_ADDRESS;
 }
 
 /** Returns a state copy with one mapping entry written. */
-export function writeMapping(state: SimState, field: string, key: string, value: bigint): SimState {
-  const mapping = { ...(state[field] as Record<string, SimValue>), [key.toLowerCase()]: value };
+export function writeMapping(state: SimState, field: string, key: string | bigint, value: SimValue): SimState {
+  const mapping = { ...(state[field] as Record<string, SimValue>), [mappingKey(key)]: value };
   return { ...state, [field]: mapping };
 }
 
 /** Returns a state copy with one mapping entry reset to zero, which removes it from the view. */
-export function deleteMapping(state: SimState, field: string, key: string): SimState {
+export function deleteMapping(state: SimState, field: string, key: string | bigint): SimState {
   const entries = Object.entries(state[field] as Record<string, SimValue>);
-  return { ...state, [field]: Object.fromEntries(entries.filter(([entry]) => entry !== key.toLowerCase())) };
+  return { ...state, [field]: Object.fromEntries(entries.filter(([entry]) => entry !== mappingKey(key))) };
 }
 
 /** Reads an entry of a nested mapping (`mapping(address => mapping(address => uint256))`), zero when unset. */
@@ -162,8 +176,12 @@ export function writeNestedMapping(state: SimState, field: string, outer: string
   return { ...state, [field]: { ...mapping, [outer.toLowerCase()]: entries } };
 }
 
-/** A mapping key or struct field as the Try it panel shows it: addresses like values, names as they are. */
+/**
+ * A mapping key or struct field as the Try it panel shows it: addresses and token ids like values,
+ * names as they are.
+ */
 export function formatSimKey(key: string, accounts: SimAccount[]): string {
+  if (/^\d+$/.test(key)) return formatSimValue(BigInt(key), accounts);
   return /^0x[0-9a-fA-F]{40}$/.test(key) ? formatSimValue(key, accounts) : key;
 }
 
