@@ -10,11 +10,12 @@ const lessonCompleted = getAbiItem({ abi: stylusForgeNftAbi, name: 'LessonComple
 /**
  * When and in which transaction each certificate of `student` was claimed, from the contract's
  * LessonCompleted events and their block times (the contract itself stores no date). Undefined
- * while loading or if the logs cannot be read: callers show the certificate without a date.
+ * while loading, null if the logs cannot be read: callers then show the certificate without a
+ * date.
  */
-export function useClaimRecords(student: Address | undefined): Map<number, ClaimRecord> | undefined {
+export function useClaimRecords(student: Address | undefined): Map<number, ClaimRecord> | null | undefined {
   const client = usePublicClient({ chainId: chain.id });
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ['certificate-claims', chain.id, nftContractAddress, student],
     enabled: Boolean(client && student && nftContractAddress),
     staleTime: 60_000,
@@ -42,5 +43,5 @@ export function useClaimRecords(student: Address | undefined): Map<number, Claim
       return claimRecords(logs, timestamps);
     },
   });
-  return data;
+  return isError ? null : data;
 }
