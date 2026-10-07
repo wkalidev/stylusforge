@@ -422,4 +422,55 @@ describe("lesson simulations", () => {
     expect(results[6]).toMatchObject({ ok: false, error: { error: "InvalidReceiver" } });
     expect(results[7]).toMatchObject({ ok: false, error: { error: "InsufficientApproval", args: { operator: bob.address, token_id: 1n } } });
   });
+
+  it("lesson 15 starts deployed with its metadata and supply, and answers ERC-165 queries", () => {
+    const results = run(getSimulation(15)!, [
+      ["name", {}, bob],
+      ["symbol", {}, bob],
+      ["decimals", {}, bob],
+      ["total_supply", {}, bob],
+      ["balance_of", { account: "Alice" }, bob],
+      ["supports_interface", { interface_id: "0x36372B07" }, bob],
+      ["supports_interface", { interface_id: "0xa219a025" }, bob],
+      ["supports_interface", { interface_id: "0x01ffc9a7" }, bob],
+      ["supports_interface", { interface_id: "0x80ac58cd" }, bob],
+      ["supports_interface", { interface_id: "0x1234" }, bob],
+    ]);
+    expect(results.slice(0, 5).map((result) => result.returns)).toEqual(["Forge Token", "FORGE", 18n, 1000n, 1000n]);
+    expect(results.slice(5, 9).map((result) => result.returns)).toEqual([true, true, true, false]);
+    expect(results[9]).toMatchObject({ ok: false, error: { error: '"0x1234" is not a bytes4 (0x and 8 hex digits)' } });
+  });
+
+  it("lesson 15 transfers and spends allowances with the errors of OpenZeppelin", () => {
+    const results = run(getSimulation(15)!, [
+      ["transfer", { to: "Bob", value: "1001" }, alice],
+      ["transfer", { to: ZERO_ADDRESS, value: "1" }, alice],
+      ["approve", { spender: ZERO_ADDRESS, value: "1" }, alice],
+      ["approve", { spender: "Bob", value: "300" }, alice],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "301" }, bob],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "100" }, bob],
+      ["allowance", { owner: "Alice", spender: "Bob" }, bob],
+      ["balance_of", { account: "Carol" }, bob],
+      ["approve", { spender: "Carol", value: MAX.toString() }, alice],
+      ["transfer_from", { from: "Alice", to: "Carol", value: "50" }, carol],
+      ["allowance", { owner: "Alice", spender: "Carol" }, bob],
+      ["transfer_from", { from: "Alice", to: ZERO_ADDRESS, value: "50" }, bob],
+      ["allowance", { owner: "Alice", spender: "Bob" }, bob],
+    ]);
+    expect(results[0]).toMatchObject({ ok: false, error: { error: "ERC20InsufficientBalance", args: { sender: alice.address, balance: 1000n, needed: 1001n } } });
+    expect(results[1]).toMatchObject({ ok: false, error: { error: "ERC20InvalidReceiver", args: { receiver: ZERO_ADDRESS } } });
+    expect(results[2]).toMatchObject({ ok: false, error: { error: "ERC20InvalidSpender", args: { spender: ZERO_ADDRESS } } });
+    expect(results[3]).toMatchObject({ ok: true, returns: true, events: [{ name: "Approval", args: { owner: alice.address, spender: bob.address, value: 300n } }] });
+    expect(results[4]).toMatchObject({ ok: false, error: { error: "ERC20InsufficientAllowance", args: { spender: bob.address, allowance: 300n, needed: 301n } } });
+    // Spending an allowance emits only Transfer: OpenZeppelin lowers it without an Approval event.
+    expect(results[5]).toMatchObject({ ok: true, returns: true, events: [{ name: "Transfer", args: { from: alice.address, to: carol.address, value: 100n } }] });
+    expect(results[5].events).toHaveLength(1);
+    expect(results[6].returns).toBe(200n);
+    expect(results[7].returns).toBe(100n);
+    expect(results[9].ok).toBe(true);
+    expect(results[10].returns).toBe(MAX);
+    // A revert after the allowance is lowered undoes the whole call.
+    expect(results[11]).toMatchObject({ ok: false, error: { error: "ERC20InvalidReceiver" } });
+    expect(results[12].returns).toBe(200n);
+  });
 });

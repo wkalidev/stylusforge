@@ -236,3 +236,55 @@ describe("lesson 14: ERC-721", () => {
     expect(variant(14, missing, "").objectives).toEqual(["Revert for a token that nobody owns"]);
   });
 });
+
+describe("lesson 15: OpenZeppelin for Stylus", () => {
+  const implementsAttribute = "#[implements(IErc20<Error = erc20::Error>, IErc20Metadata, IErc165)]";
+  const supports = "self.erc20.supports_interface(interface_id) || self.metadata.supports_interface(interface_id)";
+
+  it("accepts the interfaces in any order, and rustfmt line breaks", () => {
+    expect(variant(15, implementsAttribute, "#[implements(IErc165, IErc20Metadata, IErc20<Error = erc20::Error>)]").passed).toBe(true);
+    expect(variant(15, implementsAttribute, "#[implements(\n    IErc20Metadata,\n    IErc20<Error = erc20::Error>,\n    IErc165,\n)]").passed).toBe(true);
+    expect(variant(15, implementsAttribute, "#[implements(\n    IErc20Metadata,\n    IErc20<Error = erc20::Error>,\n    IErc165\n)]").passed).toBe(true);
+  });
+
+  it("accepts the mint returned or passed on with ?, and the forwarding wrapped in Ok", () => {
+    expect(variant(15, "self.erc20._mint(recipient, supply)\n", "self.erc20._mint(recipient, supply)?;\n        Ok(())\n").passed).toBe(true);
+    expect(variant(15, "self.erc20.transfer(to, value)", "Ok(self.erc20.transfer(to, value)?)").passed).toBe(true);
+  });
+
+  it("accepts both answers in either order, with the trait syntax or in locals", () => {
+    expect(variant(15, supports, "self.metadata.supports_interface(interface_id) || self.erc20.supports_interface(interface_id)").passed).toBe(true);
+    expect(
+      variant(15, supports, "Erc20::supports_interface(&self.erc20, interface_id)\n            || Erc20Metadata::supports_interface(&self.metadata, interface_id)").passed,
+    ).toBe(true);
+    expect(
+      variant(
+        15,
+        supports,
+        "let token_answer = self.erc20.supports_interface(interface_id);\n        let metadata_answer = self.metadata.supports_interface(interface_id);\n        token_answer || metadata_answer",
+      ).passed,
+    ).toBe(true);
+  });
+
+  it("refuses an implements list that leaves an interface out", () => {
+    expect(variant(15, implementsAttribute, "#[implements(IErc20<Error = erc20::Error>, IErc20Metadata)]").objectives).toEqual([
+      "Route calls to the ERC-20, metadata and ERC-165 interfaces",
+    ]);
+  });
+
+  it("refuses a constructor that never mints, or mints to the caller", () => {
+    expect(variant(15, "self.erc20._mint(recipient, supply)\n", "Ok(())\n").objectives).toEqual(["Mint the initial supply to the recipient"]);
+    expect(variant(15, "self.erc20._mint(recipient, supply)", "self.erc20._mint(self.vm().msg_sender(), supply)").objectives).toEqual([
+      "Mint the initial supply to the recipient",
+    ]);
+  });
+
+  it("refuses supports_interface answers joined with && or taken from one component", () => {
+    expect(variant(15, supports, "self.erc20.supports_interface(interface_id) && self.metadata.supports_interface(interface_id)").objectives).toEqual([
+      "Support an interface when either component supports it",
+    ]);
+    expect(variant(15, supports, "self.erc20.supports_interface(interface_id)").objectives).toEqual([
+      "Support an interface when either component supports it",
+    ]);
+  });
+});
