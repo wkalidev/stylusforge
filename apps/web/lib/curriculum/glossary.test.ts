@@ -63,6 +63,15 @@ describe("glossaryAt", () => {
     expect(idAt("    erc20: Erc20,", 7)).toBeNull();
   });
 
+  it("explains #[selector] and 80-bit integers", () => {
+    const attribute = '    #[selector(name = "latestRoundData")]';
+    expect(glossaryAt(attribute, 7)).toMatchObject({ entry: { id: "selector" }, startColumn: 5, endColumn: 16 });
+    const signature = "    pub fn latest_round(&self) -> (U80, I256, U256, U256, U80) {";
+    expect(idAt(signature, signature.indexOf("U80") + 1)).toBe("u80");
+    expect(idAt("        uint80 round_id;", 10)).toBe("uint80");
+    expect(idAt("    pub fn selector(&self) {}", 12)).toBeNull();
+  });
+
   it("explains sol_interface!, call configurations and signed integers", () => {
     expect(idAt("sol_interface! {", 3)).toBe("sol_interface");
     const call = "        Ok(feed.decimals(self.vm(), Call::new())?)";

@@ -252,6 +252,25 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'The number of elements of a storage vector, as a Rust `usize`. Convert it with `U256::from(...)` to return it.',
   },
   {
+    id: 'selector',
+    pattern: /#\[selector\(/,
+    title: '#[selector(name = "...")]',
+    description:
+      'Sets the Solidity name of a method when the camelCase of its Rust name is not the one callers use, such as `DOMAIN_SEPARATOR`. Its selector is the first 4 bytes of the keccak-256 hash of the signature.',
+  },
+  {
+    id: 'u80',
+    pattern: /\bU80\b/,
+    title: 'U80',
+    description: 'An unsigned 80-bit integer from `alloy_primitives::aliases`, the `uint80` of Solidity, as in the round ids of Chainlink feeds.',
+  },
+  {
+    id: 'uint80',
+    pattern: /\buint80\b/,
+    title: 'uint80',
+    description: 'An unsigned 80-bit integer in Solidity: a `U80` in Rust code, read and written with `get` and `set` in storage.',
+  },
+  {
     id: 'sol_interface',
     pattern: /\bsol_interface!/,
     title: 'sol_interface!',
