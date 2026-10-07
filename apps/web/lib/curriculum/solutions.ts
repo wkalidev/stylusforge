@@ -910,4 +910,86 @@ impl PriceFeed {
     }
 }
 `,
+  5: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol_interface! {
+    interface IERC20 {
+        function transfer(address to, uint256 value) external returns (bool);
+        function transferFrom(address from, address to, uint256 value) external returns (bool);
+    }
+}
+
+sol! {
+    event Deposited(address indexed account, uint256 amount);
+    event Withdrawn(address indexed account, uint256 amount);
+    error TransferFailed(address token);
+    error InsufficientDeposit(uint256 available, uint256 requested);
+}
+
+#[derive(SolidityError)]
+pub enum VaultError {
+    TransferFailed(TransferFailed),
+    InsufficientDeposit(InsufficientDeposit),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct TokenVault {
+        address token;
+        mapping(address => uint256) deposits;
+    }
+}
+
+#[public]
+impl TokenVault {
+    #[constructor]
+    pub fn constructor(&mut self, token: Address) {
+        self.token.set(token);
+    }
+
+    pub fn deposit_of(&self, account: Address) -> U256 {
+        self.deposits.get(account)
+    }
+
+    pub fn deposit(&mut self, amount: U256) -> Result<(), Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let vault = self.vm().contract_address();
+        let token = IERC20::new(self.token.get());
+        let config = Call::new_mutating(self);
+        let ok = token.transfer_from(self.vm(), config, account, vault, amount)?;
+        if !ok {
+            return Err(VaultError::TransferFailed(TransferFailed { token: self.token.get() }).into());
+        }
+        let total = self.deposits.get(account) + amount;
+        self.deposits.insert(account, total);
+        self.vm().log(Deposited { account, amount });
+        Ok(())
+    }
+
+    pub fn withdraw(&mut self, amount: U256) -> Result<(), Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let available = self.deposits.get(account);
+        if available < amount {
+            return Err(VaultError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into());
+        }
+        self.deposits.insert(account, available - amount);
+        let token = IERC20::new(self.token.get());
+        let config = Call::new_mutating(self);
+        let ok = token.transfer(self.vm(), config, account, amount)?;
+        if !ok {
+            return Err(VaultError::TransferFailed(TransferFailed { token: self.token.get() }).into());
+        }
+        self.vm().log(Withdrawn { account, amount });
+        Ok(())
+    }
+}
+`,
 };
