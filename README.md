@@ -187,6 +187,31 @@ After the first deployment:
 1. Point the token metadata at the deployed app from the owner account: `pnpm hardhat run scripts/set-uri.ts --network arbitrumSepolia` in `contracts/` ([contracts/README.md](contracts/README.md#metadata-uri)).
 2. Verify the contract on Arbiscan ([contracts/README.md](contracts/README.md#verification-on-arbiscan)).
 
+### Rate limiting
+
+`/api/claim` and `/api/solution` are rate limited by a Vercel Firewall rule, not in the app: the firewall answers before the function runs, so blocked requests cost no invocation, and its counters are shared by every instance (they are tracked per region). An in-memory counter in the app would only count per serverless instance. The rule lives in the project's firewall configuration, not in `vercel.json`, whose `mitigate` supports only `deny` and `challenge`.
+
+| Setting | Value |
+|---|---|
+| Name | Rate limit claim and solution |
+| If | Request Path is any of `/api/claim`, `/api/solution`, and Method equals `POST` |
+| Then | Rate Limit: Fixed Window, 60 s, 20 requests, keyed by IP |
+| Action when exceeded | Default (429) |
+
+The Hobby plan allows one rate-limit rule per project, so both endpoints share it and a client's requests to either count together. 20 a minute is far above what a student needs (a claim per lesson, an occasional comparison). To apply it with the CLI (`vercel login` and `vercel link` in `apps/web` first):
+
+```bash
+vercel firewall rules add "Rate limit claim and solution" \
+  --condition '{"type":"path","op":"inc","value":["/api/claim","/api/solution"]}' \
+  --condition '{"type":"method","op":"eq","value":"POST"}' \
+  --action rate_limit --rate-limit-window 60 --rate-limit-requests 20 \
+  --rate-limit-keys ip --rate-limit-action rate_limit --yes
+vercel firewall diff
+vercel firewall publish --yes
+```
+
+A per-IP limit slows scripted claims but does not stop a client that rotates IPs.
+
 ## Continuous integration
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on every push to `main` and on demand: `pnpm install --frozen-lockfile` on Node 22, then `pnpm lint`, `pnpm test` (contracts, then vitest) and `pnpm build`. The build uses a placeholder WalletConnect id unless the repository variable `NEXT_PUBLIC_WALLETCONNECT_ID` is set. A new push to a pull request cancels its running checks. Each push to `main` runs in its own concurrency group, so no merge's run is cancelled or replaced while queued.
