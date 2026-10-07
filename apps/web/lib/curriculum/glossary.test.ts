@@ -63,6 +63,18 @@ describe("glossaryAt", () => {
     expect(idAt("    erc20: Erc20,", 7)).toBeNull();
   });
 
+  it("explains sol_interface!, call configurations and signed integers", () => {
+    expect(idAt("sol_interface! {", 3)).toBe("sol_interface");
+    const call = "        Ok(feed.decimals(self.vm(), Call::new())?)";
+    expect(glossaryAt(call, call.indexOf("Call") + 1)).toMatchObject({ entry: { id: "call_config" }, startColumn: call.indexOf("Call") + 1 });
+    const mutating = "        let config = Call::new_mutating(self);";
+    expect(idAt(mutating, mutating.indexOf("new_mutating") + 1)).toBe("call_config");
+    expect(idAt("        if answer <= I256::ZERO {", 22)).toBe("i256");
+    const signature = "    error NegativePrice(int256 answer);";
+    expect(idAt(signature, signature.indexOf("int256") + 1)).toBe("int256");
+    expect(idAt("        uint256 max_age;", 10)).toBe("uint256");
+  });
+
   it("tells sol! apart from sol_storage!", () => {
     expect(idAt("sol! {", 2)).toBe("sol");
     expect(idAt("sol_storage! {", 2)).toBe("sol_storage");

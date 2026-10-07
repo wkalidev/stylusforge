@@ -252,6 +252,33 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'The number of elements of a storage vector, as a Rust `usize`. Convert it with `U256::from(...)` to return it.',
   },
   {
+    id: 'sol_interface',
+    pattern: /\bsol_interface!/,
+    title: 'sol_interface!',
+    description:
+      'Turns Solidity interfaces into Rust types that wrap the address of a deployed contract: `IFeed::new(address)`, then one snake_case method per function, which takes `self.vm()`, a `Call` configuration and the arguments, and returns a `Result`.',
+  },
+  {
+    id: 'call_config',
+    pattern: /\bCall::(?:new_mutating|new_payable|new|default)\(/,
+    title: 'Call configuration',
+    description:
+      '`Call::new()` makes a static call, for `view` and `pure` functions. `Call::new_mutating(self)` lets the callee write, and `Call::new_payable(self, value)` also sends ETH; both need `&mut self`, so build them before borrowing `self.vm()`.',
+  },
+  {
+    id: 'i256',
+    pattern: /\bI256\b/,
+    title: 'I256',
+    description:
+      'The signed 256-bit integer of `alloy_primitives`, the `int256` of Solidity: `I256::ZERO`, `is_positive()`, `is_negative()`, and `into_raw()` for its bits as a `U256`.',
+  },
+  {
+    id: 'int256',
+    pattern: /\bint256\b/,
+    title: 'int256',
+    description: 'A signed 256-bit integer in Solidity: `StorageI256` in storage, `I256` in Rust code.',
+  },
+  {
     id: 'uint256',
     pattern: /\buint256\b/,
     title: 'uint256',
