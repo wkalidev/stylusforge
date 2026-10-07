@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { LESSONS } from "./lessons";
 import { SIM_START_TIME, UINT256_MAX, callSimulation, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
-import { SIM_ACCOUNTS, ZERO_ADDRESS, getSimulation } from "./simulations";
+import { PRICE_FEED_ADDRESS, SIM_ACCOUNTS, ZERO_ADDRESS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
 const [alice, bob, carol] = SIM_ACCOUNTS;
@@ -48,6 +48,14 @@ const OVERFLOW_CASES: Record<
       balances: { [alice.address]: 0n, [bob.address]: 0n },
       allowances: { [alice.address]: { [carol.address]: 0n } },
     },
+  },
+  // now - updated_at wraps around when the update is in the future: with max_age at U256::MAX, the
+  // wrapped age is exactly MAX, which is not greater, so Rust returns the answer instead of reverting.
+  16: {
+    state: { feed: PRICE_FEED_ADDRESS, max_age: MAX, PriceFeed: { decimals: 8n, round_id: 1n, answer: 5n, updated_at: SIM_START_TIME + 1n } },
+    call: ["price", {}, alice],
+    with: { timestamp: SIM_START_TIME },
+    expected: { feed: PRICE_FEED_ADDRESS, max_age: MAX, PriceFeed: { decimals: 8n, round_id: 1n, answer: 5n, updated_at: SIM_START_TIME + 1n } },
   },
   14: {
     state: { owners: { "7": alice.address }, balances: { [alice.address]: 1n, [bob.address]: MAX }, token_approvals: {} },
