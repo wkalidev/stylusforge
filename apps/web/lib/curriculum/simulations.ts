@@ -1,4 +1,4 @@
-import { SIM_START_TIME, UINT256_MAX, ZERO_ADDRESS, deleteMapping, mockState, readAddressMapping, readMapping, readNestedMapping, wrappingAdd, wrappingSub, writeMapping, writeMockState, writeNestedMapping, type LessonSimulation, type SimAccount, type SimOutcome, type SimState } from './simulation';
+import { SIM_START_TIME, UINT256_MAX, ZERO_ADDRESS, deleteMapping, mockState, readAddressMapping, readMapping, readNestedMapping, wrappingAdd, wrappingSub, writeMapping, writeMockState, writeNestedMapping, type LessonSimulation, type SimAccount, type SimEvent, type SimOutcome, type SimState, type SimValue } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -11,6 +11,9 @@ export { ZERO_ADDRESS };
 
 /** The address of the mock price feed of lesson 16. */
 export const PRICE_FEED_ADDRESS = '0x000000000000000000000000000000000000f33d';
+
+/** The address of the mock ERC-20 token of lesson 5. */
+export const TOKEN_ADDRESS = '0x0000000000000000000000000000000000007070';
 
 /** "Try it" models of each lesson's contract, keyed by lesson id. */
 export const SIMULATIONS: Record<number, LessonSimulation> = {
@@ -908,7 +911,147 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  5: {
+    contract: 'TokenVault',
+    note: 'It is deployed with the mock Token as its token, which starts with 1,000 tokens for Alice. Approve TokenVault on the Token first, then deposit.',
+    accounts: SIM_ACCOUNTS,
+    mocks: [
+      {
+        name: 'Token',
+        address: TOKEN_ADDRESS,
+        note: 'It models an ERC-20 with the errors of OpenZeppelin. Its returns_false switch (1 for on) makes transfer and transferFrom return false without moving anything, like tokens that do not revert.',
+      },
+    ],
+    initialState: () => ({
+      token: TOKEN_ADDRESS,
+      deposits: {},
+      Token: { balances: { [SIM_ACCOUNTS[0].address]: 1000n }, allowances: {}, returns_false: 0n },
+    }),
+    functions: [
+      {
+        name: 'deposit_of',
+        abiName: 'depositOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'deposits', args.account as string) }),
+      },
+      {
+        name: 'deposit',
+        abiName: 'deposit',
+        view: false,
+        params: [{ name: 'amount', type: 'uint256' }],
+        run: (state, args, caller, context) => {
+          const account = caller.address;
+          const amount = args.amount as bigint;
+          const pulled = tokenTransferFrom(state, context.self, account, context.self, amount);
+          if ('revert' in pulled) return pulled;
+          if (!pulled.ok) return { revert: { error: 'TransferFailed', args: { token: TOKEN_ADDRESS } } };
+          const total = wrappingAdd(readMapping(pulled.state, 'deposits', account), amount);
+          return {
+            state: writeMapping(pulled.state, 'deposits', account, total),
+            events: [...pulled.events, { name: 'Deposited', args: { account, amount } }],
+          };
+        },
+      },
+      {
+        name: 'withdraw',
+        abiName: 'withdraw',
+        view: false,
+        params: [{ name: 'amount', type: 'uint256' }],
+        run: (state, args, caller, context) => {
+          const account = caller.address;
+          const amount = args.amount as bigint;
+          const available = readMapping(state, 'deposits', account);
+          if (available < amount) return { revert: { error: 'InsufficientDeposit', args: { available, requested: amount } } };
+          // Checks, effects, interactions: the deposit is lowered before the token is called.
+          const lowered = writeMapping(state, 'deposits', account, available - amount);
+          const sent = tokenTransfer(lowered, context.self, account, amount);
+          if ('revert' in sent) return sent;
+          if (!sent.ok) return { revert: { error: 'TransferFailed', args: { token: TOKEN_ADDRESS } } };
+          return { state: sent.state, events: [...sent.events, { name: 'Withdrawn', args: { account, amount } }] };
+        },
+      },
+      {
+        name: 'balance_of',
+        abiName: 'balanceOf',
+        view: true,
+        contract: 'Token',
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(mockState(state, 'Token'), 'balances', args.account as string) }),
+      },
+      {
+        name: 'approve',
+        abiName: 'approve',
+        view: false,
+        contract: 'Token',
+        params: [
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+        ],
+        returns: 'bool',
+        run: (state, args, caller) => {
+          const spender = args.spender as string;
+          const value = args.value as bigint;
+          const token = writeNestedMapping(mockState(state, 'Token'), 'allowances', caller.address, spender, value);
+          return {
+            state: writeMockState(state, 'Token', token),
+            returns: true,
+            events: [{ name: 'Approval', args: { owner: caller.address, spender, value }, contract: 'Token' }],
+          };
+        },
+      },
+      {
+        name: 'allowance',
+        abiName: 'allowance',
+        view: true,
+        contract: 'Token',
+        params: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+        ],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readNestedMapping(mockState(state, 'Token'), 'allowances', args.owner as string, args.spender as string) }),
+      },
+      {
+        name: 'set_returns_false',
+        abiName: 'setReturnsFalse',
+        view: false,
+        contract: 'Token',
+        params: [{ name: 'enabled', type: 'uint256' }],
+        run: (state, args) => ({ state: writeMockState(state, 'Token', { returns_false: (args.enabled as bigint) === 0n ? 0n : 1n }) }),
+      },
+    ],
+  },
 };
+
+/** The result of a call to lesson 5's mock token: a revert, or its state, its bool and its events. */
+type TokenCall = { revert: { error: string; args: Record<string, SimValue> } } | { state: SimState; ok: boolean; events: SimEvent[] };
+
+/**
+ * A transfer of lesson 5's mock ERC-20, with the errors of OpenZeppelin: `from` sends `value` to
+ * `to`. With `returns_false` set, it moves nothing and returns false, like tokens that do not revert.
+ */
+function tokenTransfer(state: SimState, from: string, to: string, value: bigint): TokenCall {
+  const token = mockState(state, 'Token');
+  if (token.returns_false === 1n) return { state, ok: false, events: [] };
+  const balance = readMapping(token, 'balances', from);
+  if (balance < value) return { revert: { error: 'ERC20InsufficientBalance', args: { sender: from, balance, needed: value } } };
+  let next = writeMapping(token, 'balances', from, balance - value);
+  next = writeMapping(next, 'balances', to, readMapping(next, 'balances', to) + value);
+  return { state: writeMockState(state, 'Token', next), ok: true, events: [{ name: 'Transfer', args: { from, to, value }, contract: 'Token' }] };
+}
+
+/** `transfer_from` of lesson 5's mock token: spends the allowance of `spender` (never an unlimited one), then transfers. */
+function tokenTransferFrom(state: SimState, spender: string, from: string, to: string, value: bigint): TokenCall {
+  const token = mockState(state, 'Token');
+  if (token.returns_false === 1n) return { state, ok: false, events: [] };
+  const allowance = readNestedMapping(token, 'allowances', from, spender);
+  if (allowance < value) return { revert: { error: 'ERC20InsufficientAllowance', args: { spender, allowance, needed: value } } };
+  const spent = allowance === UINT256_MAX ? state : writeMockState(state, 'Token', writeNestedMapping(token, 'allowances', from, spender, allowance - value));
+  return tokenTransfer(spent, from, to, value);
+}
 
 /** The largest `U80`, where lesson 17's round id wraps around. */
 const UINT80_MAX = (1n << 80n) - 1n;
