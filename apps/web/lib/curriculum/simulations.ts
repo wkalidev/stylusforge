@@ -1,4 +1,4 @@
-import { UINT256_MAX, ZERO_ADDRESS, deleteMapping, readAddressMapping, readMapping, readNestedMapping, wrappingAdd, writeMapping, writeNestedMapping, type LessonSimulation, type SimAccount, type SimOutcome, type SimState } from './simulation';
+import { SIM_START_TIME, UINT256_MAX, ZERO_ADDRESS, deleteMapping, mockState, readAddressMapping, readMapping, readNestedMapping, wrappingAdd, wrappingSub, writeMapping, writeMockState, writeNestedMapping, type LessonSimulation, type SimAccount, type SimOutcome, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -8,6 +8,9 @@ export const SIM_ACCOUNTS: SimAccount[] = [
 ];
 
 export { ZERO_ADDRESS };
+
+/** The address of the mock price feed of lesson 16. */
+export const PRICE_FEED_ADDRESS = '0x000000000000000000000000000000000000f33d';
 
 /** "Try it" models of each lesson's contract, keyed by lesson id. */
 export const SIMULATIONS: Record<number, LessonSimulation> = {
@@ -762,6 +765,94 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
         params: [{ name: 'interface_id', type: 'bytes4' }],
         returns: 'bool',
         run: (_state, args) => ({ returns: FORGE_TOKEN_INTERFACES.includes(args.interface_id as string) }),
+      },
+    ],
+  },
+  16: {
+    contract: 'PriceConsumer',
+    note: 'It is deployed with the mock PriceFeed as its feed and a max_age of 3,600 seconds. The block time is a simplified clock: 12 seconds per sent transaction, while real Arbitrum blocks are much faster.',
+    accounts: SIM_ACCOUNTS,
+    clock: true,
+    mocks: [
+      {
+        name: 'PriceFeed',
+        address: PRICE_FEED_ADDRESS,
+        note: 'It models a Chainlink feed with 8 decimals: set its answer, or move its update time to make it stale (0 for an incomplete round).',
+      },
+    ],
+    initialState: () => ({
+      feed: PRICE_FEED_ADDRESS,
+      max_age: 3600n,
+      PriceFeed: { decimals: 8n, round_id: 1n, answer: 300_000_000_000n, updated_at: SIM_START_TIME },
+    }),
+    functions: [
+      {
+        name: 'feed',
+        abiName: 'feed',
+        view: true,
+        params: [],
+        returns: 'address',
+        run: (state) => ({ returns: state.feed as string }),
+      },
+      {
+        name: 'decimals',
+        abiName: 'decimals',
+        view: true,
+        params: [],
+        returns: 'uint8',
+        run: (state) => ({ returns: mockState(state, 'PriceFeed').decimals as bigint }),
+      },
+      {
+        name: 'price',
+        abiName: 'price',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state, _args, _caller, context) => {
+          const { answer, updated_at: updatedAt } = mockState(state, 'PriceFeed') as { answer: bigint; updated_at: bigint };
+          const now = context.timestamp;
+          // now - updated_at wraps around like U256 when the update is in the future.
+          if (wrappingSub(now, updatedAt) > (state.max_age as bigint)) {
+            return { revert: { error: 'StalePrice', args: { updated_at: updatedAt, now } } };
+          }
+          if (answer <= 0n) return { revert: { error: 'NegativePrice', args: { answer } } };
+          return { returns: answer };
+        },
+      },
+      {
+        name: 'set_answer',
+        abiName: 'setAnswer',
+        view: false,
+        contract: 'PriceFeed',
+        params: [{ name: 'answer', type: 'int256' }],
+        run: (state, args, _caller, context) => {
+          const feed = mockState(state, 'PriceFeed');
+          const round = (feed.round_id as bigint) + 1n;
+          return {
+            state: writeMockState(state, 'PriceFeed', { round_id: round, answer: args.answer, updated_at: context.timestamp }),
+            events: [{ name: 'AnswerUpdated', args: { current: args.answer, roundId: round, updatedAt: context.timestamp }, contract: 'PriceFeed' }],
+          };
+        },
+      },
+      {
+        name: 'set_updated_at',
+        abiName: 'setUpdatedAt',
+        view: false,
+        contract: 'PriceFeed',
+        params: [{ name: 'updated_at', type: 'uint256' }],
+        run: (state, args) => ({ state: writeMockState(state, 'PriceFeed', { updated_at: args.updated_at }) }),
+      },
+      {
+        name: 'latest_round_data',
+        abiName: 'latestRoundData',
+        view: true,
+        contract: 'PriceFeed',
+        params: [],
+        returns: ['uint80', 'int256', 'uint256', 'uint256', 'uint80'],
+        run: (state) => {
+          const feed = mockState(state, 'PriceFeed') as { round_id: bigint; answer: bigint; updated_at: bigint };
+          return { returns: [feed.round_id, feed.answer, feed.updated_at, feed.updated_at, feed.round_id] };
+        },
       },
     ],
   },
