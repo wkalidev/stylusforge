@@ -33,7 +33,9 @@ export function ProfileView() {
     allowFailure: false,
     query: { enabled: Boolean(address && nftContractAddress) },
   });
-  const records = useClaimRecords(address);
+  const completed = reads.data?.[1] as readonly [readonly bigint[], readonly boolean[]] | undefined;
+  const claimedIds = completed ? new Set(completed[0].filter((_, index) => completed[1][index]).map(Number)) : undefined;
+  const records = useClaimRecords(address, claimedIds);
 
   if (!nftContractAddress) {
     return <Notice>Certificates are not available here: no contract address is configured.</Notice>;
@@ -55,12 +57,11 @@ export function ProfileView() {
       </Notice>
     );
   }
-  if (!reads.data) {
+  if (!reads.data || !claimedIds) {
     return <p className='text-steel-400'>Reading your certificates on {chain.name}…</p>;
   }
 
-  const [totalXp, [registeredIds, done]] = reads.data as [bigint, readonly [readonly bigint[], readonly boolean[]]];
-  const claimedIds = new Set(registeredIds.filter((_, index) => done[index]).map(Number));
+  const [totalXp, [registeredIds]] = reads.data as [bigint, readonly [readonly bigint[], readonly boolean[]]];
   // Passed in this browser, registered on-chain, not owned yet: ready to claim.
   const registered = new Set(registeredIds.map(Number));
   const unclaimed = LESSONS.filter(

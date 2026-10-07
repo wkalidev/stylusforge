@@ -255,7 +255,11 @@ Every answer carries `cache-control: no-store`. Requests over the rate limit get
 - **Claimed:** a `CertificateCard` with the certificate SVG on its front.
   - With a fine pointer and motion allowed, it tilts towards the pointer and a metallic sheen follows it on hover.
   - A click, Enter or Space turns it over. The back shows the claim date, the claim transaction on Arbiscan, a button that copies that link, and the lesson; Escape or Flip back turns it back.
-  - The contract stores no date: `useClaimRecords` reads the wallet's `LessonCompleted` events from the deployment block and the time of their blocks. Without them, the card links the token page and says the date is unavailable.
+  - The contract stores no date, so `useClaimRecords` reads the wallet's `LessonCompleted` events (`lib/certificate/claimScan.ts`).
+    - **Chunks:** newest first, at most 50,000 blocks per call, halved when the RPC refuses a range.
+    - **Early stop:** it stops as soon as every certificate the contract lists is found.
+    - **Cache:** the claims and the block up to which all of them are known are kept in localStorage (`stylusforge:claims:v1:<chain>:<contract>:<wallet>`), so a later visit only reads newer blocks, or nothing.
+    - **Fallback:** without a record, the card links the token page and says the date is unavailable.
   - The hidden face is inert and focus follows the visible one. With `prefers-reduced-motion` there is no tilt, and the flip is a crossfade.
 - **Not claimed:** dimmed and locked; "Ready to claim" when passed in this browser; "Coming soon" for unavailable lessons.
 

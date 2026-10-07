@@ -21,28 +21,6 @@ export interface ClaimRecord {
   claimedAt: Date | null;
 }
 
-/**
- * Claim records by lesson id, from LessonCompleted logs and the timestamps (in seconds) of their
- * blocks. A certificate is claimed once, so a lesson keeps its first log.
- */
-export function claimRecords(
-  logs: readonly { args: { lessonId?: bigint }; transactionHash: Hash | null; blockNumber: bigint | null }[],
-  timestamps: ReadonlyMap<bigint, bigint>,
-): Map<number, ClaimRecord> {
-  const records = new Map<number, ClaimRecord>();
-  for (const log of logs) {
-    if (log.args.lessonId === undefined || !log.transactionHash || log.blockNumber === null) continue;
-    const lessonId = Number(log.args.lessonId);
-    if (records.has(lessonId)) continue;
-    const timestamp = timestamps.get(log.blockNumber);
-    records.set(lessonId, {
-      transactionHash: log.transactionHash,
-      claimedAt: timestamp === undefined ? null : new Date(Number(timestamp) * 1000),
-    });
-  }
-  return records;
-}
-
 const CLAIM_DATE = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'short',
