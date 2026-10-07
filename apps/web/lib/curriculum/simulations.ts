@@ -1,4 +1,4 @@
-import { UINT256_MAX, deleteMapping, readMapping, wrappingAdd, writeMapping, type LessonSimulation, type SimAccount, type SimState } from './simulation';
+import { UINT256_MAX, deleteMapping, readMapping, readNestedMapping, wrappingAdd, writeMapping, writeNestedMapping, type LessonSimulation, type SimAccount, type SimOutcome, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -128,18 +128,7 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
           { name: 'value', type: 'uint256' },
         ],
         returns: 'bool',
-        run: (state, args, caller) => {
-          const from = caller.address;
-          const to = args.to as string;
-          const value = args.value as bigint;
-          const have = readMapping(state, 'balances', from);
-          if (have < value) {
-            return { revert: { error: 'InsufficientBalance', args: { from, have, want: value } } };
-          }
-          let next = writeMapping(state, 'balances', from, have - value);
-          next = writeMapping(next, 'balances', to, wrappingAdd(readMapping(next, 'balances', to), value));
-          return { state: next, returns: true, events: [{ name: 'Transfer', args: { from, to, value } }] };
-        },
+        run: (state, args, caller) => moveTokens(state, caller.address, args.to as string, args.value as bigint),
       },
     ],
   },
@@ -442,7 +431,115 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  13: {
+    contract: 'Erc20',
+    note: 'The model starts with a supply of 1,000 tokens, all held by Alice. Approve another account, then call transfer_from as that account.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({
+      total_supply: 1000n,
+      balances: { [SIM_ACCOUNTS[0].address]: 1000n },
+      allowances: {},
+    }),
+    functions: [
+      {
+        name: 'total_supply',
+        abiName: 'totalSupply',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.total_supply as bigint }),
+      },
+      {
+        name: 'balance_of',
+        abiName: 'balanceOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'balances', args.account as string) }),
+      },
+      {
+        name: 'transfer',
+        abiName: 'transfer',
+        view: false,
+        params: [
+          { name: 'to', type: 'address' },
+          { name: 'value', type: 'uint256' },
+        ],
+        returns: 'bool',
+        run: (state, args, caller) => moveTokens(state, caller.address, args.to as string, args.value as bigint),
+      },
+      {
+        name: 'allowance',
+        abiName: 'allowance',
+        view: true,
+        params: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+        ],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readNestedMapping(state, 'allowances', args.owner as string, args.spender as string) }),
+      },
+      {
+        name: 'approve',
+        abiName: 'approve',
+        view: false,
+        params: [
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+        ],
+        returns: 'bool',
+        run: (state, args, caller) => {
+          const owner = caller.address;
+          const spender = args.spender as string;
+          const value = args.value as bigint;
+          return {
+            state: writeNestedMapping(state, 'allowances', owner, spender, value),
+            returns: true,
+            events: [{ name: 'Approval', args: { owner, spender, value } }],
+          };
+        },
+      },
+      {
+        name: 'transfer_from',
+        abiName: 'transferFrom',
+        view: false,
+        params: [
+          { name: 'from', type: 'address' },
+          { name: 'to', type: 'address' },
+          { name: 'value', type: 'uint256' },
+        ],
+        returns: 'bool',
+        run: (state, args, caller) => {
+          const spender = caller.address;
+          const from = args.from as string;
+          const value = args.value as bigint;
+          const allowed = readNestedMapping(state, 'allowances', from, spender);
+          if (allowed < value) {
+            return { revert: { error: 'InsufficientAllowance', args: { spender, have: allowed, want: value } } };
+          }
+          // An unlimited allowance is never lowered.
+          const spent = allowed === UINT256_MAX ? state : writeNestedMapping(state, 'allowances', from, spender, allowed - value);
+          return moveTokens(spent, from, args.to as string, value);
+        },
+      },
+    ],
+  },
 };
+
+/**
+ * Lesson 4's transfer, also lesson 13's move_tokens: debits the sender, then reads and credits the
+ * recipient (wrapping around like U256), emits Transfer and returns true, or reverts with
+ * InsufficientBalance.
+ */
+function moveTokens(state: SimState, from: string, to: string, value: bigint): SimOutcome {
+  const have = readMapping(state, 'balances', from);
+  if (have < value) {
+    return { revert: { error: 'InsufficientBalance', args: { from, have, want: value } } };
+  }
+  let next = writeMapping(state, 'balances', from, have - value);
+  next = writeMapping(next, 'balances', to, wrappingAdd(readMapping(next, 'balances', to), value));
+  return { state: next, returns: true, events: [{ name: 'Transfer', args: { from, to, value } }] };
+}
 
 /** A task of the lesson 8 to-do list. */
 type Task = { title: string; done: boolean };
