@@ -827,7 +827,7 @@ const CONTENT: Record<number, LessonContent> = {
   5: {
     slug: 'defi-interaction',
     difficulty: 'Advanced',
-    preview: 'A contract that calls into a DeFi protocol.',
+    preview: 'A vault that pulls and pays out ERC-20 tokens through calls to the token contract.',
     minutes: 25,
   },
   6: {
