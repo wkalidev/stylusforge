@@ -856,7 +856,62 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  17: {
+    contract: 'PriceFeed',
+    note: 'It is deployed with Alice as the owner, as if the constructor received her address. The block time is a simplified clock: 12 seconds per sent transaction, while real Arbitrum blocks are much faster.',
+    accounts: SIM_ACCOUNTS,
+    clock: true,
+    selectors: true,
+    initialState: () => ({ owner: SIM_ACCOUNTS[0].address, round_id: 0n, answer: 0n, updated_at: 0n }),
+    functions: [
+      {
+        name: 'decimals',
+        abiName: 'decimals',
+        view: true,
+        params: [],
+        returns: 'uint8',
+        run: () => ({ returns: 8n }),
+      },
+      {
+        name: 'description',
+        abiName: 'description',
+        view: true,
+        params: [],
+        returns: 'string',
+        run: () => ({ returns: 'ETH / USD' }),
+      },
+      {
+        name: 'latest_round',
+        abiName: 'latestRoundData',
+        view: true,
+        params: [],
+        returns: ['uint80', 'int256', 'uint256', 'uint256', 'uint80'],
+        run: (state) => {
+          const round = state.round_id as bigint;
+          const updatedAt = state.updated_at as bigint;
+          return { returns: [round, state.answer as bigint, updatedAt, updatedAt, round] };
+        },
+      },
+      {
+        name: 'set_answer',
+        abiName: 'setAnswer',
+        view: false,
+        params: [{ name: 'answer', type: 'int256' }],
+        run: (state, args, caller, context) => {
+          if (caller.address.toLowerCase() !== (state.owner as string).toLowerCase()) {
+            return { revert: { error: 'NotOwner', args: { caller: caller.address } } };
+          }
+          // U80 + 1 wraps around at 2^80, like the uint80 round id in Rust.
+          const round = ((state.round_id as bigint) + 1n) & UINT80_MAX;
+          return { state: { ...state, round_id: round, answer: args.answer, updated_at: context.timestamp } };
+        },
+      },
+    ],
+  },
 };
+
+/** The largest `U80`, where lesson 17's round id wraps around. */
+const UINT80_MAX = (1n << 80n) - 1n;
 
 /**
  * Lesson 4's transfer, also lesson 13's move_tokens: debits the sender, then reads and credits the
