@@ -174,6 +174,19 @@ function intoErrorReturns(enumName: string, variant: string, fieldLists: string[
   ];
 }
 
+/**
+ * Snippets for lesson 17's new round: the stored round plus one (`U80::from(1)` or `U80::ONE`, either
+ * order), written with `set`, directly or from a local; or the stored round read into a local first.
+ */
+function nextRounds(): string[] {
+  const values = ['U80::from(1)', 'U80::ONE'].flatMap((one) => [`self.round_id.get() + ${one}`, `${one} + self.round_id.get()`]);
+  const fromRead = ['U80::from(1)', 'U80::ONE'].flatMap((one) => [
+    `let $r = self.round_id.get(); self.round_id.set($r + ${one})`,
+    `let $r = self.round_id.get(); self.round_id.set(${one} + $r)`,
+  ]);
+  return [...values.flatMap((value) => [`self.round_id.set(${value})`, `let $n = ${value}; self.round_id.set($n)`]), ...fromRead];
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -3737,8 +3750,143 @@ const CONTENT: Record<number, LessonContent> = {
         '',
         'Stuck? Each objective has hints, from a nudge to the exact code.',
       ].join('\n'),
-      starterCode: '',
-      checks: [],
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use alloc::string::String;',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{aliases::U80, Address, I256, U256},',
+        '    alloy_sol_types::sol,',
+        '    prelude::*,',
+        '};',
+        '',
+        'sol! {',
+        '    error NotOwner(address caller);',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum FeedError {',
+        '    NotOwner(NotOwner),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct PriceFeed {',
+        '        address owner;',
+        '        uint80 round_id;',
+        '        // TODO: store the latest answer, a signed 256-bit integer',
+        '        uint256 updated_at;',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl PriceFeed {',
+        '    #[constructor]',
+        '    pub fn constructor(&mut self, owner: Address) {',
+        '        self.owner.set(owner);',
+        '    }',
+        '',
+        '    // TODO: callers expect a uint8',
+        '    pub fn decimals(&self) -> U256 {',
+        '        U256::from(8)',
+        '    }',
+        '',
+        '    pub fn description(&self) -> String {',
+        '        String::from("ETH / USD")',
+        '    }',
+        '',
+        '    // TODO: callers call latestRoundData() and expect (uint80, int256, uint256, uint256, uint80)',
+        '    pub fn latest_round(&self) -> (U256, I256, U256, U256, U256) {',
+        '        let updated_at = self.updated_at.get();',
+        '        (U256::ZERO, I256::ZERO, updated_at, updated_at, U256::ZERO)',
+        '    }',
+        '',
+        '    pub fn set_answer(&mut self, answer: I256) -> Result<(), FeedError> {',
+        '        let caller = self.vm().msg_sender();',
+        '        if caller != self.owner.get() {',
+        '            return Err(FeedError::NotOwner(NotOwner { caller }));',
+        '        }',
+        '        // TODO: start a new round, store answer and record the block time',
+        '        Ok(())',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          anyOf: ['int256 answer;'],
+          objective: 'Store the latest answer as a signed number',
+          hints: [
+            'Prices can be negative in the interface: the answer is a signed 256-bit integer.',
+            'Declare it in `sol_storage!` with its Solidity type, `int256`, and name it `answer`.',
+            'Add `int256 answer;` to `pub struct PriceFeed { ... }`.',
+          ],
+          anchor: 'pub struct PriceFeed {',
+        },
+        {
+          anyOf: ['pub fn decimals(&self) -> u8 {'],
+          objective: 'Return the number of decimals with the type callers expect',
+          hints: [
+            'The interface declares `decimals()` as returning a `uint8`, not a `uint256`.',
+            'The Rust type of a Solidity `uint8` is `u8`, and a literal such as `8` fits it.',
+            'Write the signature as `pub fn decimals(&self) -> u8 {` and return `8`.',
+          ],
+          anchor: 'pub fn decimals(',
+        },
+        {
+          // The name inside #[selector(name = "...")] is a string, which checks never read (they blank
+          // strings so that code pasted into one cannot pass): any selector attribute counts.
+          anyOf: ['#[selector(name = "")] pub fn $n(', 'pub fn latest_round_data(&self)'],
+          objective: 'Answer callers that call the latest round data function',
+          hints: [
+            'Callers send the selector of `latestRoundData()`, and the camelCase of `latest_round` is `latestRound`.',
+            'Rename the method so that its camelCase is the name of the interface, or set that name with a `#[selector]` attribute.',
+            'Add `#[selector(name = "latestRoundData")]` above `pub fn latest_round(`, or rename it `pub fn latest_round_data(&self)`.',
+          ],
+          anchor: 'pub fn latest_round(',
+        },
+        {
+          anyOf: ['(&self) -> (U80, I256, U256, U256, U80) {'],
+          alsoAnyOf: [['self.answer.get()'], ['self.round_id.get()']],
+          objective: 'Return the latest round with the types of the interface',
+          hints: [
+            'The interface returns `(uint80, int256, uint256, uint256, uint80)`: the round, the answer, two times and the round again.',
+            'A `uint80` is a `U80`. Read the round and the answer from storage instead of returning zeros.',
+            'Write the signature as `pub fn latest_round(&self) -> (U80, I256, U256, U256, U80) {`, and build the tuple with `self.round_id.get()`, `self.answer.get()` and the update time.',
+          ],
+          anchor: 'pub fn latest_round(',
+        },
+        {
+          anyOf: nextRounds(),
+          objective: 'Start a new round with each answer',
+          hints: [
+            'Each answer gets the next round id: one more than the stored one.',
+            'Add `U80::from(1)` to the stored round, and write the result back with `set`.',
+            'Write `self.round_id.set(self.round_id.get() + U80::from(1));`.',
+          ],
+          anchor: 'pub fn set_answer(',
+        },
+        {
+          anyOf: ['self.answer.set(answer)'],
+          objective: 'Store the new answer',
+          hints: [
+            'The answer passed by the owner replaces the stored one.',
+            'A storage field is written with `set`.',
+            'Write `self.answer.set(answer);`.',
+          ],
+          anchor: 'pub fn set_answer(',
+        },
+        {
+          anyOf: ['self.updated_at.set(U256::from(self.vm().block_timestamp()))', 'let $t = U256::from(self.vm().block_timestamp()); self.updated_at.set($t)'],
+          objective: 'Record when the answer was published',
+          hints: [
+            'Consumers check how old the answer is, from the time of its update.',
+            'Read the block time from the host, as in lesson 9, and convert it to a `U256`.',
+            'Write `self.updated_at.set(U256::from(self.vm().block_timestamp()));`.',
+          ],
+          anchor: 'pub fn set_answer(',
+        },
+      ],
     },
   },
 };
