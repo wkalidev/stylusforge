@@ -779,4 +779,71 @@ impl IErc165 for ForgeToken {
     }
 }
 `,
+  16: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, I256, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol_interface! {
+    interface IPriceFeed {
+        function decimals() external view returns (uint8);
+        function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+    }
+}
+
+sol! {
+    error StalePrice(uint256 updated_at, uint256 now);
+    error NegativePrice(int256 answer);
+}
+
+#[derive(SolidityError)]
+pub enum ConsumerError {
+    StalePrice(StalePrice),
+    NegativePrice(NegativePrice),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct PriceConsumer {
+        address feed;
+        uint256 max_age;
+    }
+}
+
+#[public]
+impl PriceConsumer {
+    #[constructor]
+    pub fn constructor(&mut self, feed: Address, max_age: U256) {
+        self.feed.set(feed);
+        self.max_age.set(max_age);
+    }
+
+    pub fn feed(&self) -> Address {
+        self.feed.get()
+    }
+
+    pub fn decimals(&self) -> Result<u8, Vec<u8>> {
+        let feed = IPriceFeed::new(self.feed.get());
+        Ok(feed.decimals(self.vm(), Call::new())?)
+    }
+
+    pub fn price(&self) -> Result<U256, Vec<u8>> {
+        let now = U256::from(self.vm().block_timestamp());
+        let feed = IPriceFeed::new(self.feed.get());
+        let (_, answer, _, updated_at, _) = feed.latest_round_data(self.vm(), Call::new())?;
+        if now - updated_at > self.max_age.get() {
+            return Err(ConsumerError::StalePrice(StalePrice { updated_at, now }).into());
+        }
+        if answer <= I256::ZERO {
+            return Err(ConsumerError::NegativePrice(NegativePrice { answer }).into());
+        }
+        Ok(answer.into_raw())
+    }
+}
+`,
 };
