@@ -93,6 +93,53 @@ describe("POST /api/claim", () => {
     expect((await response.json()).error).toBeTypeOf("string");
   });
 
+  it("answers 413 to a declared body over 200,000 bytes, before reading it", async () => {
+    let pulled = false;
+    const body = new ReadableStream(
+      {
+        pull(controller) {
+          pulled = true;
+          controller.close();
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const request = new Request("http://localhost/api/claim", {
+      method: "POST",
+      headers: { "content-type": "application/json", "content-length": "200001" },
+      body,
+      duplex: "half",
+    } as RequestInit);
+    const response = await POST(request);
+    expect(response.status).toBe(413);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect((await response.json()).error).toBe("The request body is too large.");
+    expect(pulled).toBe(false);
+  });
+
+  it("answers 413 to a chunked body that grows past 200,000 bytes", async () => {
+    const chunk = new TextEncoder().encode("x".repeat(64 * 1024));
+    let sent = 0;
+    const body = new ReadableStream({
+      pull(controller) {
+        sent += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+    });
+    const request = new Request("http://localhost/api/claim", { method: "POST", body, duplex: "half" } as RequestInit);
+    const response = await POST(request);
+    expect(response.status).toBe(413);
+    expect(sent).toBeLessThan(400_000);
+  });
+
+  it("still signs a voucher for code of the maximum length, mostly escaped quotes", async () => {
+    // 50,000 characters, about 49,000 of them quotes that JSON escapes to 2 bytes: ~100 kB.
+    const code = `${SOLUTIONS[1]}${'"'.repeat(50_000)}`.slice(0, 50_000);
+    expect(code).toHaveLength(50_000);
+    const response = await POST(post({ address: STUDENT, lessonId: 1, code }));
+    expect(response.status).toBe(200);
+  });
+
   it.each([
     ["the signer key is missing", { signer: "" }],
     ["the signer key is malformed", { signer: "0x1234" }],

@@ -5,9 +5,16 @@ import { nftContractAddress } from '@/lib/contract';
 import { LESSONS } from '@/lib/curriculum/lessons';
 import { validateCode } from '@/lib/curriculum/validate';
 import { getClaimSigner } from '@/lib/server/claimSigner';
+import { readJsonBody } from '@/lib/server/jsonBody';
 
 /** Larger than any lesson solution by far; rejects abusive payloads before validation. */
 const MAX_CODE_LENGTH = 50_000;
+
+/**
+ * Body size limit, checked before parsing. Room for the longest accepted code once encoded as
+ * JSON: a UTF-16 unit takes at most 3 bytes in UTF-8, and an escaped quote or newline 2.
+ */
+const MAX_BODY_BYTES = 4 * MAX_CODE_LENGTH;
 
 /** Every answer is specific to one request, and a voucher must never be served from a cache. */
 const NO_STORE = { 'cache-control': 'no-store' };
@@ -24,13 +31,13 @@ function error(status: number, message: string, objectives?: string[]) {
  * The code is validated again here; the browser's verdict is never trusted.
  */
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return error(400, 'The request body must be JSON: { address, lessonId, code }.');
+  const body = await readJsonBody(request, MAX_BODY_BYTES);
+  if (!body.ok) {
+    return body.reason === 'too-large'
+      ? error(413, 'The request body is too large.')
+      : error(400, 'The request body must be JSON: { address, lessonId, code }.');
   }
-  const { address, lessonId, code } = (body ?? {}) as Record<string, unknown>;
+  const { address, lessonId, code } = (body.value ?? {}) as Record<string, unknown>;
 
   if (typeof address !== 'string' || !isAddress(address)) {
     return error(400, 'address must be a valid Ethereum address.');
