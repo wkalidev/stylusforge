@@ -103,6 +103,23 @@ function balanceUpdates(account: string, op: '+' | '-'): string[] {
   ];
 }
 
+/**
+ * Snippets for lesson 15's `supports_interface`: the answers of both components joined with `||`,
+ * in either order, as method calls or with the trait syntax of the OpenZeppelin examples, inline or
+ * read into locals first.
+ */
+function eitherSupports(): string[] {
+  const token = ['self.erc20.supports_interface(interface_id)', 'Erc20::supports_interface(&self.erc20, interface_id)'];
+  const metadata = ['self.metadata.supports_interface(interface_id)', 'Erc20Metadata::supports_interface(&self.metadata, interface_id)'];
+  return token.flatMap((a) =>
+    metadata.flatMap((b) => [
+      `${a} || ${b}`,
+      `${b} || ${a}`,
+      ...[`let $a = ${a}; let $b = ${b};`, `let $b = ${b}; let $a = ${a};`].flatMap((locals) => [`${locals} $a || $b`, `${locals} $b || $a`]),
+    ]),
+  );
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -3136,8 +3153,170 @@ const CONTENT: Record<number, LessonContent> = {
         '',
         'Stuck? Each objective has hints, from a nudge to the exact code.',
       ].join('\n'),
-      starterCode: '',
-      checks: [],
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use alloc::string::String;',
+        'use openzeppelin_stylus::{',
+        '    token::erc20::{',
+        '        self,',
+        '        extensions::{Erc20Metadata, IErc20Metadata},',
+        '        Erc20, IErc20,',
+        '    },',
+        '    utils::introspection::erc165::IErc165,',
+        '};',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{aliases::B32, Address, U256, U8},',
+        '    prelude::*,',
+        '};',
+        '',
+        '#[entrypoint]',
+        '#[storage]',
+        'struct ForgeToken {',
+        '    erc20: Erc20,',
+        '    metadata: Erc20Metadata,',
+        '}',
+        '',
+        '#[public]',
+        '// TODO: declare the interfaces this contract implements',
+        'impl ForgeToken {',
+        '    #[constructor]',
+        '    pub fn constructor(',
+        '        &mut self,',
+        '        name: String,',
+        '        symbol: String,',
+        '        recipient: Address,',
+        '        supply: U256,',
+        '    ) -> Result<(), erc20::Error> {',
+        '        // TODO: store the name and symbol, and mint supply tokens to recipient',
+        '        Ok(())',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl IErc20 for ForgeToken {',
+        '    type Error = erc20::Error;',
+        '',
+        '    fn total_supply(&self) -> U256 {',
+        '        self.erc20.total_supply()',
+        '    }',
+        '',
+        '    fn balance_of(&self, account: Address) -> U256 {',
+        '        self.erc20.balance_of(account)',
+        '    }',
+        '',
+        '    fn transfer(&mut self, to: Address, value: U256) -> Result<bool, Self::Error> {',
+        '        // TODO: let the OpenZeppelin ERC-20 do the transfer',
+        '        Ok(false)',
+        '    }',
+        '',
+        '    fn allowance(&self, owner: Address, spender: Address) -> U256 {',
+        '        self.erc20.allowance(owner, spender)',
+        '    }',
+        '',
+        '    fn approve(&mut self, spender: Address, value: U256) -> Result<bool, Self::Error> {',
+        '        // TODO: let the OpenZeppelin ERC-20 record the allowance',
+        '        Ok(false)',
+        '    }',
+        '',
+        '    fn transfer_from(&mut self, from: Address, to: Address, value: U256) -> Result<bool, Self::Error> {',
+        '        // TODO: let the OpenZeppelin ERC-20 spend the allowance and move the tokens',
+        '        Ok(false)',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl IErc20Metadata for ForgeToken {',
+        '    fn name(&self) -> String {',
+        '        self.metadata.name()',
+        '    }',
+        '',
+        '    fn symbol(&self) -> String {',
+        '        self.metadata.symbol()',
+        '    }',
+        '',
+        '    fn decimals(&self) -> U8 {',
+        '        self.metadata.decimals()',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl IErc165 for ForgeToken {',
+        '    fn supports_interface(&self, interface_id: B32) -> bool {',
+        '        // TODO: support the interfaces of both OpenZeppelin components',
+        '        false',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          // The three traits, in any order, with or without a trailing comma.
+          anyOf: ['IErc20<Error = erc20::Error>', 'IErc20Metadata', 'IErc165'].flatMap((first, i, traits) =>
+            traits
+              .filter((_, j) => j !== i)
+              .flatMap((second, _, rest) => rest.filter((third) => third !== second).flatMap((third) => [`#[implements(${first}, ${second}, ${third})]`, `#[implements(${first}, ${second}, ${third},)]`])),
+          ),
+          objective: 'Route calls to the ERC-20, metadata and ERC-165 interfaces',
+          hints: [
+            'The contract only answers the methods of the traits that its main `#[public]` block lists.',
+            'Add an `#[implements(...)]` attribute under `#[public]` with `IErc20`, its error type set to `erc20::Error`, `IErc20Metadata` and `IErc165`.',
+            'Replace the TODO above `impl ForgeToken` with `#[implements(IErc20<Error = erc20::Error>, IErc20Metadata, IErc165)]`.',
+          ],
+          anchor: 'impl ForgeToken {',
+        },
+        {
+          anyOf: ['self.metadata.constructor(name, symbol)'],
+          objective: "Store the token's name and symbol",
+          hints: [
+            'The metadata component is set up by the constructor of the contract.',
+            '`Erc20Metadata` has a `constructor` method that takes the name and the symbol.',
+            'In the constructor, write `self.metadata.constructor(name, symbol);`.',
+          ],
+          anchor: 'pub fn constructor(',
+        },
+        {
+          anyOf: ['self.erc20._mint(recipient, supply)'],
+          objective: 'Mint the initial supply to the recipient',
+          hints: [
+            'The ERC-20 component has an internal method that creates tokens for an account.',
+            'Call `_mint` on the `erc20` field with `recipient` and `supply`, and return its result, or pass its error on with `?`.',
+            'End the constructor with `self.erc20._mint(recipient, supply)` instead of `Ok(())`.',
+          ],
+          anchor: 'pub fn constructor(',
+        },
+        {
+          anyOf: ['self.erc20.transfer(to, value)'],
+          alsoAnyOf: [['self.erc20.transfer_from(from, to, value)']],
+          objective: 'Let the OpenZeppelin ERC-20 move the tokens',
+          hints: [
+            'Like `balance_of`, the two methods that move tokens can forward to the `erc20` field.',
+            'Call the method of the same name on `self.erc20` with the same arguments, and return its result.',
+            'Make `transfer` return `self.erc20.transfer(to, value)` and `transfer_from` return `self.erc20.transfer_from(from, to, value)`.',
+          ],
+          anchor: 'fn transfer(',
+        },
+        {
+          anyOf: ['self.erc20.approve(spender, value)'],
+          objective: 'Let the OpenZeppelin ERC-20 record allowances',
+          hints: [
+            'Allowances live in the `erc20` component too.',
+            'Forward `approve` to the method of the same name on `self.erc20`, and return its result.',
+            'Make `approve` return `self.erc20.approve(spender, value)`.',
+          ],
+          anchor: 'fn approve(',
+        },
+        {
+          anyOf: eitherSupports(),
+          objective: 'Support an interface when either component supports it',
+          hints: [
+            'Each component knows the interfaces it implements: ask both, and accept the id when either says yes.',
+            'Call `supports_interface(interface_id)` on `self.erc20` and on `self.metadata`, and join the answers with `||`.',
+            'Return `self.erc20.supports_interface(interface_id) || self.metadata.supports_interface(interface_id)`.',
+          ],
+          anchor: 'fn supports_interface(',
+        },
+      ],
     },
   },
 };
