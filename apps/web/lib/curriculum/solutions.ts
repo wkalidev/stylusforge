@@ -487,4 +487,100 @@ impl FeeQuote {
     }
 }
 `,
+  13: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol! {
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+    error InsufficientBalance(address from, uint256 have, uint256 want);
+    error InsufficientAllowance(address spender, uint256 have, uint256 want);
+}
+
+#[derive(SolidityError)]
+pub enum Erc20Error {
+    InsufficientBalance(InsufficientBalance),
+    InsufficientAllowance(InsufficientAllowance),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct Erc20 {
+        uint256 total_supply;
+        mapping(address => uint256) balances;
+        mapping(address => mapping(address => uint256)) allowances;
+    }
+}
+
+impl Erc20 {
+    fn move_tokens(&mut self, from: Address, to: Address, value: U256) -> Result<(), Erc20Error> {
+        let have = self.balances.get(from);
+        if have < value {
+            return Err(Erc20Error::InsufficientBalance(InsufficientBalance {
+                from,
+                have,
+                want: value,
+            }));
+        }
+
+        self.balances.setter(from).set(have - value);
+        let received = self.balances.get(to);
+        self.balances.setter(to).set(received + value);
+
+        self.vm().log(Transfer { from, to, value });
+        Ok(())
+    }
+}
+
+#[public]
+impl Erc20 {
+    pub fn total_supply(&self) -> U256 {
+        self.total_supply.get()
+    }
+
+    pub fn balance_of(&self, account: Address) -> U256 {
+        self.balances.get(account)
+    }
+
+    pub fn transfer(&mut self, to: Address, value: U256) -> Result<bool, Erc20Error> {
+        self.move_tokens(self.vm().msg_sender(), to, value)?;
+        Ok(true)
+    }
+
+    pub fn allowance(&self, owner: Address, spender: Address) -> U256 {
+        self.allowances.getter(owner).get(spender)
+    }
+
+    pub fn approve(&mut self, spender: Address, value: U256) -> bool {
+        let owner = self.vm().msg_sender();
+        self.allowances.setter(owner).insert(spender, value);
+        self.vm().log(Approval { owner, spender, value });
+        true
+    }
+
+    pub fn transfer_from(&mut self, from: Address, to: Address, value: U256) -> Result<bool, Erc20Error> {
+        let spender = self.vm().msg_sender();
+        let allowed = self.allowances.getter(from).get(spender);
+        if allowed < value {
+            return Err(Erc20Error::InsufficientAllowance(InsufficientAllowance {
+                spender,
+                have: allowed,
+                want: value,
+            }));
+        }
+        if allowed != U256::MAX {
+            self.allowances.setter(from).insert(spender, allowed - value);
+        }
+
+        self.move_tokens(from, to, value)?;
+        Ok(true)
+    }
+}
+`,
 };
