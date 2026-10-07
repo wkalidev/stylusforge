@@ -3,7 +3,8 @@
  * pass. They show what the contract does; they never execute the student's Rust.
  */
 
-export type SimType = 'uint256' | 'address' | 'string';
+/** Argument types; a `bytes4` (such as an ERC-165 interface id) is kept as lowercase hex. */
+export type SimType = 'uint256' | 'address' | 'string' | 'bytes4';
 export type SimValue = bigint | string;
 
 /**
@@ -81,8 +82,8 @@ export interface SimFunction {
   /** `#[payable]`: accepts ETH. A call sending ETH to any other function reverts. */
   payable?: boolean;
   params: { name: string; type: SimType }[];
-  /** Return type; an array for a tuple, such as `(string, bool)`. */
-  returns?: SimType | 'bool' | (SimType | 'bool')[];
+  /** Return type, as shown in the panel; an array for a tuple, such as `(string, bool)`. A `uint8` is returned as a bigint. */
+  returns?: SimType | 'bool' | 'uint8' | (SimType | 'bool')[];
   /** Pure: receives a copy of the state, the parsed arguments, the caller, the block and the ETH. */
   run(state: SimState, args: Record<string, SimValue>, caller: SimAccount, context: SimContext): SimOutcome;
 }
@@ -113,7 +114,11 @@ export function parseArgument(type: SimType, raw: string, accounts: SimAccount[]
     if (value > UINT256_MAX) throw new SimArgumentError(`${text} does not fit in a uint256`);
     return value;
   }
-  const account = accounts.find((candidate) => candidate.name.toLowerCase() === text.toLowerCase());
+  if (type === 'bytes4') {
+    if (!/^0x[0-9a-fA-F]{8}$/.test(text)) throw new SimArgumentError(`"${raw}" is not a bytes4 (0x and 8 hex digits)`);
+    return text.toLowerCase();
+  }
+  const account =accounts.find((candidate) => candidate.name.toLowerCase() === text.toLowerCase());
   if (account) return account.address;
   if (!/^0x[0-9a-fA-F]{40}$/.test(text)) throw new SimArgumentError(`"${raw}" is not an address (or an account name)`);
   return text;

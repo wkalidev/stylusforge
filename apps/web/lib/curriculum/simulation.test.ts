@@ -59,6 +59,12 @@ describe("parseArgument", () => {
     expect(() => parseArgument("address", "0x123", [])).toThrow(/address/);
   });
 
+  it("parses bytes4 values as lowercase hex", () => {
+    expect(parseArgument("bytes4", " 0x36372B07 ", [])).toBe("0x36372b07");
+    expect(() => parseArgument("bytes4", "0x3637", [])).toThrow(/bytes4/);
+    expect(() => parseArgument("bytes4", "36372b07", [])).toThrow(/bytes4/);
+  });
+
   it("keeps strings as typed", () => {
     expect(parseArgument("string", "  gm  ", [])).toBe("  gm  ");
   });
