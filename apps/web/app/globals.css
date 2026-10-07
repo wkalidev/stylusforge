@@ -237,3 +237,122 @@ body::before {
     animation: unlock-glow 1.4s ease-out both;
   }
 }
+
+/*
+ * Profile certificate cards. A card's zone colors come in as custom properties (--zone-accent,
+ * --zone-light, --zone-plate-a, --zone-plate-b). The base styles are the reduced-motion ones:
+ * no tilt, and the flip is a crossfade between the faces. With motion allowed, the card tilts
+ * towards the pointer (usePointerTilt sets --tilt-x/--tilt-y and --glare-x/--glare-y), a metallic
+ * sheen follows it on hover, and the flip turns the card over in 3D.
+ */
+.cert-card {
+  perspective: 1000px;
+}
+
+.cert-card__tilt,
+.cert-card__flip {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 1rem;
+}
+
+.cert-card__face {
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem;
+  transition: opacity 0.2s ease;
+}
+
+.cert-card__front {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.45);
+}
+
+.cert-card__front svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.cert-card__front:focus-visible,
+.cert-card__back :focus-visible {
+  outline: 2px solid var(--zone-light);
+  outline-offset: 3px;
+}
+
+.cert-card__back {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow: auto;
+  padding: 1rem;
+  opacity: 0;
+  border: 2px solid var(--zone-accent);
+  background:
+    radial-gradient(circle at 80% 12%, color-mix(in oklab, var(--zone-accent) 30%, transparent), transparent 55%),
+    linear-gradient(135deg, var(--zone-plate-a), var(--zone-plate-b));
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.45);
+}
+
+.cert-card[data-flipped="true"] .cert-card__front {
+  opacity: 0;
+}
+
+.cert-card[data-flipped="true"] .cert-card__back {
+  opacity: 1;
+}
+
+.cert-card__sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cert-card__tilt[data-tilt="on"] {
+    transform-style: preserve-3d;
+    transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    transition: transform 0.25s ease-out;
+  }
+
+  .cert-card__flip {
+    transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .cert-card[data-flipped="true"] .cert-card__flip {
+    transform: rotateY(180deg);
+  }
+
+  .cert-card__face {
+    backface-visibility: hidden;
+    transition: none;
+  }
+
+  .cert-card__back {
+    opacity: 1;
+    transform: rotateY(180deg);
+  }
+
+  .cert-card[data-flipped="true"] .cert-card__front {
+    opacity: 1;
+  }
+
+  .cert-card__sheen {
+    mix-blend-mode: screen;
+    background:
+      radial-gradient(circle at var(--glare-x, 50%) var(--glare-y, 30%), rgb(255 255 255 / 0.24), transparent 45%),
+      linear-gradient(115deg, transparent 35%, rgb(255 255 255 / 0.1) 48%, transparent 62%);
+    transition: opacity 0.3s ease;
+  }
+
+  .cert-card__tilt[data-tilt="on"]:hover .cert-card__sheen {
+    opacity: 1;
+  }
+}
