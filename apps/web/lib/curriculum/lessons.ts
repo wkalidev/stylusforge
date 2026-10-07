@@ -120,6 +120,60 @@ function eitherSupports(): string[] {
   );
 }
 
+/**
+ * Snippets for a static call of lesson 16 to `method` of the feed: on the feed kept in a local of
+ * any name or built inline, with `Call::new()` or `Call::default()` written inline, or kept in a local
+ * declared just before the statement of the call (with the feed's local in between, or not). The
+ * statement returns the result, keeps it in a local or destructures the round. The result is passed
+ * on with `?`. A configuration local is only accepted from `Call::new()` or `Call::default()`, so a
+ * local holding `Call::new_mutating(self)` does not count.
+ */
+function feedCalls(method: string): string[] {
+  const feeds = ['$f', 'IPriceFeed::new(self.feed.get())', 'IPriceFeed::from(self.feed.get())'];
+  const configs = ['Call::new()', 'Call::default()'];
+  const statements = ['', 'Ok(', 'let $d = ', 'let (_, $a, _, $u, _) = '];
+  return [
+    ...feeds.flatMap((feed) => configs.map((config) => `${feed}.${method}(self.vm(), ${config})?`)),
+    ...configs.flatMap((config) =>
+      statements.flatMap((statement) => [
+        ...feeds.map((feed) => `let $c = ${config}; ${statement}${feed}.${method}(self.vm(), $c)?`),
+        `let $c = ${config}; let $f = IPriceFeed::new(self.feed.get()); ${statement}$f.${method}(self.vm(), $c)?`,
+      ]),
+    ),
+  ];
+}
+
+/**
+ * Snippets for lesson 16's age check: the time since `updated_at` (kept in a local of any name)
+ * greater than `max_age`, read inline or into a local, either way round; with `saturating_sub`; or as
+ * `now` past `updated_at + max_age`.
+ */
+function staleConditions(): string[] {
+  const ages = ['now - $u', 'now.saturating_sub($u)'];
+  const limits = ['self.max_age.get()', '$m'];
+  return [
+    ...ages.flatMap((age) => limits.flatMap((limit) => [`if ${age} > ${limit} {`, `if ${limit} < ${age} {`])),
+    ...limits.flatMap((limit) => [`if now > $u + ${limit} {`, `if $u + ${limit} < now {`]),
+  ];
+}
+
+/**
+ * Snippets for returning a custom error from a method that returns `Result<_, Vec<u8>>`: built in
+ * place up to its fields, or kept in a local first (the error or the enum variant), then converted
+ * with `.into()`. Each entry of `fieldLists` is one accepted way to write the fields.
+ */
+function intoErrorReturns(enumName: string, variant: string, fieldLists: string[]): string[] {
+  return [
+    `Err(${enumName}::${variant}(${variant} {`,
+    ...fieldLists.flatMap((fields) =>
+      [`${variant} { ${fields} }`, `${variant} { ${fields}, }`].flatMap((error) => [
+        `let $x = ${error}; return Err(${enumName}::${variant}($x).into())`,
+        `let $x = ${enumName}::${variant}(${error}); return Err($x.into())`,
+      ]),
+    ),
+  ];
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -3431,8 +3485,145 @@ const CONTENT: Record<number, LessonContent> = {
         '',
         'Stuck? Each objective has hints, from a nudge to the exact code.',
       ].join('\n'),
-      starterCode: '',
-      checks: [],
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use alloc::vec::Vec;',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{Address, I256, U256},',
+        '    alloy_sol_types::sol,',
+        '    prelude::*,',
+        '};',
+        '',
+        'sol_interface! {',
+        '    interface IPriceFeed {',
+        '        function decimals() external view returns (uint8);',
+        '        // TODO: declare latestRoundData, which returns roundId (uint80), answer (int256),',
+        '        // startedAt (uint256), updatedAt (uint256) and answeredInRound (uint80)',
+        '    }',
+        '}',
+        '',
+        'sol! {',
+        '    error StalePrice(uint256 updated_at, uint256 now);',
+        '    error NegativePrice(int256 answer);',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum ConsumerError {',
+        '    StalePrice(StalePrice),',
+        '    NegativePrice(NegativePrice),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct PriceConsumer {',
+        '        address feed;',
+        '        uint256 max_age;',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl PriceConsumer {',
+        '    #[constructor]',
+        '    pub fn constructor(&mut self, feed: Address, max_age: U256) {',
+        '        self.feed.set(feed);',
+        '        self.max_age.set(max_age);',
+        '    }',
+        '',
+        '    pub fn feed(&self) -> Address {',
+        '        self.feed.get()',
+        '    }',
+        '',
+        '    pub fn decimals(&self) -> Result<u8, Vec<u8>> {',
+        '        // TODO: return the decimals of the feed',
+        '        Ok(0)',
+        '    }',
+        '',
+        '    pub fn price(&self) -> Result<U256, Vec<u8>> {',
+        '        let now = U256::from(self.vm().block_timestamp());',
+        '        // TODO: read the latest round of the feed, revert with StalePrice when it is older',
+        '        // than max_age and with NegativePrice when the answer is not positive, then return it',
+        '        Ok(U256::ZERO)',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          // Return names are labels: any names, or none.
+          anyOf: [
+            'function latestRoundData() external view returns (uint80 $a, int256 $b, uint256 $c, uint256 $d, uint80 $e);',
+            'function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80);',
+          ],
+          objective: 'Declare the latest round data function of the feed',
+          hints: [
+            'Copy the Solidity signature: its name, `external view`, and the five return types, in order.',
+            'It takes no parameters and returns a `uint80`, an `int256`, two `uint256` and a `uint80`; the names of return values are optional labels.',
+            'Add `function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);` to `IPriceFeed`.',
+          ],
+          anchor: 'interface IPriceFeed {',
+        },
+        {
+          anyOf: feedCalls('decimals'),
+          objective: 'Return the decimals of the feed',
+          hints: [
+            'Point the interface at the stored address, then call its `decimals` with a static call.',
+            'Build it with `IPriceFeed::new(self.feed.get())`, pass `self.vm()` and `Call::new()` to `decimals`, and let `?` pass a failed call on.',
+            'Write `let feed = IPriceFeed::new(self.feed.get());` then `Ok(feed.decimals(self.vm(), Call::new())?)`.',
+          ],
+          anchor: 'pub fn decimals(',
+        },
+        {
+          anyOf: feedCalls('latest_round_data'),
+          objective: 'Read the latest round of the feed without changing state',
+          hints: [
+            'The feed only reads its storage to answer: a static call is enough.',
+            'Call `latest_round_data` on the feed with `self.vm()` and `Call::new()`, and destructure the tuple it returns.',
+            'Write `let (_, answer, _, updated_at, _) = feed.latest_round_data(self.vm(), Call::new())?;`.',
+          ],
+          anchor: 'pub fn price(',
+        },
+        {
+          anyOf: staleConditions(),
+          alsoAnyOf: [intoErrorReturns('ConsumerError', 'StalePrice', ['updated_at, now', 'updated_at: $u, now'])],
+          objective: 'Refuse a price older than the maximum age',
+          hints: [
+            'The age of the round is the time since its update; compare it with the stored maximum age.',
+            'Subtract `updated_at` from `now`, and when the result is greater than `self.max_age.get()`, return the `StalePrice` error converted with `.into()`.',
+            'Write `if now - updated_at > self.max_age.get() { return Err(ConsumerError::StalePrice(StalePrice { updated_at, now }).into()); }`.',
+          ],
+          anchor: 'pub fn price(',
+        },
+        {
+          anyOf: [
+            'if $a <= I256::ZERO {',
+            'if I256::ZERO >= $a {',
+            'if $a < I256::ONE {',
+            'if I256::ONE > $a {',
+            'if !$a.is_positive() {',
+            'if $a.is_negative() || $a.is_zero() {',
+            'if $a.is_zero() || $a.is_negative() {',
+          ],
+          alsoAnyOf: [intoErrorReturns('ConsumerError', 'NegativePrice', ['answer', 'answer: $a'])],
+          objective: 'Refuse an answer that is zero or negative',
+          hints: [
+            'A price of zero or below is a broken answer, and a negative one would turn into a huge unsigned number.',
+            'Compare `answer` with `I256::ZERO`, zero included, and return the `NegativePrice` error converted with `.into()`.',
+            'Write `if answer <= I256::ZERO { return Err(ConsumerError::NegativePrice(NegativePrice { answer }).into()); }`.',
+          ],
+          anchor: 'pub fn price(',
+        },
+        {
+          anyOf: ['Ok($a.into_raw())', 'Ok($a.unsigned_abs())', 'let $x = $a.into_raw(); Ok($x)', 'let $x = $a.unsigned_abs(); Ok($x)'],
+          objective: 'Return the answer as an unsigned number',
+          hints: [
+            'Once the answer is known to be positive, its bits read the same as an unsigned number.',
+            '`I256` has a method that returns its bits as a `U256`.',
+            'Replace `Ok(U256::ZERO)` with `Ok(answer.into_raw())`.',
+          ],
+          anchor: 'pub fn price(',
+        },
+      ],
     },
   },
 };
