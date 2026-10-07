@@ -67,11 +67,13 @@ describe("POST /api/claim", () => {
       signature: voucher.signature,
     });
     expect(recovered).toBe(privateKeyToAccount(signerKey).address);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
   it("re-validates the code and returns the objectives it misses", async () => {
     const response = await POST(post({ address: STUDENT, lessonId: 1, code: "// string greeting;" }));
     expect(response.status).toBe(422);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     const body = await response.json();
     expect(body.objectives).toEqual(LESSONS[0].exercise!.checks.map((check) => check.objective));
     expect(body.hints).toBeUndefined();
@@ -87,7 +89,55 @@ describe("POST /api/claim", () => {
   ])("rejects %s", async (_label, body, status) => {
     const response = await POST(post(body));
     expect(response.status).toBe(status);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect((await response.json()).error).toBeTypeOf("string");
+  });
+
+  it("answers 413 to a declared body over 200,000 bytes, before reading it", async () => {
+    let pulled = false;
+    const body = new ReadableStream(
+      {
+        pull(controller) {
+          pulled = true;
+          controller.close();
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const request = new Request("http://localhost/api/claim", {
+      method: "POST",
+      headers: { "content-type": "application/json", "content-length": "200001" },
+      body,
+      duplex: "half",
+    } as RequestInit);
+    const response = await POST(request);
+    expect(response.status).toBe(413);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect((await response.json()).error).toBe("The request body is too large.");
+    expect(pulled).toBe(false);
+  });
+
+  it("answers 413 to a chunked body that grows past 200,000 bytes", async () => {
+    const chunk = new TextEncoder().encode("x".repeat(64 * 1024));
+    let sent = 0;
+    const body = new ReadableStream({
+      pull(controller) {
+        sent += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+    });
+    const request = new Request("http://localhost/api/claim", { method: "POST", body, duplex: "half" } as RequestInit);
+    const response = await POST(request);
+    expect(response.status).toBe(413);
+    expect(sent).toBeLessThan(400_000);
+  });
+
+  it("still signs a voucher for code of the maximum length, mostly escaped quotes", async () => {
+    // 50,000 characters, about 49,000 of them quotes that JSON escapes to 2 bytes: ~100 kB.
+    const code = `${SOLUTIONS[1]}${'"'.repeat(50_000)}`.slice(0, 50_000);
+    expect(code).toHaveLength(50_000);
+    const response = await POST(post({ address: STUDENT, lessonId: 1, code }));
+    expect(response.status).toBe(200);
   });
 
   it.each([
@@ -98,5 +148,6 @@ describe("POST /api/claim", () => {
     configure(setup);
     const response = await POST(post({ address: STUDENT, lessonId: 1, code: SOLUTIONS[1] }));
     expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });
