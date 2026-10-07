@@ -225,12 +225,13 @@ A per-IP limit slows scripted claims but does not stop a client that rotates IPs
 - Lesson interactivity: live objectives, inline diagnostics in the editor, a "Try it" simulation of each contract, step-by-step explanations with quizzes, and a comparison with the reference solution once a lesson is passed.
 - Module 1, Foundations: mappings, storage vectors and nested structs join the first two lessons (seven lessons in all).
 - Module 2, Contract logic: message and block context, access control, payable methods and sending ETH, view/pure and gas join Events and Errors (eleven lessons in all).
+- Module 3, Tokens: allowances, ERC-721 and OpenZeppelin for Stylus join the ERC-20 lesson (fourteen lessons in all).
 - Local development stack, CI on pull requests and the Vercel configuration.
 - Arbitrum Sepolia deployment: the verified contract and the web app on Vercel.
 
 **Next**
 
-- Curriculum expansion: modules 3 to 5 (tokens, interoperability, Stylus specifics), registered on-chain with `addLesson` without redeploying.
+- Curriculum expansion: modules 4 and 5 (interoperability, Stylus specifics), registered on-chain with `addLesson` without redeploying.
 
 **Later**
 
