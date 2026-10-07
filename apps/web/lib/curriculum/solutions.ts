@@ -846,4 +846,68 @@ impl PriceConsumer {
     }
 }
 `,
+  17: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::string::String;
+use stylus_sdk::{
+    alloy_primitives::{aliases::U80, Address, I256, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol! {
+    error NotOwner(address caller);
+}
+
+#[derive(SolidityError)]
+pub enum FeedError {
+    NotOwner(NotOwner),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct PriceFeed {
+        address owner;
+        uint80 round_id;
+        int256 answer;
+        uint256 updated_at;
+    }
+}
+
+#[public]
+impl PriceFeed {
+    #[constructor]
+    pub fn constructor(&mut self, owner: Address) {
+        self.owner.set(owner);
+    }
+
+    pub fn decimals(&self) -> u8 {
+        8
+    }
+
+    pub fn description(&self) -> String {
+        String::from("ETH / USD")
+    }
+
+    #[selector(name = "latestRoundData")]
+    pub fn latest_round(&self) -> (U80, I256, U256, U256, U80) {
+        let round = self.round_id.get();
+        let updated_at = self.updated_at.get();
+        (round, self.answer.get(), updated_at, updated_at, round)
+    }
+
+    pub fn set_answer(&mut self, answer: I256) -> Result<(), FeedError> {
+        let caller = self.vm().msg_sender();
+        if caller != self.owner.get() {
+            return Err(FeedError::NotOwner(NotOwner { caller }));
+        }
+        let round = self.round_id.get() + U80::from(1);
+        self.round_id.set(round);
+        self.answer.set(answer);
+        self.updated_at.set(U256::from(self.vm().block_timestamp()));
+        Ok(())
+    }
+}
+`,
 };
