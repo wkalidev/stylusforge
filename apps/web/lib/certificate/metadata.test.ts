@@ -39,4 +39,11 @@ describe("certificateMetadata", () => {
     expect(metadata.external_url).toBe(`https://stylusforge.example/learn/${lesson.slug}`);
     expect(metadata.attributes).toContainEqual({ trait_type: "XP", value: lesson.xp, display_type: "number" });
   });
+
+  it("names the module and its forge zone, so marketplaces can filter by them", () => {
+    const anvil = LESSONS.find((lesson) => lesson.id === 3)!;
+    const { attributes } = certificateMetadata(anvil, "https://stylusforge.example");
+    expect(attributes).toContainEqual({ trait_type: "Module", value: "Contract logic" });
+    expect(attributes).toContainEqual({ trait_type: "Zone", value: "The Anvil" });
+  });
 });

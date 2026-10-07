@@ -1,4 +1,5 @@
 import { LESSONS, type Lesson } from '@/lib/curriculum/lessons';
+import { zoneOf } from './zones';
 
 /**
  * Parses a token id from a metadata URL. ERC-1155 clients replace `{id}` with the id as 64
@@ -32,6 +33,7 @@ export interface CertificateMetadata {
 
 /** ERC-1155 metadata JSON of a lesson certificate; URLs are absolute, based on `origin`. */
 export function certificateMetadata(lesson: Lesson, origin: string): CertificateMetadata {
+  const zone = zoneOf(lesson.module);
   return {
     name: `StylusForge certificate: ${lesson.title}`,
     description:
@@ -43,6 +45,8 @@ export function certificateMetadata(lesson: Lesson, origin: string): Certificate
       { trait_type: 'Lesson', value: lesson.id, display_type: 'number' },
       { trait_type: 'XP', value: lesson.xp, display_type: 'number' },
       { trait_type: 'Difficulty', value: lesson.difficulty },
+      { trait_type: 'Module', value: zone.module },
+      { trait_type: 'Zone', value: zone.name },
       { trait_type: 'Transferable', value: 'No' },
     ],
   };
