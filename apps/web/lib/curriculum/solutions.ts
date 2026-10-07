@@ -583,4 +583,109 @@ impl Erc20 {
     }
 }
 `,
+  14: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol! {
+    event Transfer(address indexed from, address indexed to, uint256 indexed token_id);
+    event Approval(address indexed owner, address indexed approved, uint256 indexed token_id);
+    error NonexistentToken(uint256 token_id);
+    error AlreadyMinted(uint256 token_id);
+    error InvalidReceiver(address receiver);
+    error IncorrectOwner(address from, uint256 token_id, address owner);
+    error InsufficientApproval(address operator, uint256 token_id);
+}
+
+#[derive(SolidityError)]
+pub enum Erc721Error {
+    NonexistentToken(NonexistentToken),
+    AlreadyMinted(AlreadyMinted),
+    InvalidReceiver(InvalidReceiver),
+    IncorrectOwner(IncorrectOwner),
+    InsufficientApproval(InsufficientApproval),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct Erc721 {
+        mapping(uint256 => address) owners;
+        mapping(address => uint256) balances;
+        mapping(uint256 => address) token_approvals;
+    }
+}
+
+#[public]
+impl Erc721 {
+    pub fn balance_of(&self, owner: Address) -> U256 {
+        self.balances.get(owner)
+    }
+
+    pub fn owner_of(&self, token_id: U256) -> Result<Address, Erc721Error> {
+        let owner = self.owners.get(token_id);
+        if owner.is_zero() {
+            return Err(Erc721Error::NonexistentToken(NonexistentToken { token_id }));
+        }
+        Ok(owner)
+    }
+
+    pub fn mint(&mut self, receiver: Address, token_id: U256) -> Result<(), Erc721Error> {
+        if receiver.is_zero() {
+            return Err(Erc721Error::InvalidReceiver(InvalidReceiver { receiver }));
+        }
+        if !self.owners.get(token_id).is_zero() {
+            return Err(Erc721Error::AlreadyMinted(AlreadyMinted { token_id }));
+        }
+        let held = self.balances.get(receiver);
+        self.balances.insert(receiver, held + U256::from(1));
+        self.owners.insert(token_id, receiver);
+        self.vm().log(Transfer { from: Address::ZERO, to: receiver, token_id });
+        Ok(())
+    }
+
+    pub fn approve(&mut self, approved: Address, token_id: U256) -> Result<(), Erc721Error> {
+        let sender = self.vm().msg_sender();
+        if sender != self.owner_of(token_id)? {
+            return Err(Erc721Error::InsufficientApproval(InsufficientApproval { operator: sender, token_id }));
+        }
+        self.token_approvals.insert(token_id, approved);
+        self.vm().log(Approval { owner: sender, approved, token_id });
+        Ok(())
+    }
+
+    pub fn get_approved(&self, token_id: U256) -> Result<Address, Erc721Error> {
+        self.owner_of(token_id)?;
+        Ok(self.token_approvals.get(token_id))
+    }
+
+    pub fn transfer_from(&mut self, from: Address, to: Address, token_id: U256) -> Result<(), Erc721Error> {
+        let caller = self.vm().msg_sender();
+        if to.is_zero() {
+            return Err(Erc721Error::InvalidReceiver(InvalidReceiver { receiver: to }));
+        }
+        let owner = self.owner_of(token_id)?;
+        if owner != from {
+            return Err(Erc721Error::IncorrectOwner(IncorrectOwner { from, token_id, owner }));
+        }
+        if caller != owner && caller != self.token_approvals.get(token_id) {
+            return Err(Erc721Error::InsufficientApproval(InsufficientApproval { operator: caller, token_id }));
+        }
+
+        self.token_approvals.delete(token_id);
+        let sent = self.balances.get(from);
+        self.balances.insert(from, sent - U256::from(1));
+        let received = self.balances.get(to);
+        self.balances.insert(to, received + U256::from(1));
+        self.owners.insert(token_id, to);
+
+        self.vm().log(Transfer { from, to, token_id });
+        Ok(())
+    }
+}
+`,
 };
