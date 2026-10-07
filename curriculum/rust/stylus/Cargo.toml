@@ -1,0 +1,22 @@
+# Compiles the Rust of every lesson except 15 (reference solutions, starters and explanation
+# harnesses) against the stylus-sdk version the lessons target. `check.sh` writes each file to
+# src/lib.rs in turn. See the curriculum README.
+[package]
+name = "lesson-check"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+stylus-sdk = "=0.10.10"
+alloy-primitives = "=1.7.3"
+alloy-sol-types = "=1.7.3"
+
+[features]
+export-abi = ["stylus-sdk/export-abi"]
+# Named in the cfg of the code that #[entrypoint] and #[public] generate.
+contract-client-gen = []
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["lib"]

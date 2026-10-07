@@ -1,0 +1,4 @@
+# The Rust toolchain of the lesson check crates, locally and in CI.
+[toolchain]
+channel = "1.97.1"
+profile = "minimal"
