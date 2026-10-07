@@ -6,6 +6,7 @@ import {
   callSimulation,
   formatSimKey,
   formatSimValue,
+  functionSelector,
   holdsEth,
   namedAddresses,
   simTimestamp,
@@ -38,7 +39,7 @@ function formatArgs(record: Record<string, SimValue> | undefined, accounts: SimA
 /** An example value for each argument type. */
 const PLACEHOLDERS: Record<SimType, string> = { address: 'Bob or 0x…', uint256: '0', int256: '-1', string: 'text', bytes4: '0x01ffc9a7' };
 
-function FunctionForm({ fn, onCall }: { fn: SimFunction; onCall: (args: Record<string, string>, value: string) => void }) {
+function FunctionForm({ fn, selector, onCall }: { fn: SimFunction; selector?: boolean; onCall: (args: Record<string, string>, value: string) => void }) {
   const id = useId();
   const [args, setArgs] = useState<Record<string, string>>({});
   const [value, setValue] = useState('');
@@ -57,6 +58,7 @@ function FunctionForm({ fn, onCall }: { fn: SimFunction; onCall: (args: Record<s
         {fn.returns && (
           <span className='text-quench-300'> → {Array.isArray(fn.returns) ? `(${fn.returns.join(', ')})` : fn.returns}</span>
         )}
+        {selector && <span className='ml-2 text-xs text-steel-400'>selector {functionSelector(fn)}</span>}
       </p>
       <div className='mt-2 flex flex-wrap items-end gap-2'>
         {fn.params.map((param) => (
@@ -248,7 +250,7 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
         {simulation.functions
           .filter((fn) => !fn.contract)
           .map((fn) => (
-            <FunctionForm key={fn.name} fn={fn} onCall={(args, value) => call(fn, args, value)} />
+            <FunctionForm key={fn.name} fn={fn} selector={simulation.selectors} onCall={(args, value) => call(fn, args, value)} />
           ))}
       </div>
 
@@ -257,7 +259,7 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
           {simulation.functions
             .filter((fn) => fn.contract === mock.name)
             .map((fn) => (
-              <FunctionForm key={fn.name} fn={fn} onCall={(args, value) => call(fn, args, value)} />
+              <FunctionForm key={fn.name} fn={fn} selector={simulation.selectors} onCall={(args, value) => call(fn, args, value)} />
             ))}
         </MockFunctions>
       ))}

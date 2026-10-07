@@ -10,6 +10,8 @@ import {
   deleteMapping,
   formatSimKey,
   formatSimValue,
+  functionSelector,
+  functionSignature,
   holdsEth,
   mockState,
   namedAddresses,
@@ -24,6 +26,8 @@ import {
   writeMockState,
   writeNestedMapping,
   type LessonSimulation,
+  type SimFunction,
+  type SimType,
 } from "./simulation";
 
 const alice = { name: "Alice", address: "0x00000000000000000000000000000000000a11ce" } as const;
@@ -187,6 +191,27 @@ describe("simulated clock", () => {
 
   it("runs at the start time when no block is given", () => {
     expect(callSimulation(clock, clock.initialState(), "stamp", {}, alice).state.stamped).toBe(SIM_START_TIME);
+  });
+});
+
+describe("function selectors", () => {
+  const fn = (abiName: string, types: SimType[]): SimFunction => ({
+    name: abiName,
+    abiName,
+    view: true,
+    params: types.map((type, index) => ({ name: `p${index}`, type })),
+    run: () => ({}),
+  });
+
+  it("builds the Solidity signature from the ABI name and the parameter types", () => {
+    expect(functionSignature(fn("transfer", ["address", "uint256"]))).toBe("transfer(address,uint256)");
+    expect(functionSignature(fn("latestRoundData", []))).toBe("latestRoundData()");
+  });
+
+  it("hashes the signature into the selector callers use", () => {
+    expect(functionSelector(fn("transfer", ["address", "uint256"]))).toBe("0xa9059cbb");
+    expect(functionSelector(fn("decimals", []))).toBe("0x313ce567");
+    expect(functionSelector(fn("latestRoundData", []))).toBe("0xfeaf968c");
   });
 });
 

@@ -3,6 +3,8 @@
  * pass. They show what the contract does; they never execute the student's Rust.
  */
 
+import { toFunctionSelector } from 'viem';
+
 /**
  * Argument types; a `bytes4` (such as an ERC-165 interface id) is kept as lowercase hex, an `int256`
  * is a bigint that may be negative.
@@ -128,6 +130,18 @@ export interface LessonSimulation {
   clock?: boolean;
   /** Contracts the lesson's contract calls, modelled in JavaScript. */
   mocks?: SimMock[];
+  /** Whether the panel shows the 4-byte selector of each function, for lessons about the ABI. */
+  selectors?: boolean;
+}
+
+/** The Solidity signature of a function, such as `transfer(address,uint256)`: what its selector hashes. */
+export function functionSignature(fn: SimFunction): string {
+  return `${fn.abiName}(${fn.params.map((param) => param.type).join(',')})`;
+}
+
+/** The 4-byte selector of a function: the first 4 bytes of the keccak-256 hash of its signature. */
+export function functionSelector(fn: SimFunction): `0x${string}` {
+  return toFunctionSelector(functionSignature(fn));
 }
 
 /** Every named address of a simulation: the accounts, the lesson's contract and its mocks. */
