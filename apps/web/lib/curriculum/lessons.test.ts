@@ -1,7 +1,11 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import curriculum from "../../../../curriculum/lessons.json";
 import { LESSONS, getLesson } from "./lessons";
+import { containsSnippet, harnessPath, rustBlocks } from "./rust";
 import { SOLUTIONS } from "./solutions";
 import { splitSteps } from "./steps";
 import { evaluateChecks, snippetPattern, validateCode, type LessonCheck } from "./validate";
@@ -99,6 +103,16 @@ describe.each(available)("lesson $id: $title", (lesson) => {
     const shown = JSON.stringify(lesson, (key, value) => (["anyOf", "alsoAnyOf", "anchor"].includes(key) ? undefined : value));
     expect(shown).toContain(checks[0].objective);
     expect(shown.match(/\$[A-Za-z_][A-Za-z0-9_]*/g) ?? []).toEqual([]);
+  });
+
+  it("has the Rust of its explanation in its compiled harness", () => {
+    const blocks = rustBlocks(lesson.exercise.explanation);
+    if (blocks.length === 0) return;
+    const path = harnessPath(lesson.id);
+    const harness = readFileSync(fileURLToPath(new URL(`../../../../${path}`, import.meta.url)), "utf8");
+    blocks.forEach((block, index) => {
+      expect(containsSnippet(harness, block), `rust block ${index + 1} of the explanation is not in ${path}:\n${block}`).toBe(true);
+    });
   });
 
   it("has at least two hints per check, and only the last one gives the code", () => {
