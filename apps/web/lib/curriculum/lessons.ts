@@ -39,6 +39,20 @@ interface LessonContent {
   exercise?: LessonExercise;
 }
 
+/**
+ * Snippets for a lesson 8 lookup that reverts with UnknownTask past the end of the list: `ok_or`,
+ * `ok_or_else`, or a `match` whose arms, up to the `Err(`, are one of `arms`. Each snippet starts at
+ * the lookup, so a revert written for another lookup does not count.
+ */
+function revertingLookups(lookups: string[], arms: string[]): string[] {
+  const unknownTask = 'TodoError::UnknownTask(UnknownTask {';
+  return lookups.flatMap((lookup) => [
+    `${lookup}.ok_or(${unknownTask}`,
+    `${lookup}.ok_or_else(|| ${unknownTask}`,
+    ...arms.map((arm) => `match ${lookup} { ${arm} Err(${unknownTask}`),
+  ]);
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -240,7 +254,17 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn get(&self)',
         },
         {
-          anyOf: ['self.count.set(self.count.get() + U256::from(1))', 'self.count.set(self.count.get() + U256::from(1u8))'],
+          anyOf: [
+            'self.count.set(self.count.get() + U256::from(1))',
+            'self.count.set(self.count.get() + U256::from(1u8))',
+            // The current value or the new one kept in a local first.
+            'let $x = self.count.get(); self.count.set($x + U256::from(1))',
+            'let $x = self.count.get(); self.count.set($x + U256::from(1u8))',
+            'let $x = self.count.get() + U256::from(1); self.count.set($x)',
+            'let $x = self.count.get() + U256::from(1u8); self.count.set($x)',
+            'let mut $x = self.count.get(); $x += U256::from(1); self.count.set($x)',
+            'let mut $x = self.count.get(); $x += U256::from(1u8); self.count.set($x)',
+          ],
           objective: 'Increment the count by 1',
           hints: [
             'Read the current value, add one, then write the result back.',
@@ -412,7 +436,14 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'let available = self.balances.get(from);',
         },
         {
-          anyOf: ['Err(TokenError::InsufficientBalance(InsufficientBalance {'],
+          anyOf: [
+            'Err(TokenError::InsufficientBalance(InsufficientBalance {',
+            // The error built in a local first, with the fields of the hints (rustfmt may add a trailing comma).
+            'let $x = InsufficientBalance { available, required: amount }; return Err(TokenError::InsufficientBalance($x))',
+            'let $x = InsufficientBalance { available, required: amount, }; return Err(TokenError::InsufficientBalance($x))',
+            'let $x = TokenError::InsufficientBalance(InsufficientBalance { available, required: amount }); return Err($x)',
+            'let $x = TokenError::InsufficientBalance(InsufficientBalance { available, required: amount, }); return Err($x)',
+          ],
           objective: 'Revert when the balance is too low',
           hints: [
             'Returning an `Err` from a `#[public]` method reverts the call.',
@@ -422,7 +453,12 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'let available = self.balances.get(from);',
         },
         {
-          anyOf: ['self.vm().log(Transfer {'],
+          anyOf: [
+            'self.vm().log(Transfer {',
+            // The event built in a local first, with the fields of the hints (rustfmt may add a trailing comma).
+            'let $x = Transfer { from, to, value: amount }; self.vm().log($x)',
+            'let $x = Transfer { from, to, value: amount, }; self.vm().log($x)',
+          ],
           objective: 'Emit Transfer after the balances are updated',
           hints: [
             'Events are emitted through the host, which `self.vm()` returns.',
@@ -596,7 +632,14 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn balance_of(',
         },
         {
-          anyOf: ['Err(Erc20Error::InsufficientBalance(InsufficientBalance {'],
+          anyOf: [
+            'Err(Erc20Error::InsufficientBalance(InsufficientBalance {',
+            // The error built in a local first, with the fields of the hints (rustfmt may add a trailing comma).
+            'let $x = InsufficientBalance { from, have, want: value }; return Err(Erc20Error::InsufficientBalance($x))',
+            'let $x = InsufficientBalance { from, have, want: value, }; return Err(Erc20Error::InsufficientBalance($x))',
+            'let $x = Erc20Error::InsufficientBalance(InsufficientBalance { from, have, want: value }); return Err($x)',
+            'let $x = Erc20Error::InsufficientBalance(InsufficientBalance { from, have, want: value, }); return Err($x)',
+          ],
           objective: "Revert a transfer larger than the sender's balance",
           hints: [
             'Read the balance of `from` and compare it with `value` before moving anything.',
@@ -606,7 +649,12 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'let from = self.vm().msg_sender();',
         },
         {
-          anyOf: ['self.vm().log(Transfer {'],
+          anyOf: [
+            'self.vm().log(Transfer {',
+            // The event built in a local first, with the fields of the hints (rustfmt may add a trailing comma).
+            'let $x = Transfer { from, to, value }; self.vm().log($x)',
+            'let $x = Transfer { from, to, value, }; self.vm().log($x)',
+          ],
           objective: 'Emit Transfer when tokens move',
           hints: [
             'Events are emitted through the host, which `self.vm()` returns.',
@@ -796,7 +844,18 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn score_of(',
         },
         {
-          anyOf: ['self.scores.get(player) + points', 'points + self.scores.get(player)'],
+          anyOf: [
+            'self.scores.get(player) + points',
+            'points + self.scores.get(player)',
+            // The current score kept in a local first, then added and written back or added in place.
+            'let $x = self.scores.get(player); self.scores.insert(player, $x + points)',
+            'let $x = self.scores.get(player); self.scores.insert(player, points + $x)',
+            'let $x = self.scores.get(player); self.scores.setter(player).set($x + points)',
+            'let $x = self.scores.get(player); self.scores.setter(player).set(points + $x)',
+            'let $x = self.scores.get(player); let $y = $x + points;',
+            'let $x = self.scores.get(player); let $y = points + $x;',
+            'let mut $x = self.scores.get(player); $x += points;',
+          ],
           objective: "Add the points to the caller's current score",
           hints: [
             'Start from the score the caller already has: read it from the mapping before writing anything.',
@@ -1236,10 +1295,17 @@ const CONTENT: Record<number, LessonContent> = {
         },
         {
           // The revert is bound to the lookup, so the one in complete does not count for task.
-          anyOf: [
-            'self.tasks.getter(id).ok_or(TodoError::UnknownTask(UnknownTask {',
-            'self.tasks.getter(id).ok_or_else(|| TodoError::UnknownTask(UnknownTask {',
-          ],
+          // get(id) reads like getter(id); the match arms are the forms that compile in task.
+          anyOf: revertingLookups(
+            ['self.tasks.getter(id)', 'self.tasks.get(id)'],
+            [
+              'None =>',
+              'None => return',
+              'Some($x) => $x, None => return',
+              'Some($x) => Ok($x), None =>',
+              'Some($x) => Ok(($x.title.get_string(), $x.done.get())), None =>',
+            ],
+          ),
           objective: 'Look a task up by its id, and revert when there is no such task',
           hints: [
             'The id of a task is its position in the vector. Past the end there is no task, and that case must revert instead of returning an empty task.',
@@ -1260,10 +1326,18 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn task(',
         },
         {
-          anyOf: [
-            'self.tasks.setter(id).ok_or(TodoError::UnknownTask(UnknownTask {',
-            'self.tasks.setter(id).ok_or_else(|| TodoError::UnknownTask(UnknownTask {',
-          ],
+          // get_mut(id) writes like setter(id); the match arms are the forms that compile in complete.
+          anyOf: revertingLookups(
+            ['self.tasks.setter(id)', 'self.tasks.get_mut(id)'],
+            [
+              'None =>',
+              'None => return',
+              'Some($x) => $x, None => return',
+              'Some($x) => Ok($x), None =>',
+              'Some(mut $x) => { $x.done.set(true); Ok(()) } None =>',
+              'Some(mut $x) => { $x.done.set(true); Ok(()) }, None =>',
+            ],
+          ),
           alsoAnyOf: [['.done.set(true)']],
           objective: 'Mark the task as done, and revert when there is no such task',
           hints: [
@@ -1702,7 +1776,12 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'fn only_owner(',
         },
         {
-          anyOf: ['Err(AccessError::Unauthorized(Unauthorized { caller }))'],
+          anyOf: [
+            'Err(AccessError::Unauthorized(Unauthorized { caller }))',
+            // The error built in a local first.
+            'let $x = Unauthorized { caller }; return Err(AccessError::Unauthorized($x))',
+            'let $x = AccessError::Unauthorized(Unauthorized { caller }); return Err($x)',
+          ],
           objective: 'Refuse every caller but the owner',
           hints: [
             'Returning an `Err` from the guard makes every method that uses it revert.',
@@ -1920,7 +1999,21 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn deposit(',
         },
         {
-          anyOf: ['let total = self.deposits.get(account) + self.vm().msg_value();', 'let total = self.vm().msg_value() + self.deposits.get(account);'],
+          // The new deposit is still named total (#111); the deposit and the ETH sent may be read into locals first.
+          anyOf: [
+            'let total = self.deposits.get(account) + self.vm().msg_value();',
+            'let total = self.vm().msg_value() + self.deposits.get(account);',
+            'let $x = self.vm().msg_value(); let total = self.deposits.get(account) + $x;',
+            'let $x = self.vm().msg_value(); let total = $x + self.deposits.get(account);',
+            'let $x = self.deposits.get(account); let total = $x + self.vm().msg_value();',
+            'let $x = self.deposits.get(account); let total = self.vm().msg_value() + $x;',
+            'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let total = $x + $y;',
+            'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let total = $y + $x;',
+            'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let total = $x + $y;',
+            'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let total = $y + $x;',
+            'let mut total = self.deposits.get(account); total += self.vm().msg_value();',
+            'let mut total = self.vm().msg_value(); total += self.deposits.get(account);',
+          ],
           objective: "Add the ETH sent with the call to the caller's deposit",
           hints: [
             'The wei sent with the call comes from the host. Add it to what `account` already deposited.',
@@ -1960,7 +2053,14 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'let available = self.deposits.get(account);',
         },
         {
-          anyOf: ['Err(BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into())'],
+          anyOf: [
+            'Err(BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into())',
+            // The error built in a local first (rustfmt may add a trailing comma).
+            'let $x = InsufficientDeposit { available, requested: amount }; return Err(BankError::InsufficientDeposit($x).into())',
+            'let $x = InsufficientDeposit { available, requested: amount, }; return Err(BankError::InsufficientDeposit($x).into())',
+            'let $x = BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }); return Err($x.into())',
+            'let $x = BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount, }); return Err($x.into())',
+          ],
           objective: 'Revert when the deposit is too small',
           hints: [
             'Return an `Err` from inside the `if`, with the `InsufficientDeposit` error.',
@@ -1973,6 +2073,9 @@ const CONTENT: Record<number, LessonContent> = {
           anyOf: [
             'self.deposits.insert(account, available - amount); transfer_eth(self.vm(), account, amount)?;',
             'self.deposits.setter(account).set(available - amount); transfer_eth(self.vm(), account, amount)?;',
+            // The lowered deposit computed in a local first.
+            'let $x = available - amount; self.deposits.insert(account, $x); transfer_eth(self.vm(), account, amount)?;',
+            'let $x = available - amount; self.deposits.setter(account).set($x); transfer_eth(self.vm(), account, amount)?;',
           ],
           objective: 'Lower the deposit first, then send the ETH',
           hints: [
@@ -2169,7 +2272,14 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn fee(',
         },
         {
-          anyOf: ['.ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?'],
+          anyOf: [
+            '.ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?',
+            // The error built in a local first, right before the checked product.
+            'let $x = QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }); let $y = amount.checked_mul(rate_bps).ok_or($x)?',
+            'let $x = QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }); let $y = rate_bps.checked_mul(amount).ok_or($x)?',
+            'let $x = FeeOverflow { amount, rate_bps }; let $y = amount.checked_mul(rate_bps).ok_or(QuoteError::FeeOverflow($x))?',
+            'let $x = FeeOverflow { amount, rate_bps }; let $y = rate_bps.checked_mul(amount).ok_or(QuoteError::FeeOverflow($x))?',
+          ],
           objective: 'Revert with FeeOverflow when the product does not fit',
           hints: [
             'Turn the `None` of an overflow into an error, as lesson 7 did with `ok_or`.',
@@ -2179,7 +2289,13 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn fee(',
         },
         {
-          anyOf: ['Ok(scaled / U256::from(10_000))', 'Ok(scaled / U256::from(10000))'],
+          anyOf: [
+            'Ok(scaled / U256::from(10_000))',
+            'Ok(scaled / U256::from(10000))',
+            // The fee computed in a local first (the product is still named scaled, #111).
+            'let $x = scaled / U256::from(10_000); Ok($x)',
+            'let $x = scaled / U256::from(10000); Ok($x)',
+          ],
           objective: 'Return the fee as a share of 10,000 basis points',
           hints: [
             'The checked product is in basis points: 10,000 of them are 100%.',
@@ -2199,7 +2315,12 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn quote(',
         },
         {
-          anyOf: ['Self::fee(amount, self.rate_bps.get())'],
+          anyOf: [
+            'Self::fee(amount, self.rate_bps.get())',
+            // The stored rate read into a local first.
+            'let $x = self.rate_bps.get(); Self::fee(amount, $x)',
+            'let $x = self.rate_bps.get(); Ok(Self::fee(amount, $x)?)',
+          ],
           objective: 'Quote the fee at the stored rate',
           hints: [
             'Now that `fee` has no `self`, it is called on the type, not on `self`.',

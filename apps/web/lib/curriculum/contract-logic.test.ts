@@ -34,9 +34,52 @@ describe("lesson 9: msg context", () => {
   });
 });
 
+describe("lesson 3: Events and Errors", () => {
+  const revert = "return Err(TokenError::InsufficientBalance(InsufficientBalance {\n                available,\n                required: amount,\n            }));";
+  const emit = "self.vm().log(Transfer { from, to, value: amount });";
+
+  it("accepts the error built in a local variable first", () => {
+    expect(
+      variant(3, revert, "let error = InsufficientBalance {\n                available,\n                required: amount,\n            };\n            return Err(TokenError::InsufficientBalance(error));").passed,
+    ).toBe(true);
+    expect(
+      variant(3, revert, "let error = TokenError::InsufficientBalance(InsufficientBalance { available, required: amount });\n            return Err(error);").passed,
+    ).toBe(true);
+  });
+
+  it("accepts the event built in a local variable first, on one line or rustfmt style", () => {
+    expect(variant(3, emit, "let event = Transfer { from, to, value: amount };\n        self.vm().log(event);").passed).toBe(true);
+    expect(
+      variant(3, emit, "let event = Transfer {\n            from,\n            to,\n            value: amount,\n        };\n        self.vm().log(event);").passed,
+    ).toBe(true);
+  });
+
+  it("refuses an error built in a local but never returned", () => {
+    const result = variant(3, revert, "let _error = InsufficientBalance { available, required: amount };\n            return Ok(());");
+    expect(result.objectives).toEqual(["Revert when the balance is too low"]);
+  });
+
+  it("refuses an event built in a local but never logged", () => {
+    const result = variant(3, emit, "let _event = Transfer { from, to, value: amount };");
+    expect(result.objectives).toEqual(["Emit Transfer after the balances are updated"]);
+  });
+});
+
 describe("lesson 10: Access control", () => {
   it("accepts the comparison either way round", () => {
     expect(variant(10, "if caller != self.owner.get() {", "if self.owner.get() != caller {").passed).toBe(true);
+  });
+
+  const refuse = "return Err(AccessError::Unauthorized(Unauthorized { caller }));";
+
+  it("accepts the error built in a local variable first", () => {
+    expect(variant(10, refuse, "let error = Unauthorized { caller };\n            return Err(AccessError::Unauthorized(error));").passed).toBe(true);
+    expect(variant(10, refuse, "let error = AccessError::Unauthorized(Unauthorized { caller });\n            return Err(error);").passed).toBe(true);
+  });
+
+  it("refuses an error built in a local but never returned", () => {
+    const result = variant(10, refuse, "let _error = Unauthorized { caller };\n            return Ok(());");
+    expect(result.objectives).toEqual(["Refuse every caller but the owner"]);
   });
 
   it("refuses an owner taken from msg_sender in the constructor", () => {
@@ -71,6 +114,53 @@ describe("lesson 11: Payable and sending ETH", () => {
     ).toBe(true);
   });
 
+  const deposit = "let total = self.deposits.get(account) + self.vm().msg_value();";
+  const lower = "self.deposits.insert(account, available - amount);\n        transfer_eth(self.vm(), account, amount)?;";
+  const refuse = "return Err(BankError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into());";
+
+  it("accepts the deposit or the ETH sent read into local variables first", () => {
+    expect(variant(11, deposit, "let sent = self.vm().msg_value();\n        let total = self.deposits.get(account) + sent;").passed).toBe(true);
+    expect(
+      variant(11, deposit, "let deposited = self.deposits.get(account);\n        let sent = self.vm().msg_value();\n        let total = deposited + sent;").passed,
+    ).toBe(true);
+    expect(variant(11, deposit, "let mut total = self.deposits.get(account);\n        total += self.vm().msg_value();").passed).toBe(true);
+  });
+
+  it("refuses a local ETH amount that is never added", () => {
+    const result = variant(11, deposit, "let sent = self.vm().msg_value();\n        let total = self.deposits.get(account) + U256::from(1);");
+    expect(result.objectives).toEqual(["Add the ETH sent with the call to the caller's deposit"]);
+  });
+
+  it("accepts the lowered deposit computed in a local variable first", () => {
+    expect(
+      variant(11, lower, "let remaining = available - amount;\n        self.deposits.insert(account, remaining);\n        transfer_eth(self.vm(), account, amount)?;").passed,
+    ).toBe(true);
+    expect(
+      variant(11, lower, "let remaining = available - amount;\n        self.deposits.setter(account).set(remaining);\n        transfer_eth(self.vm(), account, amount)?;").passed,
+    ).toBe(true);
+  });
+
+  it("refuses a local lowered deposit written after the ETH is sent, or never written", () => {
+    const late = variant(11, lower, "let remaining = available - amount;\n        transfer_eth(self.vm(), account, amount)?;\n        self.deposits.insert(account, remaining);");
+    expect(late.objectives).toEqual(["Lower the deposit first, then send the ETH"]);
+    const unused = variant(11, lower, "let remaining = available - amount;\n        self.deposits.insert(account, available);\n        transfer_eth(self.vm(), account, amount)?;");
+    expect(unused.objectives).toEqual(["Lower the deposit first, then send the ETH"]);
+  });
+
+  it("accepts the error built in a local variable first", () => {
+    expect(
+      variant(11, refuse, "let error = InsufficientDeposit { available, requested: amount };\n            return Err(BankError::InsufficientDeposit(error).into());").passed,
+    ).toBe(true);
+    expect(
+      variant(11, refuse, "let error = BankError::InsufficientDeposit(InsufficientDeposit {\n                available,\n                requested: amount,\n            });\n            return Err(error.into());").passed,
+    ).toBe(true);
+  });
+
+  it("refuses an error built in a local but never returned", () => {
+    const result = variant(11, refuse, "let _error = InsufficientDeposit { available, requested: amount };\n            return Ok(());");
+    expect(result.objectives).toEqual(["Revert when the deposit is too small"]);
+  });
+
   it("refuses a deposit that is not payable", () => {
     const result = variant(11, "#[payable]\n", "");
     expect(result.objectives).toEqual(["Let deposit receive ETH"]);
@@ -95,6 +185,41 @@ describe("lesson 12: View/pure and gas", () => {
   it("accepts the product either way round and 10000 without a separator", () => {
     expect(variant(12, "let scaled = amount\n            .checked_mul(rate_bps)", "let scaled = rate_bps.checked_mul(amount)").passed).toBe(true);
     expect(variant(12, "U256::from(10_000)", "U256::from(10000)").passed).toBe(true);
+  });
+
+  const product = "let scaled = amount\n            .checked_mul(rate_bps)\n            .ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?;";
+
+  it("accepts the overflow error built in a local variable first", () => {
+    expect(
+      variant(12, product, "let overflow = QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps });\n        let scaled = amount\n            .checked_mul(rate_bps)\n            .ok_or(overflow)?;").passed,
+    ).toBe(true);
+    expect(
+      variant(12, product, "let overflow = FeeOverflow { amount, rate_bps };\n        let scaled = rate_bps.checked_mul(amount).ok_or(QuoteError::FeeOverflow(overflow))?;").passed,
+    ).toBe(true);
+  });
+
+  it("refuses an overflow error built in a local but never used", () => {
+    const result = variant(12, product, "let _overflow = FeeOverflow { amount, rate_bps };\n        let scaled = amount.checked_mul(rate_bps).unwrap_or(U256::ZERO);");
+    expect(result.objectives).toEqual(["Revert with FeeOverflow when the product does not fit"]);
+  });
+
+  it("accepts the fee computed in a local variable first", () => {
+    expect(variant(12, "Ok(scaled / U256::from(10_000))", "let fee = scaled / U256::from(10_000);\n        Ok(fee)").passed).toBe(true);
+  });
+
+  it("refuses a local fee that is not the value returned", () => {
+    const result = variant(12, "Ok(scaled / U256::from(10_000))", "let _fee = scaled / U256::from(10_000);\n        Ok(scaled)");
+    expect(result.objectives).toEqual(["Return the fee as a share of 10,000 basis points"]);
+  });
+
+  it("accepts the stored rate read into a local variable first in quote", () => {
+    expect(variant(12, "Self::fee(amount, self.rate_bps.get())", "let rate = self.rate_bps.get();\n        Self::fee(amount, rate)").passed).toBe(true);
+    expect(variant(12, "Self::fee(amount, self.rate_bps.get())", "let rate = self.rate_bps.get();\n        Ok(Self::fee(amount, rate)?)").passed).toBe(true);
+  });
+
+  it("refuses a quote at a rate other than the stored one", () => {
+    const result = variant(12, "Self::fee(amount, self.rate_bps.get())", "let _rate = self.rate_bps.get();\n        Self::fee(amount, U256::from(30))");
+    expect(result.objectives).toEqual(["Quote the fee at the stored rate"]);
   });
 
   it("refuses a fee that multiplies with the wrapping operator", () => {

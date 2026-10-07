@@ -4,7 +4,10 @@
  */
 
 export interface LessonCheck {
-  /** Code snippets; the check passes when the code contains any of them, whatever the whitespace. */
+  /**
+   * Code snippets; the check passes when the code contains any of them, whatever the whitespace.
+   * A placeholder such as `$x` stands for a local variable of any name (see snippetPattern).
+   */
   anyOf: string[];
   /**
    * Further parts of the same goal, each a group of alternative snippets: the check also needs
@@ -38,8 +41,22 @@ export interface ValidationResult {
   objectives: string[];
 }
 
-const TOKEN = /[A-Za-z0-9_]+|\S/g;
-const WORD = /^[A-Za-z0-9_]+$/;
+const TOKEN = /\$[A-Za-z_][A-Za-z0-9_]*|[A-Za-z0-9_]+|\S/g;
+/** An identifier, keyword or number token, or a placeholder (which stands for an identifier). */
+const WORD = /^\$?[A-Za-z0-9_]+$/;
+const PLACEHOLDER = /^\$([A-Za-z_][A-Za-z0-9_]*)$/;
+
+/** Rust keywords, strict and reserved (2024 edition): never the name of a variable. */
+const KEYWORDS = [
+  "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern",
+  "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub",
+  "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true", "type", "unsafe",
+  "use", "where", "while", "abstract", "become", "box", "do", "final", "gen", "macro", "override",
+  "priv", "try", "typeof", "unsized", "virtual", "yield",
+];
+
+/** A Rust identifier that is not a keyword, nor `_` (a wildcard, not a name). */
+const IDENTIFIER = `(?!(?:${KEYWORDS.join("|")}|_)(?![A-Za-z0-9_]))[A-Za-z_][A-Za-z0-9_]*`;
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -47,20 +64,41 @@ function escapeRegExp(text: string): string {
 
 /**
  * Turns a snippet into a whitespace-insensitive pattern: identifiers and keywords must stay
- * separated by whitespace, punctuation may or may not be surrounded by it, and the snippet
- * cannot start or end in the middle of an identifier.
+ * separated by whitespace, punctuation may or may not be surrounded by it (newlines included, so
+ * a method chain split across lines, `self\n    .tasks\n    .get(id)`, still matches), and the
+ * snippet cannot start or end in the middle of an identifier.
+ *
+ * A placeholder, `$` followed by a name such as `$x`, stands for a local variable: it matches any
+ * Rust identifier except a keyword, and every occurrence of the same placeholder in a snippet
+ * matches the same identifier. `let $x = self.count.get(); self.count.set($x + one)` accepts the
+ * variable under any name, but only when the value written is the one read. `let mut $x` works:
+ * `$x` never matches `mut`. Placeholders never bind across snippets.
+ *
+ * Limit: a snippet matches one contiguous piece of code, so a snippet with several statements
+ * only matches when the statements are consecutive. `let $x = a; f($x);` does not match when
+ * another statement sits between the two.
  */
 export function snippetPattern(snippet: string): RegExp {
   const tokens: string[] = Array.from(snippet.match(TOKEN) ?? []);
   if (tokens.length === 0) {
     throw new Error("A check snippet cannot be empty");
   }
+  const bound = new Set<string>();
   let source = "";
   tokens.forEach((token, index) => {
     if (index > 0) {
       source += WORD.test(tokens[index - 1]) && WORD.test(token) ? "\\s+" : "\\s*";
     }
-    source += escapeRegExp(token);
+    const placeholder = PLACEHOLDER.exec(token);
+    if (!placeholder) {
+      source += escapeRegExp(token);
+      return;
+    }
+    // The first occurrence captures the identifier; the next ones must repeat it exactly.
+    const group = `placeholder_${placeholder[1]}`;
+    const name = bound.has(group) ? `\\k<${group}>` : `(?<${group}>${IDENTIFIER})`;
+    source += `(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`;
+    bound.add(group);
   });
   const start = WORD.test(tokens[0]) ? "(?<![A-Za-z0-9_])" : "";
   const end = WORD.test(tokens[tokens.length - 1]) ? "(?![A-Za-z0-9_])" : "";
