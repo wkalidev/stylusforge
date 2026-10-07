@@ -63,6 +63,46 @@ function unlimitedGuards(): string[] {
   return guards.flatMap((guard) => [`${guard} self.allowances.setter(from)`, `${guard} let $y = $a - value; self.allowances.setter(from)`]);
 }
 
+/**
+ * Snippets for returning a custom error: built in place (`Err(Enum::Variant(Variant { fields }))`),
+ * or kept in a local first, either the error or the enum variant. Each entry of `fieldLists` is one
+ * accepted way to write the fields; rustfmt may add a trailing comma.
+ */
+function errorReturns(enumName: string, variant: string, fieldLists: string[]): string[] {
+  return fieldLists.flatMap((fields) =>
+    [`${variant} { ${fields} }`, `${variant} { ${fields}, }`].flatMap((error) => [
+      `return Err(${enumName}::${variant}(${error}))`,
+      `let $x = ${error}; return Err(${enumName}::${variant}($x))`,
+      `let $x = ${enumName}::${variant}(${error}); return Err($x)`,
+    ]),
+  );
+}
+
+/** Snippets for an `if` with one of `conditions` that returns one of `errors` first thing. */
+function guardedReturns(conditions: string[], errors: string[]): string[] {
+  return conditions.flatMap((condition) => errors.map((error) => `${condition} ${error}`));
+}
+
+/**
+ * Snippets for lesson 14's balance updates: `account`'s balance with one token added or taken
+ * (`U256::from(1)` or `U256::ONE`), written with `insert` or `setter`, directly or from a local.
+ * The balance is read into a local first, or inline in `insert` only: inline in `setter(..).set(..)`,
+ * the read would borrow the mapping while the setter holds it, which does not compile.
+ */
+function balanceUpdates(account: string, op: '+' | '-'): string[] {
+  const sums = (balance: string) =>
+    ['U256::from(1)', 'U256::ONE'].flatMap((one) => [`${balance} ${op} ${one}`, ...(op === '+' ? [`${one} + ${balance}`] : [])]);
+  const fromLocal = sums('$x');
+  const inline = sums(`self.balances.get(${account})`);
+  const insert = (value: string) => `self.balances.insert(${account}, ${value})`;
+  const set = (value: string) => `self.balances.setter(${account}).set(${value})`;
+  return [
+    ...fromLocal.flatMap((value) => [insert(value), set(value)]),
+    ...inline.map(insert),
+    ...[...fromLocal, ...inline].flatMap((value) => [`let $y = ${value}; ${insert('$y')}`, `let $y = ${value}; ${set('$y')}`]),
+  ];
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -2761,8 +2801,220 @@ const CONTENT: Record<number, LessonContent> = {
         '',
         'Stuck? Each objective has hints, from a nudge to the exact code.',
       ].join('\n'),
-      starterCode: '',
-      checks: [],
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{Address, U256},',
+        '    alloy_sol_types::sol,',
+        '    prelude::*,',
+        '};',
+        '',
+        'sol! {',
+        '    event Transfer(address indexed from, address indexed to, uint256 indexed token_id);',
+        '    event Approval(address indexed owner, address indexed approved, uint256 indexed token_id);',
+        '    error NonexistentToken(uint256 token_id);',
+        '    error AlreadyMinted(uint256 token_id);',
+        '    error InvalidReceiver(address receiver);',
+        '    error IncorrectOwner(address from, uint256 token_id, address owner);',
+        '    error InsufficientApproval(address operator, uint256 token_id);',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum Erc721Error {',
+        '    NonexistentToken(NonexistentToken),',
+        '    AlreadyMinted(AlreadyMinted),',
+        '    InvalidReceiver(InvalidReceiver),',
+        '    IncorrectOwner(IncorrectOwner),',
+        '    InsufficientApproval(InsufficientApproval),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct Erc721 {',
+        '        mapping(uint256 => address) owners;',
+        '        mapping(address => uint256) balances;',
+        '        mapping(uint256 => address) token_approvals;',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl Erc721 {',
+        '    pub fn balance_of(&self, owner: Address) -> U256 {',
+        '        self.balances.get(owner)',
+        '    }',
+        '',
+        '    pub fn owner_of(&self, token_id: U256) -> Result<Address, Erc721Error> {',
+        '        let owner = self.owners.get(token_id);',
+        '        // TODO: revert with NonexistentToken when no account owns token_id',
+        '        Ok(owner)',
+        '    }',
+        '',
+        '    pub fn mint(&mut self, receiver: Address, token_id: U256) -> Result<(), Erc721Error> {',
+        '        if receiver.is_zero() {',
+        '            return Err(Erc721Error::InvalidReceiver(InvalidReceiver { receiver }));',
+        '        }',
+        '        if !self.owners.get(token_id).is_zero() {',
+        '            return Err(Erc721Error::AlreadyMinted(AlreadyMinted { token_id }));',
+        '        }',
+        '        let held = self.balances.get(receiver);',
+        '        self.balances.insert(receiver, held + U256::from(1));',
+        '        self.owners.insert(token_id, receiver);',
+        '        self.vm().log(Transfer { from: Address::ZERO, to: receiver, token_id });',
+        '        Ok(())',
+        '    }',
+        '',
+        '    pub fn approve(&mut self, approved: Address, token_id: U256) -> Result<(), Erc721Error> {',
+        '        let sender = self.vm().msg_sender();',
+        '        if sender != self.owner_of(token_id)? {',
+        '            return Err(Erc721Error::InsufficientApproval(InsufficientApproval { operator: sender, token_id }));',
+        '        }',
+        '        self.token_approvals.insert(token_id, approved);',
+        '        self.vm().log(Approval { owner: sender, approved, token_id });',
+        '        Ok(())',
+        '    }',
+        '',
+        '    pub fn get_approved(&self, token_id: U256) -> Result<Address, Erc721Error> {',
+        '        self.owner_of(token_id)?;',
+        '        Ok(self.token_approvals.get(token_id))',
+        '    }',
+        '',
+        '    pub fn transfer_from(&mut self, from: Address, to: Address, token_id: U256) -> Result<(), Erc721Error> {',
+        '        let caller = self.vm().msg_sender();',
+        '        // TODO: refuse the zero address as the receiver, check that from owns token_id,',
+        '        // and that the caller is the owner or the approved account',
+        '        // TODO: clear the approval, update both balances and the owner, and emit Transfer',
+        '        Ok(())',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          anyOf: guardedReturns(
+            ['if owner.is_zero() {', 'if owner == Address::ZERO {', 'if Address::ZERO == owner {'],
+            errorReturns('Erc721Error', 'NonexistentToken', ['token_id']),
+          ),
+          objective: 'Revert for a token that nobody owns',
+          hints: [
+            'An owner never written reads as the zero address: no account owns that token.',
+            'Test `owner` with `is_zero()`, and return an `Err` with the `NonexistentToken` error.',
+            'Before `Ok(owner)`, write `if owner.is_zero() { return Err(Erc721Error::NonexistentToken(NonexistentToken { token_id })); }`.',
+          ],
+          anchor: 'pub fn owner_of(',
+        },
+        {
+          anyOf: guardedReturns(
+            ['if to.is_zero() {', 'if to == Address::ZERO {', 'if Address::ZERO == to {'],
+            errorReturns('Erc721Error', 'InvalidReceiver', ['receiver: to']),
+          ),
+          objective: 'Refuse to send a token to the zero address',
+          hints: [
+            'A token sent to the zero address could never move again, and the standard requires a revert.',
+            'Test `to` with `is_zero()`, as `mint` does with its receiver, and return the `InvalidReceiver` error.',
+            'Write `if to.is_zero() { return Err(Erc721Error::InvalidReceiver(InvalidReceiver { receiver: to })); }`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+        {
+          // The owner is read into a local of any name; the error takes it as a field, or by shorthand when it is named owner.
+          anyOf: [
+            ...guardedReturns(
+              ['if $o != from {', 'if from != $o {'],
+              errorReturns('Erc721Error', 'IncorrectOwner', ['from, token_id, owner: $o']),
+            ),
+            ...guardedReturns(
+              ['if owner != from {', 'if from != owner {'],
+              errorReturns('Erc721Error', 'IncorrectOwner', ['from, token_id, owner']),
+            ),
+          ],
+          alsoAnyOf: [['let $o = self.owner_of(token_id)?;']],
+          objective: 'Refuse a transfer from an account that does not own the token',
+          hints: [
+            'Look the owner up with the method that already reverts for a missing token, then compare it with `from`.',
+            'Call `self.owner_of(token_id)` with `?`, keep the result in `owner`, and return the `IncorrectOwner` error when it differs from `from`.',
+            'Write `let owner = self.owner_of(token_id)?;` and `if owner != from { return Err(Erc721Error::IncorrectOwner(IncorrectOwner { from, token_id, owner })); }`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+        {
+          // Two conditions joined with &&, in either order and each either way round; the approved account inline or in a local.
+          anyOf: ['caller != $o', '$o != caller'].flatMap((isNotOwner) =>
+            [
+              'caller != self.token_approvals.get(token_id)',
+              'self.token_approvals.get(token_id) != caller',
+              'caller != $a',
+              '$a != caller',
+            ].flatMap((isNotApproved) => [`if ${isNotOwner} && ${isNotApproved} {`, `if ${isNotApproved} && ${isNotOwner} {`]),
+          ),
+          alsoAnyOf: [
+            [
+              'let $a = self.token_approvals.get(token_id);',
+              'caller != self.token_approvals.get(token_id)',
+              'self.token_approvals.get(token_id) != caller',
+            ],
+            errorReturns('Erc721Error', 'InsufficientApproval', ['operator: caller, token_id']),
+          ],
+          objective: 'Let only the owner or the approved account move the token',
+          hints: [
+            'Anyone may call `transfer_from`: refuse a caller who is neither the owner nor the account approved for this token.',
+            'Compare `caller` with `owner` and with the approval stored for `token_id`, join both tests with `&&`, and return the `InsufficientApproval` error.',
+            'Write `if caller != owner && caller != self.token_approvals.get(token_id) { return Err(Erc721Error::InsufficientApproval(InsufficientApproval { operator: caller, token_id })); }`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+        {
+          anyOf: [
+            'self.token_approvals.delete(token_id)',
+            'self.token_approvals.insert(token_id, Address::ZERO)',
+            'self.token_approvals.setter(token_id).set(Address::ZERO)',
+          ],
+          objective: "Clear the token's approval when it changes hands",
+          hints: [
+            'The new owner starts with no approved account: the old approval must not survive the transfer.',
+            'Reset the entry of `token_id` in `token_approvals` to its zero value.',
+            'Write `self.token_approvals.delete(token_id);`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+        {
+          anyOf: balanceUpdates('from', '-'),
+          alsoAnyOf: [balanceUpdates('to', '+')],
+          objective: "Move one token from the sender's balance to the receiver's",
+          hints: [
+            'Each balance counts tokens held: `from` holds one less, `to` one more.',
+            'Read each balance with `get`, take or add `U256::from(1)`, and write it back with `insert`.',
+            'Write `let sent = self.balances.get(from); self.balances.insert(from, sent - U256::from(1));` and `let received = self.balances.get(to); self.balances.insert(to, received + U256::from(1));`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+        {
+          anyOf: ['self.owners.insert(token_id, to)', 'self.owners.setter(token_id).set(to)'],
+          objective: 'Record the receiver as the new owner',
+          hints: [
+            'The token now belongs to `to`: write it to the entry of the token.',
+            'Write `to` to the entry of `token_id` in `owners`, with `insert`.',
+            'Write `self.owners.insert(token_id, to);`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+        {
+          anyOf: [
+            'self.vm().log(Transfer { from, to, token_id })',
+            'self.vm().log(Transfer { from, to, token_id, })',
+            // The event built in a local first, with the fields of the hints (rustfmt may add a trailing comma).
+            'let $x = Transfer { from, to, token_id }; self.vm().log($x)',
+            'let $x = Transfer { from, to, token_id, }; self.vm().log($x)',
+          ],
+          objective: 'Emit Transfer for the token',
+          hints: [
+            'Wallets and explorers learn who owns a token from its events, as `mint` shows.',
+            'Pass a `Transfer` value with `from`, `to` and `token_id` to the host `log` method.',
+            'Before `Ok(())`, write `self.vm().log(Transfer { from, to, token_id });`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+      ],
     },
   },
 };
