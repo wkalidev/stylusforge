@@ -121,7 +121,7 @@ export function ProfileView() {
                   <div
                     className='[&>svg]:h-auto [&>svg]:w-full'
                     // certificateSvg escapes every lesson field it embeds.
-                    dangerouslySetInnerHTML={{ __html: certificateSvg(lesson) }}
+                    dangerouslySetInnerHTML={{ __html: certificateSvg(lesson, chain.name) }}
                   />
                 </Link>
               </li>
