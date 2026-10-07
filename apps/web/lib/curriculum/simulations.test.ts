@@ -111,7 +111,9 @@ describe("lesson simulations", () => {
     for (const lesson of LESSONS.filter((candidate) => candidate.available)) {
       const simulation = getSimulation(lesson.id);
       expect(simulation, lesson.title).not.toBeNull();
-      expect(simulation!.functions.map((fn) => fn.name).sort(), lesson.title).toEqual(exportedFunctions(SOLUTIONS[lesson.id]).sort());
+      // Functions of mock contracts model the contracts the lesson calls, not the lesson's own.
+      const own = simulation!.functions.filter((fn) => !fn.contract).map((fn) => fn.name);
+      expect(own.sort(), lesson.title).toEqual(exportedFunctions(SOLUTIONS[lesson.id]).sort());
     }
   });
 

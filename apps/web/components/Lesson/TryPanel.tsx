@@ -7,8 +7,10 @@ import {
   formatSimKey,
   formatSimValue,
   holdsEth,
+  namedAddresses,
   simTimestamp,
   type LessonSimulation,
+  type SimMock,
   type SimAccount,
   type SimCallResult,
   type SimFunction,
@@ -139,6 +141,23 @@ function StorageView({ state, accounts }: { state: SimState; accounts: SimAccoun
   );
 }
 
+/** The functions of a mock contract, apart from the lesson's contract and labelled as a mock. */
+function MockFunctions({ mock, accounts, contract, children }: { mock: SimMock; accounts: SimAccount[]; contract: string; children: React.ReactNode }) {
+  return (
+    <section aria-label={`Mock ${mock.name}`} className='space-y-2 rounded-[var(--radius-forge)] border border-dashed border-steel-700 p-3'>
+      <div>
+        <p className='text-sm font-semibold text-steel-100'>
+          Mock {mock.name} <span className='font-mono text-xs font-normal text-steel-400'>at {formatSimValue(mock.address, accounts.filter((account) => account.address !== mock.address))}</span>
+        </p>
+        <p className='mt-1 text-xs text-steel-400'>
+          A JavaScript stand-in for a contract that {contract} calls, not part of your code. {mock.note}
+        </p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 /**
  * "Try it": a JavaScript model of the lesson's contract, available once the lesson is passed.
  * It shows what the contract does; it never runs the student's Rust.
@@ -166,6 +185,10 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
   }
 
   const caller = simulation.accounts[callerIndex];
+  const named = namedAddresses(simulation);
+  const mocks = simulation.mocks ?? [];
+  const isMock = (field: string) => mocks.some((mock) => mock.name === field);
+  const contractState = Object.fromEntries(Object.entries(state).filter(([field]) => !isMock(field)));
   const call = (fn: SimFunction, args: Record<string, string>, value: string) => {
     const block = fn.view ? sent : sent + 1;
     const result = callSimulation(simulation, state, fn.name, args, caller, { timestamp: simTimestamp(block), value, balance });
@@ -222,20 +245,38 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
       </div>
 
       <div className='space-y-2'>
-        {simulation.functions.map((fn) => (
-          <FunctionForm key={fn.name} fn={fn} onCall={(args, value) => call(fn, args, value)} />
-        ))}
+        {simulation.functions
+          .filter((fn) => !fn.contract)
+          .map((fn) => (
+            <FunctionForm key={fn.name} fn={fn} onCall={(args, value) => call(fn, args, value)} />
+          ))}
       </div>
+
+      {mocks.map((mock) => (
+        <MockFunctions key={mock.name} mock={mock} accounts={named} contract={simulation.contract}>
+          {simulation.functions
+            .filter((fn) => fn.contract === mock.name)
+            .map((fn) => (
+              <FunctionForm key={fn.name} fn={fn} onCall={(args, value) => call(fn, args, value)} />
+            ))}
+        </MockFunctions>
+      ))}
 
       <div className='grid gap-4 md:grid-cols-2'>
         <section aria-label='Storage' className='steel-surface p-3'>
           <p className='mb-2 text-sm font-semibold text-steel-100'>Storage</p>
-          <StorageView state={state} accounts={simulation.accounts} />
+          <StorageView state={contractState} accounts={named} />
           {holdsEth(simulation) && (
             <p className='mt-3 border-t border-steel-800 pt-2 font-mono text-sm text-steel-400'>
-              ETH balance (not storage): <span className='text-amber-300'>{formatSimValue(balance, simulation.accounts)} wei</span>
+              ETH balance (not storage): <span className='text-amber-300'>{formatSimValue(balance, named)} wei</span>
             </p>
           )}
+          {mocks.map((mock) => (
+            <div key={mock.name} className='mt-3 border-t border-steel-800 pt-2'>
+              <p className='mb-2 text-sm font-semibold text-steel-300'>Mock {mock.name} storage</p>
+              <StorageView state={state[mock.name] as SimState} accounts={named} />
+            </div>
+          ))}
         </section>
         <section aria-label='Calls' className='steel-surface p-3'>
           <p className='mb-2 text-sm font-semibold text-steel-100'>Calls</p>
@@ -246,22 +287,24 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
               {log.map((entry) => (
                 <li key={entry.id} className='border-b border-steel-800 pb-2 last:border-0'>
                   <p className='text-steel-300'>
-                    {entry.caller.name}: {entry.fn.abiName}({Object.values(entry.args).join(', ')})
+                    {entry.caller.name}: {entry.fn.contract ? `${entry.fn.contract}.` : ''}
+                    {entry.fn.abiName}({Object.values(entry.args).join(', ')})
                     {entry.value.trim() !== '' && <span className='text-amber-300'> with {entry.value.trim()} wei</span>}
                   </p>
                   {entry.result.ok ? (
                     <>
                       {entry.result.returns !== undefined && (
-                        <p className='text-quench-300'>returned {formatSimValue(entry.result.returns, simulation.accounts)}</p>
+                        <p className='text-quench-300'>returned {formatSimValue(entry.result.returns, named)}</p>
                       )}
                       {entry.result.events.map((event, index) => (
                         <p key={index} className='text-amber-300'>
-                          event {event.name}({formatArgs(event.args, simulation.accounts)})
+                          event {event.contract ? `${event.contract}.` : ''}
+                          {event.name}({formatArgs(event.args, named)})
                         </p>
                       ))}
                       {entry.result.transfers.map((transfer, index) => (
                         <p key={index} className='text-amber-300'>
-                          sent {formatSimValue(transfer.amount, simulation.accounts)} wei to {formatSimValue(transfer.to, simulation.accounts)}
+                          sent {formatSimValue(transfer.amount, named)} wei to {formatSimValue(transfer.to, named)}
                         </p>
                       ))}
                       {entry.result.returns === undefined && entry.result.events.length === 0 && entry.result.transfers.length === 0 && (
@@ -271,7 +314,7 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
                   ) : (
                     <p className='text-molten-300'>
                       reverted: {entry.result.error?.error}
-                      {entry.result.error?.args ? `(${formatArgs(entry.result.error.args, simulation.accounts)})` : ''}
+                      {entry.result.error?.args ? `(${formatArgs(entry.result.error.args, named)})` : ''}
                     </p>
                   )}
                 </li>

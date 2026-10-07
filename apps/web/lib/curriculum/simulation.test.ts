@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   SIM_BLOCK_TIME,
+  SIM_CONTRACT_ADDRESS,
   SIM_START_TIME,
   UINT256_MAX,
   ZERO_ADDRESS,
@@ -10,6 +11,8 @@ import {
   formatSimKey,
   formatSimValue,
   holdsEth,
+  mockState,
+  namedAddresses,
   parseArgument,
   readAddressMapping,
   readMapping,
@@ -18,6 +21,7 @@ import {
   wrappingAdd,
   wrappingSub,
   writeMapping,
+  writeMockState,
   writeNestedMapping,
   type LessonSimulation,
 } from "./simulation";
@@ -174,6 +178,72 @@ describe("simulated clock", () => {
 
   it("runs at the start time when no block is given", () => {
     expect(callSimulation(clock, clock.initialState(), "stamp", {}, alice).state.stamped).toBe(SIM_START_TIME);
+  });
+});
+
+describe("mock contracts", () => {
+  const feed = { name: "Feed", address: "0x000000000000000000000000000000000000f33d", note: "A price feed." } as const;
+  const consumer: LessonSimulation = {
+    contract: "Consumer",
+    accounts: [alice, bob],
+    mocks: [feed],
+    initialState: () => ({ last: 0n, Feed: { answer: 7n } }),
+    functions: [
+      {
+        name: "set_answer",
+        abiName: "setAnswer",
+        view: false,
+        contract: "Feed",
+        params: [{ name: "answer", type: "uint256" }],
+        run: (state, args) => ({ state: writeMockState(state, "Feed", { answer: args.answer }), events: [{ name: "AnswerUpdated", args: { answer: args.answer }, contract: "Feed" }] }),
+      },
+      {
+        name: "read",
+        abiName: "read",
+        view: false,
+        params: [{ name: "limit", type: "uint256" }],
+        run: (state, args, _caller, context) => {
+          const answer = mockState(state, "Feed").answer as bigint;
+          // Writes the mock, then reverts past the limit: the write must be undone too.
+          const next = writeMockState({ ...state, last: answer }, "Feed", { answer: answer + 1n });
+          return answer > (args.limit as bigint) ? { revert: { error: "TooHigh" } } : { state: next, returns: context.self };
+        },
+      },
+      {
+        name: "is_feed",
+        abiName: "isFeed",
+        view: true,
+        params: [{ name: "account", type: "address" }],
+        returns: "bool",
+        run: (_state, args) => ({ returns: args.account === feed.address }),
+      },
+    ],
+  };
+
+  it("names the accounts, the lesson's contract and its mocks", () => {
+    expect(namedAddresses(consumer)).toEqual([alice, bob, { name: "Consumer", address: SIM_CONTRACT_ADDRESS }, { name: "Feed", address: feed.address }]);
+    expect(formatSimValue(SIM_CONTRACT_ADDRESS, namedAddresses(consumer))).toBe("Consumer");
+  });
+
+  it("parses the name of a mock or of the lesson's contract as its address", () => {
+    expect(callSimulation(consumer, consumer.initialState(), "is_feed", { account: "feed" }, alice).returns).toBe(true);
+    expect(callSimulation(consumer, consumer.initialState(), "is_feed", { account: "Consumer" }, alice).returns).toBe(false);
+  });
+
+  it("runs a mock's functions on its storage record, and gives the lesson's contract its address", () => {
+    const set = callSimulation(consumer, consumer.initialState(), "set_answer", { answer: "3" }, alice);
+    expect(set.state.Feed).toEqual({ answer: 3n });
+    expect(set.events).toEqual([{ name: "AnswerUpdated", args: { answer: 3n }, contract: "Feed" }]);
+    const read = callSimulation(consumer, set.state, "read", { limit: "10" }, alice);
+    expect(read).toMatchObject({ ok: true, returns: SIM_CONTRACT_ADDRESS, state: { last: 3n, Feed: { answer: 4n } } });
+  });
+
+  it("undoes the writes to a mock when the call reverts", () => {
+    const state = consumer.initialState();
+    const result = callSimulation(consumer, state, "read", { limit: "1" }, alice);
+    expect(result).toMatchObject({ ok: false, error: { error: "TooHigh" } });
+    expect(result.state).toBe(state);
+    expect(state).toEqual({ last: 0n, Feed: { answer: 7n } });
   });
 });
 
