@@ -1,4 +1,4 @@
-import { UINT256_MAX, ZERO_ADDRESS, deleteMapping, readMapping, readNestedMapping, wrappingAdd, writeMapping, writeNestedMapping, type LessonSimulation, type SimAccount, type SimOutcome, type SimState } from './simulation';
+import { UINT256_MAX, ZERO_ADDRESS, deleteMapping, readAddressMapping, readMapping, readNestedMapping, wrappingAdd, writeMapping, writeNestedMapping, type LessonSimulation, type SimAccount, type SimOutcome, type SimState } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -523,6 +523,118 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  14: {
+    contract: 'Erc721',
+    note: 'The model starts with no token: mint one first. Minting is open to anyone in this exercise only.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ owners: {}, balances: {}, token_approvals: {} }),
+    functions: [
+      {
+        name: 'balance_of',
+        abiName: 'balanceOf',
+        view: true,
+        params: [{ name: 'owner', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'balances', args.owner as string) }),
+      },
+      {
+        name: 'owner_of',
+        abiName: 'ownerOf',
+        view: true,
+        params: [{ name: 'token_id', type: 'uint256' }],
+        returns: 'address',
+        run: (state, args) => {
+          const owner = ownerOf(state, args.token_id as bigint);
+          return typeof owner === 'string' ? { returns: owner } : owner;
+        },
+      },
+      {
+        name: 'mint',
+        abiName: 'mint',
+        view: false,
+        params: [
+          { name: 'receiver', type: 'address' },
+          { name: 'token_id', type: 'uint256' },
+        ],
+        run: (state, args) => {
+          const receiver = args.receiver as string;
+          const tokenId = args.token_id as bigint;
+          if (receiver.toLowerCase() === ZERO_ADDRESS) return { revert: { error: 'InvalidReceiver', args: { receiver } } };
+          if (readAddressMapping(state, 'owners', tokenId) !== ZERO_ADDRESS) {
+            return { revert: { error: 'AlreadyMinted', args: { token_id: tokenId } } };
+          }
+          let next = writeMapping(state, 'balances', receiver, wrappingAdd(readMapping(state, 'balances', receiver), 1n));
+          next = writeMapping(next, 'owners', tokenId, receiver);
+          return { state: next, events: [{ name: 'Transfer', args: { from: ZERO_ADDRESS, to: receiver, token_id: tokenId } }] };
+        },
+      },
+      {
+        name: 'approve',
+        abiName: 'approve',
+        view: false,
+        params: [
+          { name: 'approved', type: 'address' },
+          { name: 'token_id', type: 'uint256' },
+        ],
+        run: (state, args, caller) => {
+          const tokenId = args.token_id as bigint;
+          const owner = ownerOf(state, tokenId);
+          if (typeof owner !== 'string') return owner;
+          if (caller.address.toLowerCase() !== owner.toLowerCase()) {
+            return { revert: { error: 'InsufficientApproval', args: { operator: caller.address, token_id: tokenId } } };
+          }
+          const approved = args.approved as string;
+          return {
+            state: writeMapping(state, 'token_approvals', tokenId, approved),
+            events: [{ name: 'Approval', args: { owner: caller.address, approved, token_id: tokenId } }],
+          };
+        },
+      },
+      {
+        name: 'get_approved',
+        abiName: 'getApproved',
+        view: true,
+        params: [{ name: 'token_id', type: 'uint256' }],
+        returns: 'address',
+        run: (state, args) => {
+          const tokenId = args.token_id as bigint;
+          const owner = ownerOf(state, tokenId);
+          return typeof owner === 'string' ? { returns: readAddressMapping(state, 'token_approvals', tokenId) } : owner;
+        },
+      },
+      {
+        name: 'transfer_from',
+        abiName: 'transferFrom',
+        view: false,
+        params: [
+          { name: 'from', type: 'address' },
+          { name: 'to', type: 'address' },
+          { name: 'token_id', type: 'uint256' },
+        ],
+        run: (state, args, caller) => {
+          const from = args.from as string;
+          const to = args.to as string;
+          const tokenId = args.token_id as bigint;
+          if (to.toLowerCase() === ZERO_ADDRESS) return { revert: { error: 'InvalidReceiver', args: { receiver: to } } };
+          const owner = ownerOf(state, tokenId);
+          if (typeof owner !== 'string') return owner;
+          if (owner.toLowerCase() !== from.toLowerCase()) {
+            return { revert: { error: 'IncorrectOwner', args: { from, token_id: tokenId, owner } } };
+          }
+          const sender = caller.address.toLowerCase();
+          if (sender !== owner.toLowerCase() && sender !== readAddressMapping(state, 'token_approvals', tokenId).toLowerCase()) {
+            return { revert: { error: 'InsufficientApproval', args: { operator: caller.address, token_id: tokenId } } };
+          }
+          // Same order as the lesson: clear the approval, move one token between the balances, then the owner.
+          let next = deleteMapping(state, 'token_approvals', tokenId);
+          next = writeMapping(next, 'balances', from, readMapping(next, 'balances', from) - 1n);
+          next = writeMapping(next, 'balances', to, wrappingAdd(readMapping(next, 'balances', to), 1n));
+          next = writeMapping(next, 'owners', tokenId, to);
+          return { state: next, events: [{ name: 'Transfer', args: { from, to, token_id: tokenId } }] };
+        },
+      },
+    ],
+  },
 };
 
 /**
@@ -538,6 +650,12 @@ function moveTokens(state: SimState, from: string, to: string, value: bigint): S
   let next = writeMapping(state, 'balances', from, have - value);
   next = writeMapping(next, 'balances', to, wrappingAdd(readMapping(next, 'balances', to), value));
   return { state: next, returns: true, events: [{ name: 'Transfer', args: { from, to, value } }] };
+}
+
+/** Lesson 14's owner_of: the owner of a token, or the NonexistentToken revert when nobody owns it. */
+function ownerOf(state: SimState, tokenId: bigint): string | { revert: { error: string; args: { token_id: bigint } } } {
+  const owner = readAddressMapping(state, 'owners', tokenId);
+  return owner === ZERO_ADDRESS ? { revert: { error: 'NonexistentToken', args: { token_id: tokenId } } } : owner;
 }
 
 /** A task of the lesson 8 to-do list. */
