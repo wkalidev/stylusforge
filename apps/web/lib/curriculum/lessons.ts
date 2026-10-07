@@ -53,6 +53,16 @@ function revertingLookups(lookups: string[], arms: string[]): string[] {
   ]);
 }
 
+/**
+ * Snippets for lesson 13's guard that leaves an unlimited allowance untouched: the allowance compared
+ * with `U256::MAX`, either way round, right before the write of the lowered allowance (or before the
+ * local that holds it).
+ */
+function unlimitedGuards(): string[] {
+  const guards = ['if $a != U256::MAX {', 'if $a < U256::MAX {', 'if U256::MAX != $a {', 'if U256::MAX > $a {'];
+  return guards.flatMap((guard) => [`${guard} self.allowances.setter(from)`, `${guard} let $y = $a - value; self.allowances.setter(from)`]);
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -2441,8 +2451,208 @@ const CONTENT: Record<number, LessonContent> = {
         '',
         'Stuck? Each objective has hints, from a nudge to the exact code.',
       ].join('\n'),
-      starterCode: '',
-      checks: [],
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{Address, U256},',
+        '    alloy_sol_types::sol,',
+        '    prelude::*,',
+        '};',
+        '',
+        'sol! {',
+        '    event Transfer(address indexed from, address indexed to, uint256 value);',
+        '    event Approval(address indexed owner, address indexed spender, uint256 value);',
+        '    error InsufficientBalance(address from, uint256 have, uint256 want);',
+        '    error InsufficientAllowance(address spender, uint256 have, uint256 want);',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum Erc20Error {',
+        '    InsufficientBalance(InsufficientBalance),',
+        '    InsufficientAllowance(InsufficientAllowance),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct Erc20 {',
+        '        uint256 total_supply;',
+        '        mapping(address => uint256) balances;',
+        '        mapping(address => mapping(address => uint256)) allowances;',
+        '    }',
+        '}',
+        '',
+        'impl Erc20 {',
+        '    fn move_tokens(&mut self, from: Address, to: Address, value: U256) -> Result<(), Erc20Error> {',
+        '        let have = self.balances.get(from);',
+        '        if have < value {',
+        '            return Err(Erc20Error::InsufficientBalance(InsufficientBalance {',
+        '                from,',
+        '                have,',
+        '                want: value,',
+        '            }));',
+        '        }',
+        '',
+        '        self.balances.setter(from).set(have - value);',
+        '        let received = self.balances.get(to);',
+        '        self.balances.setter(to).set(received + value);',
+        '',
+        '        self.vm().log(Transfer { from, to, value });',
+        '        Ok(())',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl Erc20 {',
+        '    pub fn total_supply(&self) -> U256 {',
+        '        self.total_supply.get()',
+        '    }',
+        '',
+        '    pub fn balance_of(&self, account: Address) -> U256 {',
+        '        self.balances.get(account)',
+        '    }',
+        '',
+        '    pub fn transfer(&mut self, to: Address, value: U256) -> Result<bool, Erc20Error> {',
+        '        self.move_tokens(self.vm().msg_sender(), to, value)?;',
+        '        Ok(true)',
+        '    }',
+        '',
+        '    pub fn allowance(&self, owner: Address, spender: Address) -> U256 {',
+        '        // TODO: return how much spender may still move from owner\'s tokens',
+        '        U256::ZERO',
+        '    }',
+        '',
+        '    pub fn approve(&mut self, spender: Address, value: U256) -> bool {',
+        '        let owner = self.vm().msg_sender();',
+        '        // TODO: record that spender may move value of owner\'s tokens, and emit Approval',
+        '        true',
+        '    }',
+        '',
+        '    pub fn transfer_from(&mut self, from: Address, to: Address, value: U256) -> Result<bool, Erc20Error> {',
+        '        let spender = self.vm().msg_sender();',
+        '        // TODO: revert when spender may move less than value from from,',
+        '        // lower the allowance unless it is unlimited, move the tokens and return Ok(true)',
+        '        Ok(false)',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          anyOf: ['self.allowances.getter(owner).get(spender)', 'self.allowances.get(owner).get(spender)'],
+          objective: 'Return what a spender may still move',
+          hints: [
+            'The allowance lives in the nested mapping: the outer key is the owner, the inner key the spender.',
+            'Reach the inner mapping of `owner` with `getter`, then read the entry of `spender` with `get`.',
+            'Replace `U256::ZERO` with `self.allowances.getter(owner).get(spender)`.',
+          ],
+          anchor: 'pub fn allowance(',
+        },
+        {
+          anyOf: [
+            'self.allowances.setter(owner).insert(spender, value)',
+            'self.allowances.setter(owner).setter(spender).set(value)',
+            // The handle to the inner mapping kept in a local first.
+            'let mut $x = self.allowances.setter(owner); $x.insert(spender, value)',
+            'let mut $x = self.allowances.setter(owner); $x.setter(spender).set(value)',
+          ],
+          objective: "Record the spender's allowance on the caller's tokens",
+          hints: [
+            'The caller is the owner: write `value` to the entry of `spender`, inside the inner mapping of `owner`.',
+            'Get a writable handle to the inner mapping with `setter(owner)`, then write the entry with `insert(spender, value)`.',
+            'Write `self.allowances.setter(owner).insert(spender, value);`.',
+          ],
+          anchor: 'pub fn approve(',
+        },
+        {
+          anyOf: [
+            'self.vm().log(Approval {',
+            // The event built in a local first, with the fields of the hints (rustfmt may add a trailing comma).
+            'let $x = Approval { owner, spender, value }; self.vm().log($x)',
+            'let $x = Approval { owner, spender, value, }; self.vm().log($x)',
+          ],
+          objective: 'Emit Approval when an allowance is set',
+          hints: [
+            'Wallets and explorers follow allowances through an event, emitted like `Transfer`.',
+            'Pass an `Approval` value with `owner`, `spender` and `value` to the host `log` method.',
+            'After writing the allowance, write `self.vm().log(Approval { owner, spender, value });`.',
+          ],
+          anchor: 'pub fn approve(',
+        },
+        {
+          // The allowance is read into a local of any name, then compared with value either way round.
+          anyOf: [
+            'let $a = self.allowances.getter(from).get(spender); if $a < value {',
+            'let $a = self.allowances.getter(from).get(spender); if value > $a {',
+            'let $a = self.allowances.get(from).get(spender); if $a < value {',
+            'let $a = self.allowances.get(from).get(spender); if value > $a {',
+          ],
+          objective: "Check the caller's allowance on the owner's tokens before spending it",
+          hints: [
+            'The caller is the spender and `from` the owner: read that allowance, and compare it with `value`.',
+            'Read it into a local `allowed` with `getter(from).get(spender)`, then test it against `value` in an `if`.',
+            'Write `let allowed = self.allowances.getter(from).get(spender); if allowed < value { ... }`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+        {
+          anyOf: [
+            'Err(Erc20Error::InsufficientAllowance(InsufficientAllowance {',
+            // The error built in a local first (rustfmt may add a trailing comma).
+            'let $x = InsufficientAllowance { spender, have: $a, want: value }; return Err(Erc20Error::InsufficientAllowance($x))',
+            'let $x = InsufficientAllowance { spender, have: $a, want: value, }; return Err(Erc20Error::InsufficientAllowance($x))',
+            'let $x = InsufficientAllowance { spender, have, want: value }; return Err(Erc20Error::InsufficientAllowance($x))',
+            'let $x = InsufficientAllowance { spender, have, want: value, }; return Err(Erc20Error::InsufficientAllowance($x))',
+            'let $x = Erc20Error::InsufficientAllowance(InsufficientAllowance { spender, have: $a, want: value }); return Err($x)',
+            'let $x = Erc20Error::InsufficientAllowance(InsufficientAllowance { spender, have: $a, want: value, }); return Err($x)',
+            'let $x = Erc20Error::InsufficientAllowance(InsufficientAllowance { spender, have, want: value }); return Err($x)',
+            'let $x = Erc20Error::InsufficientAllowance(InsufficientAllowance { spender, have, want: value, }); return Err($x)',
+          ],
+          objective: 'Revert when the allowance is too small',
+          hints: [
+            'Return an `Err` from inside the `if`, with the error declared for you.',
+            'Wrap `InsufficientAllowance { spender, have, want }` in the `Erc20Error::InsufficientAllowance` variant.',
+            'Inside the `if`, write `return Err(Erc20Error::InsufficientAllowance(InsufficientAllowance { spender, have: allowed, want: value }));`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+        {
+          anyOf: [
+            'self.allowances.setter(from).insert(spender, $a - value)',
+            'self.allowances.setter(from).setter(spender).set($a - value)',
+            // The lowered allowance computed in a local first.
+            'let $y = $a - value; self.allowances.setter(from).insert(spender, $y)',
+            'let $y = $a - value; self.allowances.setter(from).setter(spender).set($y)',
+          ],
+          objective: 'Lower the allowance by the amount spent',
+          hints: [
+            'Once spent, that part of the allowance is gone: write what is left back to the same entry.',
+            'Write `allowed - value` to the entry of `spender`, inside the inner mapping of `from`.',
+            'Write `self.allowances.setter(from).insert(spender, allowed - value);`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+        {
+          anyOf: unlimitedGuards(),
+          objective: 'Leave an unlimited allowance untouched',
+          hints: [
+            'By convention, the largest possible allowance means "unlimited", and spending it does not lower it.',
+            'Wrap the write of the lowered allowance in an `if` that compares `allowed` with `U256::MAX`.',
+            'Write `if allowed != U256::MAX { self.allowances.setter(from).insert(spender, allowed - value); }`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+        {
+          anyOf: ['self.move_tokens(from, to, value)?; Ok(true)'],
+          objective: 'Move the tokens and report success',
+          hints: [
+            'The checks are done: move the tokens as `transfer` does, then replace the failure that the starter reports.',
+            'Call `move_tokens` with `from`, `to` and `value`, pass its error on with `?`, and return `true` in `Ok`.',
+            'End `transfer_from` with `self.move_tokens(from, to, value)?; Ok(true)`.',
+          ],
+          anchor: 'pub fn transfer_from(',
+        },
+      ],
     },
   },
 };
