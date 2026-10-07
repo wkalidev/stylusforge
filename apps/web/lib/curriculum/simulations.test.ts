@@ -370,4 +370,50 @@ describe("lesson simulations", () => {
     expect(results[1]).toMatchObject({ ok: false, error: { error: "InsufficientBalance", args: { from: bob.address, have: 0n, want: 10n } } });
     expect(results[2].returns).toBe(50n);
   });
+
+  it("lesson 14 mints, approves and transfers a token, clearing its approval", () => {
+    const results = run(getSimulation(14)!, [
+      ["mint", { receiver: "Alice", token_id: "7" }, carol],
+      ["owner_of", { token_id: "7" }, carol],
+      ["approve", { approved: "Bob", token_id: "7" }, alice],
+      ["get_approved", { token_id: "7" }, carol],
+      ["transfer_from", { from: "Alice", to: "Carol", token_id: "7" }, bob],
+      ["owner_of", { token_id: "7" }, carol],
+      ["get_approved", { token_id: "7" }, carol],
+      ["balance_of", { owner: "Alice" }, carol],
+      ["balance_of", { owner: "Carol" }, carol],
+      ["transfer_from", { from: "Carol", to: "Bob", token_id: "7" }, bob],
+    ]);
+    expect(results[0]).toMatchObject({ ok: true, events: [{ name: "Transfer", args: { from: ZERO_ADDRESS, to: alice.address, token_id: 7n } }] });
+    expect(results[1].returns).toBe(alice.address);
+    expect(results[2]).toMatchObject({ ok: true, events: [{ name: "Approval", args: { owner: alice.address, approved: bob.address, token_id: 7n } }] });
+    expect(results[3].returns).toBe(bob.address);
+    expect(results[4]).toMatchObject({ ok: true, events: [{ name: "Transfer", args: { from: alice.address, to: carol.address, token_id: 7n } }] });
+    expect(results[5].returns).toBe(carol.address);
+    expect(results[6].returns).toBe(ZERO_ADDRESS);
+    expect(results[7].returns).toBe(0n);
+    expect(results[8].returns).toBe(1n);
+    expect(results[9]).toMatchObject({ ok: false, error: { error: "InsufficientApproval", args: { operator: bob.address, token_id: 7n } } });
+  });
+
+  it("lesson 14 reverts for a missing token, a wrong owner, the zero address and a token minted twice", () => {
+    const results = run(getSimulation(14)!, [
+      ["owner_of", { token_id: "1" }, alice],
+      ["get_approved", { token_id: "1" }, alice],
+      ["mint", { receiver: "Alice", token_id: "1" }, alice],
+      ["mint", { receiver: "Bob", token_id: "1" }, alice],
+      ["transfer_from", { from: "Bob", to: "Carol", token_id: "1" }, alice],
+      ["transfer_from", { from: "Alice", to: ZERO_ADDRESS, token_id: "1" }, alice],
+      ["mint", { receiver: ZERO_ADDRESS, token_id: "2" }, alice],
+      ["approve", { approved: "Carol", token_id: "1" }, bob],
+    ]);
+    expect(results[0]).toMatchObject({ ok: false, error: { error: "NonexistentToken", args: { token_id: 1n } } });
+    expect(results[1]).toMatchObject({ ok: false, error: { error: "NonexistentToken" } });
+    expect(results[2].ok).toBe(true);
+    expect(results[3]).toMatchObject({ ok: false, error: { error: "AlreadyMinted", args: { token_id: 1n } } });
+    expect(results[4]).toMatchObject({ ok: false, error: { error: "IncorrectOwner", args: { from: bob.address, token_id: 1n, owner: alice.address } } });
+    expect(results[5]).toMatchObject({ ok: false, error: { error: "InvalidReceiver", args: { receiver: ZERO_ADDRESS } } });
+    expect(results[6]).toMatchObject({ ok: false, error: { error: "InvalidReceiver" } });
+    expect(results[7]).toMatchObject({ ok: false, error: { error: "InsufficientApproval", args: { operator: bob.address, token_id: 1n } } });
+  });
 });

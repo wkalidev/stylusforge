@@ -13,6 +13,13 @@ function variant(lessonId: number, from: string, to: string) {
   return validateCode(solution.replace(from, to), lesson.exercise.checks);
 }
 
+/** The checks of an available lesson. */
+function checksOf(lessonId: number) {
+  const lesson = LESSONS.find((candidate) => candidate.id === lessonId)!;
+  if (!lesson.available) throw new Error(`Lesson ${lessonId} is not available`);
+  return lesson.exercise.checks;
+}
+
 /** Validates the reference solution of a lesson with a local variable renamed, then an optional edit. */
 function renamed(lessonId: number, name: string, to: string, edit: (code: string) => string = (code) => code) {
   const lesson = LESSONS.find((candidate) => candidate.id === lessonId)!;
@@ -133,5 +140,99 @@ describe("lesson 13: Allowances", () => {
 
   it("refuses a transfer_from that never moves the tokens", () => {
     expect(variant(13, "self.move_tokens(from, to, value)?;\n        Ok(true)", "Ok(true)").objectives).toEqual(["Move the tokens and report success"]);
+  });
+});
+
+describe("lesson 14: ERC-721", () => {
+  const missing = "if owner.is_zero() {\n            return Err(Erc721Error::NonexistentToken(NonexistentToken { token_id }));\n        }";
+  const zeroReceiver = "if to.is_zero() {\n            return Err(Erc721Error::InvalidReceiver(InvalidReceiver { receiver: to }));\n        }";
+  const ownerCheck = "let owner = self.owner_of(token_id)?;\n        if owner != from {\n            return Err(Erc721Error::IncorrectOwner(IncorrectOwner { from, token_id, owner }));\n        }";
+  const authorize = "if caller != owner && caller != self.token_approvals.get(token_id) {";
+  const balances =
+    "let sent = self.balances.get(from);\n        self.balances.insert(from, sent - U256::from(1));\n        let received = self.balances.get(to);\n        self.balances.insert(to, received + U256::from(1));";
+
+  it("accepts the zero address compared with == either way round", () => {
+    expect(variant(14, "if owner.is_zero() {", "if Address::ZERO == owner {").passed).toBe(true);
+    expect(variant(14, "if owner.is_zero() {", "if owner == Address::ZERO {").passed).toBe(true);
+    expect(variant(14, "if to.is_zero() {", "if to == Address::ZERO {").passed).toBe(true);
+  });
+
+  it("accepts the errors built in a local variable first, rustfmt style", () => {
+    expect(
+      variant(14, missing, "if owner.is_zero() {\n            let error = NonexistentToken { token_id };\n            return Err(Erc721Error::NonexistentToken(error));\n        }").passed,
+    ).toBe(true);
+    expect(
+      variant(14, zeroReceiver, "if to.is_zero() {\n            let error = Erc721Error::InvalidReceiver(InvalidReceiver {\n                receiver: to,\n            });\n            return Err(error);\n        }").passed,
+    ).toBe(true);
+  });
+
+  it("accepts the owner under any local name, compared either way round", () => {
+    const renamedOwner =
+      "let holder = self.owner_of(token_id)?;\n        if from != holder {\n            let error = IncorrectOwner { from, token_id, owner: holder };\n            return Err(Erc721Error::IncorrectOwner(error));\n        }";
+    const result = validateCode(
+      SOLUTIONS[14].replace(ownerCheck, renamedOwner).replace(authorize, "if caller != holder && caller != self.token_approvals.get(token_id) {"),
+      checksOf(14),
+    );
+    expect(result.passed).toBe(true);
+  });
+
+  it("accepts the authorization tests in either order, each either way round, with the approval in a local", () => {
+    expect(variant(14, authorize, "if self.token_approvals.get(token_id) != caller && owner != caller {").passed).toBe(true);
+    expect(variant(14, authorize, "let approved = self.token_approvals.get(token_id);\n        if approved != caller && caller != owner {").passed).toBe(true);
+  });
+
+  it("accepts the approval reset with insert or setter, and the owner written with setter", () => {
+    expect(variant(14, "self.token_approvals.delete(token_id);", "self.token_approvals.insert(token_id, Address::ZERO);").passed).toBe(true);
+    expect(variant(14, "self.token_approvals.delete(token_id);", "self.token_approvals.setter(token_id).set(Address::ZERO);").passed).toBe(true);
+    expect(variant(14, "self.owners.insert(token_id, to);", "self.owners.setter(token_id).set(to);").passed).toBe(true);
+  });
+
+  it("accepts the balances read inline in insert, U256::ONE, setter and locals", () => {
+    expect(
+      variant(14, balances, "self.balances.insert(from, self.balances.get(from) - U256::ONE);\n        let received = self.balances.get(to);\n        let raised = U256::ONE + received;\n        self.balances.setter(to).set(raised);").passed,
+    ).toBe(true);
+    expect(
+      variant(14, balances, "let sent = self.balances.get(from);\n        self.balances.setter(from).set(sent - U256::from(1));\n        self.balances.insert(to, U256::from(1) + self.balances.get(to));").passed,
+    ).toBe(true);
+  });
+
+  it("accepts the Transfer event built in a local variable first", () => {
+    expect(variant(14, "self.vm().log(Transfer { from, to, token_id });", "let event = Transfer { from, to, token_id };\n        self.vm().log(event);").passed).toBe(true);
+  });
+
+  it("refuses a transfer_from that lets a token go to the zero address", () => {
+    expect(variant(14, zeroReceiver, "").objectives).toEqual(["Refuse to send a token to the zero address"]);
+  });
+
+  it("refuses a transfer_from that never checks from against the owner, or reads the owner without owner_of", () => {
+    const unchecked = variant(14, ownerCheck, "let owner = self.owner_of(token_id)?;");
+    expect(unchecked.objectives).toEqual(["Refuse a transfer from an account that does not own the token"]);
+    const raw = variant(14, "let owner = self.owner_of(token_id)?;\n        if owner != from {", "let owner = self.owners.get(token_id);\n        if owner != from {");
+    expect(raw.objectives).toEqual(["Refuse a transfer from an account that does not own the token"]);
+  });
+
+  it("refuses an authorization that checks only the approval or only the owner, or joins them with ||", () => {
+    expect(variant(14, authorize, "if caller != self.token_approvals.get(token_id) {").objectives).toEqual([
+      "Let only the owner or the approved account move the token",
+    ]);
+    expect(variant(14, authorize, "if caller != owner {").objectives).toEqual(["Let only the owner or the approved account move the token"]);
+    expect(variant(14, authorize, "if caller != owner || caller != self.token_approvals.get(token_id) {").objectives).toEqual([
+      "Let only the owner or the approved account move the token",
+    ]);
+  });
+
+  it("refuses an approval that survives the transfer", () => {
+    expect(variant(14, "self.token_approvals.delete(token_id);", "").objectives).toEqual(["Clear the token's approval when it changes hands"]);
+  });
+
+  it("refuses balances moved the wrong way, or only on one side", () => {
+    expect(variant(14, "sent - U256::from(1)", "sent + U256::from(1)").objectives).toEqual(["Move one token from the sender's balance to the receiver's"]);
+    expect(
+      variant(14, "let received = self.balances.get(to);\n        self.balances.insert(to, received + U256::from(1));", "").objectives,
+    ).toEqual(["Move one token from the sender's balance to the receiver's"]);
+  });
+
+  it("refuses an owner_of that returns the zero address for a missing token", () => {
+    expect(variant(14, missing, "").objectives).toEqual(["Revert for a token that nobody owns"]);
   });
 });
