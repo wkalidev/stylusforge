@@ -3044,6 +3044,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  15: {
+    slug: 'openzeppelin-stylus',
+    difficulty: 'Intermediate',
+    preview: 'An ERC-20 built from audited OpenZeppelin components: compose, route and forward.',
+    minutes: 20,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
