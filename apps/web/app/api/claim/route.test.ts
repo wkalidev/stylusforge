@@ -67,11 +67,13 @@ describe("POST /api/claim", () => {
       signature: voucher.signature,
     });
     expect(recovered).toBe(privateKeyToAccount(signerKey).address);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
   it("re-validates the code and returns the objectives it misses", async () => {
     const response = await POST(post({ address: STUDENT, lessonId: 1, code: "// string greeting;" }));
     expect(response.status).toBe(422);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     const body = await response.json();
     expect(body.objectives).toEqual(LESSONS[0].exercise!.checks.map((check) => check.objective));
     expect(body.hints).toBeUndefined();
@@ -87,6 +89,7 @@ describe("POST /api/claim", () => {
   ])("rejects %s", async (_label, body, status) => {
     const response = await POST(post(body));
     expect(response.status).toBe(status);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect((await response.json()).error).toBeTypeOf("string");
   });
 
@@ -98,5 +101,6 @@ describe("POST /api/claim", () => {
     configure(setup);
     const response = await POST(post({ address: STUDENT, lessonId: 1, code: SOLUTIONS[1] }));
     expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });

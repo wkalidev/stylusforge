@@ -9,8 +9,14 @@ import { getClaimSigner } from '@/lib/server/claimSigner';
 /** Larger than any lesson solution by far; rejects abusive payloads before validation. */
 const MAX_CODE_LENGTH = 50_000;
 
+/** Every answer is specific to one request, and a voucher must never be served from a cache. */
+const NO_STORE = { 'cache-control': 'no-store' };
+
 function error(status: number, message: string, objectives?: string[]) {
-  return Response.json({ error: message, ...(objectives ? { objectives } : {}) } satisfies ClaimErrorResponse, { status });
+  return Response.json({ error: message, ...(objectives ? { objectives } : {}) } satisfies ClaimErrorResponse, {
+    status,
+    headers: NO_STORE,
+  });
 }
 
 /**
@@ -60,9 +66,12 @@ export async function POST(request: Request) {
     deadline,
   });
 
-  return Response.json({
-    lessonId: voucher.lessonId.toString(),
-    deadline: voucher.deadline.toString(),
-    signature: voucher.signature,
-  } satisfies ClaimResponse);
+  return Response.json(
+    {
+      lessonId: voucher.lessonId.toString(),
+      deadline: voucher.deadline.toString(),
+      signature: voucher.signature,
+    } satisfies ClaimResponse,
+    { headers: NO_STORE },
+  );
 }
