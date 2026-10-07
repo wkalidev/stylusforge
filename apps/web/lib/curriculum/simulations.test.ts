@@ -62,6 +62,17 @@ const OVERFLOW_CASES: Record<
   },
 };
 
+/**
+ * The methods a solution exports: every fn of its `#[public]` blocks, trait impls included (with or
+ * without `pub`), but no #[constructor], which runs once at deployment: the model starts deployed
+ * instead. Plain `impl` blocks hold helpers, which are never exported.
+ */
+function exportedFunctions(solution: string): string[] {
+  return [...solution.matchAll(/#\[public\][^{]*\{([\s\S]*?)\n\}/g)].flatMap((block) =>
+    [...block[1].matchAll(/(#\[constructor\]\s*)?(?:pub )?fn (\w+)/g)].filter((match) => !match[1]).map((match) => match[2]),
+  );
+}
+
 /** Whether Rust code uses the binary +, - or * operators (not `->` or a dereference). */
 const usesArithmetic = (code: string) => /\s[-+*]=?\s/.test(code);
 
@@ -100,12 +111,7 @@ describe("lesson simulations", () => {
     for (const lesson of LESSONS.filter((candidate) => candidate.available)) {
       const simulation = getSimulation(lesson.id);
       expect(simulation, lesson.title).not.toBeNull();
-      // A #[constructor] runs once at deployment: the model starts deployed instead.
-      const publicFns = [...SOLUTIONS[lesson.id].matchAll(/(#\[constructor\]\s*)?pub fn (\w+)/g)]
-        .filter((match) => !match[1])
-        .map((match) => match[2])
-        .sort();
-      expect(simulation!.functions.map((fn) => fn.name).sort(), lesson.title).toEqual(publicFns);
+      expect(simulation!.functions.map((fn) => fn.name).sort(), lesson.title).toEqual(exportedFunctions(SOLUTIONS[lesson.id]).sort());
     }
   });
 
