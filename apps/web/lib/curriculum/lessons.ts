@@ -3015,6 +3015,33 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn transfer_from(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Interface",
+          question: "What does owner_of return for a token id that was never minted?",
+          options: ["The zero address", "It reverts", "The address of the contract"],
+          answer: 1,
+          explanation: "The standard treats a token owned by the zero address as invalid, and owner_of throws for it. Returning the zero address would let callers mistake a missing token for one that exists.",
+        },
+        {
+          afterStep: "Storage: who owns what",
+          question: "Why does self.owners.get(token_id) return the zero address for a token that was never minted?",
+          options: [
+            "An entry never written reads as the zero value of its type",
+            "Deploying the contract writes the zero address to every entry",
+            "The SDK reverts on keys that were never written",
+          ],
+          answer: 0,
+          explanation: "Storage starts at zero: a mapping returns the zero value of its value type, U256::ZERO or Address::ZERO, for any key never written.",
+        },
+        {
+          afterStep: "Transferring",
+          question: "Alice owns token 7 and approved Bob for it. Bob calls transfer_from(Alice, Carol, 7). Who is approved for token 7 afterwards?",
+          options: ["Bob", "Alice", "Nobody"],
+          answer: 2,
+          explanation: "A transfer clears the approval of the token. Otherwise Bob could take the token back from Carol, who never approved him.",
+        },
+      ],
     },
   },
 };
