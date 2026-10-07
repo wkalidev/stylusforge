@@ -1069,6 +1069,41 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn withdraw(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Writing calls",
+          question: "Why build Call::new_mutating(self) in a local before calling token.transfer(self.vm(), config, to, amount)?",
+          options: [
+            "Written inline, it needs self mutably while self.vm() still borrows it, which does not compile",
+            "A local configuration costs less gas",
+            "The SDK reads the configuration before the host",
+          ],
+          answer: 0,
+          explanation: "self.vm() borrows self for the whole call, and new_mutating takes &mut self: written inline, the two borrows overlap (E0502). Built first, the configuration no longer borrows anything.",
+        },
+        {
+          afterStep: "Tokens that behave differently",
+          question: "A token keeps a 1% fee on every transfer. A vault credits each deposit with the amount passed to transfer_from. What goes wrong?",
+          options: [
+            "Nothing: the fee is paid by the vault later",
+            "transfer_from reverts for fee-on-transfer tokens",
+            "The vault credits more than it received, so the last withdrawals cannot be paid",
+          ],
+          answer: 2,
+          explanation: "With a fee, the vault receives less than the amount. Measuring its balance before and after transfer_from, and crediting the difference, keeps deposits backed by tokens.",
+        },
+        {
+          afterStep: "Tokens that behave differently",
+          question: "A token's transfer returns no value, and the vault's interface declares it as returning a bool. What happens on a successful transfer?",
+          options: [
+            "The call reverts: the empty return data cannot be decoded as a bool",
+            "The vault reads false and reverts with TransferFailed",
+            "The vault reads true",
+          ],
+          answer: 0,
+          explanation: "Decoding expects a bool and finds nothing, so the call returns a decoding error, which ? turns into a revert. SafeERC20 libraries accept an empty answer as success instead.",
+        },
+      ],
     },
   },
   6: {
