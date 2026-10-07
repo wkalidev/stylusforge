@@ -257,6 +257,19 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'The 256-bit unsigned integer of `alloy_primitives`: `U256::ZERO`, `U256::from(1)`, checked and wrapping arithmetic.',
   },
   {
+    id: 'address_zero',
+    pattern: /\bAddress::ZERO\b/,
+    title: 'Address::ZERO',
+    description:
+      'The zero address, `0x0000…0000`. An `address` never written reads as it, so an ERC-721 token owned by the zero address does not exist, and no token may be sent to it.',
+  },
+  {
+    id: 'is_zero',
+    pattern: /(?<=\.)is_zero\(\)/,
+    title: 'is_zero()',
+    description: 'Whether a value is zero: `owner.is_zero()` is the same as `owner == Address::ZERO`. `U256` has it too.',
+  },
+  {
     id: 'address',
     pattern: /\bAddress\b/,
     title: 'Address',

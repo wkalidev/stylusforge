@@ -46,6 +46,16 @@ describe("glossaryAt", () => {
     expect(idAt("        U256::ZERO", 9)).toBe("u256");
   });
 
+  it("explains the zero address and is_zero()", () => {
+    const guard = "        if to == Address::ZERO {";
+    expect(glossaryAt(guard, guard.indexOf("ZERO") + 1)).toMatchObject({ entry: { id: "address_zero" }, startColumn: guard.indexOf("Address") + 1 });
+    const signature = "    pub fn owner_of(&self, token_id: U256) -> Result<Address, Erc721Error> {";
+    expect(idAt(signature, signature.indexOf("Address") + 1)).toBe("address");
+    const test = "        if owner.is_zero() {";
+    expect(idAt(test, test.indexOf("is_zero") + 1)).toBe("is_zero");
+    expect(idAt("fn is_zero() {}", 4)).toBeNull();
+  });
+
   it("tells sol! apart from sol_storage!", () => {
     expect(idAt("sol! {", 2)).toBe("sol");
     expect(idAt("sol_storage! {", 2)).toBe("sol_storage");
