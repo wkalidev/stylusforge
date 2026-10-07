@@ -2682,6 +2682,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  14: {
+    slug: 'erc721-nft',
+    difficulty: 'Intermediate',
+    preview: 'A minimal NFT collection: owners per token, approvals and transfer_from.',
+    minutes: 25,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
