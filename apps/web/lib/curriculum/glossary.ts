@@ -244,6 +244,13 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'A 256-bit unsigned integer: `StorageU256` in storage, `U256` in Rust code.',
   },
   {
+    id: 'u256_max',
+    pattern: /\bU256::MAX\b/,
+    title: 'U256::MAX',
+    description:
+      'The largest `U256`, 2^256 − 1. ERC-20 tokens read an allowance of `U256::MAX` as unlimited: the `transfer_from` of OpenZeppelin never lowers it.',
+  },
+  {
     id: 'u256',
     pattern: /\bU256\b/,
     title: 'U256',

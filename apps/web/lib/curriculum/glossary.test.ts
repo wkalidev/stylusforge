@@ -39,6 +39,13 @@ describe("glossaryAt", () => {
     expect(idAt("self.vm().evm_ink_left()", 11)).toBe("gas_left");
   });
 
+  it("explains U256::MAX apart from U256", () => {
+    const guard = "        if allowed != U256::MAX {";
+    expect(glossaryAt(guard, guard.indexOf("MAX") + 1)).toMatchObject({ entry: { id: "u256_max" }, startColumn: guard.indexOf("U256") + 1 });
+    expect(idAt(guard, guard.indexOf("U256") + 1)).toBe("u256_max");
+    expect(idAt("        U256::ZERO", 9)).toBe("u256");
+  });
+
   it("tells sol! apart from sol_storage!", () => {
     expect(idAt("sol! {", 2)).toBe("sol");
     expect(idAt("sol_storage! {", 2)).toBe("sol_storage");
