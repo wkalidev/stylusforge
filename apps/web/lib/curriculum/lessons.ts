@@ -3657,6 +3657,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  17: {
+    slug: 'being-called',
+    difficulty: 'Intermediate',
+    preview: 'A price feed that Solidity callers can use: exact names, selectors and ABI types.',
+    minutes: 20,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
