@@ -57,6 +57,12 @@ const OVERFLOW_CASES: Record<
     with: { timestamp: SIM_START_TIME },
     expected: { feed: PRICE_FEED_ADDRESS, max_age: MAX, PriceFeed: { decimals: 8n, round_id: 1n, answer: 5n, updated_at: SIM_START_TIME + 1n } },
   },
+  // The round id is a U80: + 1 wraps around at 2^80.
+  17: {
+    state: { owner: alice.address, round_id: (1n << 80n) - 1n, answer: 0n, updated_at: 0n },
+    call: ["set_answer", { answer: "5" }, alice],
+    expected: { owner: alice.address, round_id: 0n, answer: 5n, updated_at: SIM_START_TIME },
+  },
   14: {
     state: { owners: { "7": alice.address }, balances: { [alice.address]: 1n, [bob.address]: MAX }, token_approvals: {} },
     call: ["transfer_from", { from: "Alice", to: "Bob", token_id: "7" }, alice],
