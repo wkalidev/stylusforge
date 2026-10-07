@@ -3624,6 +3624,37 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn price(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Static calls",
+          question: "The feed reverts while price runs feed.latest_round_data(self.vm(), Call::new())?. What does price do?",
+          options: [
+            "It returns zero",
+            "It reverts too, with the revert data of the feed",
+            "It goes on with the previous answer of the feed",
+          ],
+          answer: 1,
+          explanation: "The call returns an Err holding the revert data of the feed, and ? converts it into the Vec<u8> error of price, which reverts with that data.",
+        },
+        {
+          afterStep: "Chainlink price feeds",
+          question: "A feed with 8 decimals answers 250,000,000,000. What price is that?",
+          options: ["2,500", "250,000,000,000", "25"],
+          answer: 0,
+          explanation: "The last 8 digits are decimals: 250,000,000,000 / 10^8 = 2,500. Read decimals() from the feed instead of assuming it.",
+        },
+        {
+          afterStep: "On Arbitrum: the sequencer",
+          question: "The uptime feed answers 0, and its startedAt was 10 minutes ago. With the 3600-second grace period of Chainlink's example, should the consumer accept prices?",
+          options: [
+            "Yes: an answer of 0 means the sequencer is up",
+            "No: an answer of 0 means the sequencer is down",
+            "No: the sequencer came back 10 minutes ago, within the grace period",
+          ],
+          answer: 2,
+          explanation: "0 means up, and startedAt is when the status last changed: the sequencer has only been back for 600 seconds, so users have not had the grace period to react yet.",
+        },
+      ],
     },
   },
 };
