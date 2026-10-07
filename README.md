@@ -52,7 +52,7 @@ This is a pnpm workspace with a single lockfile (`pnpm-lock.yaml`) at the root.
 stylusforge/
 ├─ apps/web/      Next.js app (lessons, editor, wallet)
 ├─ contracts/     Hardhat 3 project (StylusForgeNFT certificate contract)
-├─ curriculum/    lessons.json (lesson ids, names, XP, modules), modules.json and lesson rules
+├─ curriculum/    lessons.json (lesson ids, names, XP, modules), modules.json, lesson rules and the Rust check crates
 └─ docs/          Architecture overview
 ```
 
@@ -214,7 +214,7 @@ A per-IP limit slows scripted claims but does not stop a client that rotates IPs
 
 ## Continuous integration
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on every push to `main` and on demand: `pnpm install --frozen-lockfile` on Node 22, then `pnpm lint`, `pnpm test` (contracts, then vitest) and `pnpm build`. The build uses a placeholder WalletConnect id unless the repository variable `NEXT_PUBLIC_WALLETCONNECT_ID` is set. A new push to a pull request cancels its running checks. Each push to `main` runs in its own concurrency group, so no merge's run is cancelled or replaced while queued.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on every push to `main` and on demand: `pnpm install --frozen-lockfile` on Node 22, then `pnpm lint`, `pnpm test` (contracts, then vitest) and `pnpm build`. A second job, **Rust lesson checks**, runs `cargo check` on the reference solution, starter code and explanation snippets of every available lesson ([curriculum README](curriculum/README.md#checking-the-lesson-rust)); it caches the cargo registry and build output, saved from `main` only. The build uses a placeholder WalletConnect id unless the repository variable `NEXT_PUBLIC_WALLETCONNECT_ID` is set. A new push to a pull request cancels its running checks. Each push to `main` runs in its own concurrency group, so no merge's run is cancelled or replaced while queued.
 
 ## Roadmap
 

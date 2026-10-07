@@ -1,0 +1,23 @@
+# Compiles the Rust of lesson 15 against openzeppelin-stylus 0.3.0, its latest release, which pins
+# stylus-sdk to exactly 0.9.0 and cannot share a crate with stylus-sdk 0.10 (#123). Cargo.lock holds
+# ruint at 1.14.0, the version of the openzeppelin-stylus 0.3.0 lockfile: later releases fail to
+# build stylus-sdk 0.9.0. Check with --features export-abi: without it, openzeppelin-stylus 0.3.0
+# expects the stylus-sdk test VM on the host and does not compile. See the curriculum README.
+[package]
+name = "lesson-check-openzeppelin"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+openzeppelin-stylus = "=0.3.0"
+stylus-sdk = "=0.9.0"
+alloy-primitives = "=0.8.20"
+alloy-sol-types = "=0.8.20"
+
+[features]
+export-abi = ["stylus-sdk/export-abi", "openzeppelin-stylus/export-abi"]
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["lib"]

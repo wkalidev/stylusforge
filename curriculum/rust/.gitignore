@@ -1,0 +1,3 @@
+# check.sh writes each lesson file to src/lib.rs in turn.
+*/src/
+*/target/
