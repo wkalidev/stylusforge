@@ -7,9 +7,10 @@ import { toFunctionSelector } from 'viem';
 
 /**
  * Argument types; a `bytes4` (such as an ERC-165 interface id) is kept as lowercase hex, an `int256`
- * is a bigint that may be negative.
+ * is a bigint that may be negative, and a `uint64` (a Rust `u64`, such as an amount of ink) is a
+ * bigint below 2^64.
  */
-export type SimType = 'uint256' | 'int256' | 'address' | 'string' | 'bytes4';
+export type SimType = 'uint256' | 'uint64' | 'int256' | 'address' | 'string' | 'bytes4';
 export type SimValue = bigint | string;
 
 /**
@@ -61,6 +62,8 @@ export interface SimContext {
   value: bigint;
   /** The contract's ETH balance in wei during the call, the value sent included. */
   balance: bigint;
+  /** How much ink one gas buys (`tx_ink_price()`): SIM_INK_PRICE. */
+  inkPrice: bigint;
 }
 
 /** Wei sent by the contract to an address (`transfer_eth`). */
@@ -86,6 +89,12 @@ export interface SimCall {
 export const SIM_START_TIME = 1_767_225_600n; // 2026-01-01 00:00:00 UTC
 export const SIM_BLOCK_TIME = 12n;
 
+/**
+ * The ink price of every simulated call: 10,000 ink per gas, the default of Arbitrum chains, which
+ * the chain owner can change (ArbWasm `inkPrice()`).
+ */
+export const SIM_INK_PRICE = 10_000n;
+
 /** The simulated block time once a number of transactions have been sent. */
 export function simTimestamp(sent: number): bigint {
   return SIM_START_TIME + SIM_BLOCK_TIME * BigInt(sent);
@@ -106,8 +115,11 @@ export interface SimFunction {
   /** `#[payable]`: accepts ETH. A call sending ETH to any other function reverts. */
   payable?: boolean;
   params: { name: string; type: SimType }[];
-  /** Return type, as shown in the panel; an array for a tuple, such as `(string, bool)`. A `uint8` or `uint80` is returned as a bigint. */
-  returns?: SimType | 'bool' | 'uint8' | (SimType | 'bool' | 'uint80')[];
+  /**
+   * Return type, as shown in the panel; an array for a tuple, such as `(string, bool)`. A `uint8`,
+   * `uint32` or `uint80` is returned as a bigint.
+   */
+  returns?: SimType | 'bool' | 'uint8' | 'uint32' | (SimType | 'bool' | 'uint80')[];
   /** The mock contract the function belongs to; absent for the lesson's contract. */
   contract?: string;
   /**
@@ -164,6 +176,7 @@ export function writeMockState(state: SimState, mock: string, fields: SimState):
 }
 
 export const UINT256_MAX = (1n << 256n) - 1n;
+export const UINT64_MAX = (1n << 64n) - 1n;
 export const INT256_MIN = -(1n << 255n);
 export const INT256_MAX = (1n << 255n) - 1n;
 
@@ -173,10 +186,10 @@ export class SimArgumentError extends Error {}
 export function parseArgument(type: SimType, raw: string, accounts: SimAccount[]): SimValue {
   const text = raw.trim();
   if (type === 'string') return raw;
-  if (type === 'uint256') {
+  if (type === 'uint256' || type === 'uint64') {
     if (!/^\d+$/.test(text)) throw new SimArgumentError(`"${raw}" is not an unsigned integer`);
     const value = BigInt(text);
-    if (value > UINT256_MAX) throw new SimArgumentError(`${text} does not fit in a uint256`);
+    if (value > (type === 'uint256' ? UINT256_MAX : UINT64_MAX)) throw new SimArgumentError(`${text} does not fit in a ${type}`);
     return value;
   }
   if (type === 'int256') {
@@ -328,7 +341,13 @@ export function callSimulation(
     for (const param of fn.params) {
       args[param.name] = parseArgument(param.type, rawArgs[param.name] ?? '', named);
     }
-    const context: SimContext = { self: SIM_CONTRACT_ADDRESS, timestamp: call.timestamp ?? SIM_START_TIME, value, balance: before + value };
+    const context: SimContext = {
+      self: SIM_CONTRACT_ADDRESS,
+      timestamp: call.timestamp ?? SIM_START_TIME,
+      value,
+      balance: before + value,
+      inkPrice: SIM_INK_PRICE,
+    };
     const snapshot = structuredClone(state);
     const outcome = fn.run(snapshot, args, caller, context);
     if ('revert' in outcome) return failed(outcome.revert);
