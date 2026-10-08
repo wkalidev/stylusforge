@@ -4803,6 +4803,52 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'fn locks_a_deposit_for_an_hour(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "The test VM",
+          question: "Why is the tests module marked #[cfg(test)]?",
+          options: [
+            "So that only cargo test compiles it, and it stays out of the deployed contract",
+            "So that the test VM can read the storage of the contract",
+            "So that the tests run on-chain after deployment",
+          ],
+          answer: 0,
+          explanation: "#[cfg(test)] compiles the module only for cargo test. The deployed WebAssembly never contains the tests, nor the test VM.",
+        },
+        {
+          afterStep: "Setting the scene",
+          question: "A test builds a contract on a new TestVM and calls a method that reads msg_sender(). Who is the sender?",
+          options: [
+            "The zero address",
+            "A fixed default address, until the test calls set_sender",
+            "The address of the contract",
+          ],
+          answer: 1,
+          explanation: "A new TestVM uses a fixed default sender, 0xDeaDbeef…. Call set_sender before the method to act as someone else.",
+        },
+        {
+          afterStep: "Asserting results and errors",
+          question: "Why compare the result of withdraw() with the exact encoded error, rather than assert!(result.is_err())?",
+          options: [
+            "is_err() does not compile on a Result with Vec<u8> errors",
+            "The exact error costs less gas to check",
+            "is_err() also passes for an error you did not expect",
+          ],
+          answer: 2,
+          explanation: "A test that accepts any error also passes when the method fails for the wrong reason. Comparing with the encoded error checks the reason and its fields.",
+        },
+        {
+          afterStep: "What the test VM does not do",
+          question: "A method writes to storage, then returns Err. In a test, what does that storage hold afterwards?",
+          options: [
+            "The new value: the test VM does not undo writes when a method returns an error",
+            "The old value: the error reverts the write",
+            "Nothing: the error clears the storage",
+          ],
+          answer: 0,
+          explanation: "On-chain, the error reverts the whole call. A test calls the method directly, so nothing undoes its writes: assert on the result, not on the storage left by a failed call.",
+        },
+      ],
     },
   },
 };
