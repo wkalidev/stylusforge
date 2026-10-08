@@ -1252,4 +1252,155 @@ impl Treasury {
     }
 }
 `,
+  21: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    call::transfer::transfer_eth,
+    prelude::*,
+};
+
+sol! {
+    event Deposited(address indexed account, uint256 assets, uint256 shares);
+    event Withdrawn(address indexed account, uint256 assets, uint256 shares);
+    event PausedSet(bool paused);
+    error NotOwner(address caller);
+    error VaultPaused();
+    error ZeroShares(uint256 assets);
+    error InsufficientShares(uint256 available, uint256 requested);
+    error MathOverflow();
+}
+
+#[derive(SolidityError)]
+pub enum VaultError {
+    NotOwner(NotOwner),
+    VaultPaused(VaultPaused),
+    ZeroShares(ZeroShares),
+    InsufficientShares(InsufficientShares),
+    MathOverflow(MathOverflow),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct MiniVault {
+        address owner;
+        bool paused;
+        uint256 total_shares;
+        mapping(address => uint256) shares;
+    }
+}
+
+#[public]
+impl MiniVault {
+    #[constructor]
+    pub fn constructor(&mut self, owner: Address) {
+        self.owner.set(owner);
+    }
+
+    pub fn owner(&self) -> Address {
+        self.owner.get()
+    }
+
+    pub fn paused(&self) -> bool {
+        self.paused.get()
+    }
+
+    pub fn total_shares(&self) -> U256 {
+        self.total_shares.get()
+    }
+
+    pub fn shares_of(&self, account: Address) -> U256 {
+        self.shares.get(account)
+    }
+
+    pub fn total_assets(&self) -> U256 {
+        self.vm().balance(self.vm().contract_address())
+    }
+
+    pub fn set_paused(&mut self, paused: bool) -> Result<(), VaultError> {
+        self.only_owner()?;
+        self.paused.set(paused);
+        self.vm().log(PausedSet { paused });
+        Ok(())
+    }
+
+    #[payable]
+    pub fn deposit(&mut self) -> Result<U256, VaultError> {
+        if self.paused.get() {
+            return Err(VaultError::VaultPaused(VaultPaused {}));
+        }
+        let account = self.vm().msg_sender();
+        let assets = self.vm().msg_value();
+        let supply = self.total_shares.get();
+        let assets_before = self.total_assets() - assets;
+        let shares = if supply.is_zero() {
+            assets
+        } else {
+            assets.checked_mul(supply).ok_or(VaultError::MathOverflow(MathOverflow {}))? / assets_before
+        };
+        if shares.is_zero() {
+            return Err(VaultError::ZeroShares(ZeroShares { assets }));
+        }
+        let balance = self.shares.get(account) + shares;
+        self.shares.insert(account, balance);
+        self.total_shares.set(supply + shares);
+        self.vm().log(Deposited { account, assets, shares });
+        Ok(shares)
+    }
+
+    pub fn withdraw(&mut self, shares: U256) -> Result<U256, Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let available = self.shares.get(account);
+        if shares.is_zero() {
+            return Err(VaultError::ZeroShares(ZeroShares { assets: U256::ZERO }).into());
+        }
+        if available < shares {
+            return Err(VaultError::InsufficientShares(InsufficientShares { available, requested: shares }).into());
+        }
+        let supply = self.total_shares.get();
+        let assets = shares.checked_mul(self.total_assets()).ok_or(VaultError::MathOverflow(MathOverflow {}))? / supply;
+        self.shares.insert(account, available - shares);
+        self.total_shares.set(supply - shares);
+        transfer_eth(self.vm(), account, assets)?;
+        self.vm().log(Withdrawn { account, assets, shares });
+        Ok(assets)
+    }
+}
+
+impl MiniVault {
+    fn only_owner(&self) -> Result<(), VaultError> {
+        let caller = self.vm().msg_sender();
+        if caller != self.owner.get() {
+            return Err(VaultError::NotOwner(NotOwner { caller }));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use stylus_sdk::alloy_primitives::address;
+    use stylus_sdk::testing::*;
+
+    const OWNER: Address = address!("0000000000000000000000000000000000000001");
+    const ALICE: Address = address!("00000000000000000000000000000000000a11ce");
+
+    #[test]
+    fn mints_one_share_per_wei_on_the_first_deposit() {
+        let vm = TestVM::default();
+        let mut vault = MiniVault::from(&vm);
+        vault.constructor(OWNER);
+
+        vm.set_sender(ALICE);
+        vm.set_value(U256::from(1000));
+        vm.set_balance(vm.contract_address(), U256::from(1000));
+        assert_eq!(vault.deposit().ok(), Some(U256::from(1000)));
+        assert_eq!(vault.shares_of(ALICE), U256::from(1000));
+    }
+}
+`,
 };
