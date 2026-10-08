@@ -157,6 +157,27 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
       'Convert between ink and gas at the ink price of the chain: `ink_to_gas` divides by the price, `gas_to_ink` multiplies by it and saturates at `u64::MAX`. Both take and return a `u64`.',
   },
   {
+    id: 'raw_call',
+    pattern: /\bRawCall\b/,
+    title: 'RawCall',
+    description:
+      'A call with raw calldata, from `stylus_sdk::call`: `new`, `new_with_value(host, value)`, `new_static` or `new_delegate`, then `call(address, calldata)`, which is `unsafe`. Unlike the calls of `sol_interface!` and `transfer_eth`, it does not flush the storage cache unless asked.',
+  },
+  {
+    id: 'storage_cache',
+    pattern: /(?<=\.)(?:flush|clear)_storage_cache\(\)/,
+    title: 'flush_storage_cache() / clear_storage_cache()',
+    description:
+      'Makes a `RawCall` write the storage cache to storage before calling, so the callee, and any call back into this contract, read your latest writes. `clear_storage_cache` also empties the cache, so storage is read again after the call.',
+  },
+  {
+    id: 'unsafe',
+    pattern: /\bunsafe\b/,
+    title: 'unsafe',
+    description:
+      'Calls code whose safety the compiler cannot check. `RawCall::call` is `unsafe` because a raw call can change storage that your code still holds a reference to.',
+  },
+  {
     id: 'cfg_test',
     pattern: /#\[cfg\(test\)\]/,
     title: '#[cfg(test)]',

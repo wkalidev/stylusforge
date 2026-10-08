@@ -54,6 +54,16 @@ describe("glossaryAt", () => {
     expect(idAt("let unwrap = 1;", 5)).toBeNull();
   });
 
+  it("explains raw calls and the storage cache", () => {
+    const call = "            RawCall::new_with_value(self.vm(), amount).flush_storage_cache().call(account, &[])?;";
+    expect(idAt(call, call.indexOf("RawCall") + 1)).toBe("raw_call");
+    expect(idAt(call, call.indexOf("flush_storage_cache") + 1)).toBe("storage_cache");
+    const clear = "            .clear_storage_cache()";
+    expect(idAt(clear, clear.indexOf("clear_storage_cache") + 1)).toBe("storage_cache");
+    expect(idAt("        unsafe {", 10)).toBe("unsafe");
+    expect(idAt("let unsafe_total = 1;", 6)).toBeNull();
+  });
+
   it("explains the test module, the test VM and what it records", () => {
     expect(glossaryAt("#[cfg(test)]", 3)).toMatchObject({ entry: { id: "cfg_test" }, startColumn: 1, endColumn: 13 });
     expect(idAt("    #[test]", 7)).toBe("test");
