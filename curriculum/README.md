@@ -126,7 +126,7 @@ Lesson 13 continues the token of lesson 4: its starter moves tokens with a `move
 | 17 Being called (export-abi) | `PriceFeed` | `cargo stylus export-abi`, selectors, `#[selector(name = ...)]` (renaming the method is accepted too), Solidity to Rust types (`u8`, `U80`, `I256`), `int256` and `uint80` storage, `view` and `STATICCALL`, an owner-only update |
 | 5 DeFi Interaction | `TokenVault` | Writing calls with `Call::new_mutating(self)` (E0502 when written inline next to `self.vm()`), `transfer_from` after an approval, checking the returned `bool`, checks-effects-interactions next to the deprecated reentrancy guard; fee-on-transfer tokens (balance before and after) and tokens that return no value (SafeERC20) |
 
-Lesson 17 implements the interface that lesson 16 calls. The name inside `#[selector(name = "...")]` is a string, which checks never read, so any selector attribute counts for that objective. Every listed lesson is available since lesson 5: tests that need an unavailable lesson mark lesson 5 unavailable with `apps/web/test/unavailableLesson.ts`.
+Lesson 17 implements the interface that lesson 16 calls. Its selector objective uses `literals`, so the name inside `#[selector(name = "...")]` must be exactly `latestRoundData`. Every listed lesson is available since lesson 5: tests that need an unavailable lesson mark lesson 5 unavailable with `apps/web/test/unavailableLesson.ts`.
 
 ### Module 5: Stylus specifics
 
@@ -201,6 +201,7 @@ A check has:
 |---|---|
 | `anyOf` | Snippets; the check passes when the code contains any of them. A snippet may use a placeholder such as `$x` for a local variable (see the matching rules). |
 | `alsoAnyOf` | Optional groups of snippets for further parts of the same goal: the check also needs one snippet of every group. Use it to merge steps of one idea (grow a vector, then set the new element's title) instead of writing one check per line. |
+| `literals` | Optional groups of snippets whose string literals must be spelled exactly, such as `#[selector(name = "latestRoundData")] pub fn $n(`: the check also needs one snippet of every group. Use it only where a string literal is the goal (a selector name), never as a shortcut for code. A check has `anyOf`, `literals` or both. |
 | `noneOf` | Optional forbidden snippets: the check fails while the code contains any of them, matched like the others. Use it when a fix could be written next to a bug that stays (a `#[constructor]` added beside a public `init`), and forbid the planted bug itself. |
 | `objective` | The goal in plain words, never the expected code: "Increment the count by 1", not "write `self.count.set(...)`". Plain text, no backticks. |
 | `hints` | Two or more hints, revealed one at a time, from a nudge to the exact code. Only the last one gives the expected code. Inline code goes between backticks. |
@@ -221,7 +222,8 @@ Matching rules:
 - newlines count as whitespace, so a method chain split across lines (`self` / `.tasks` / `.getter(id)`, rustfmt style) matches the one-line snippet;
 - a placeholder, `$` followed by a name such as `$x`, stands for a local variable: it matches any Rust identifier except a keyword (`let`, `mut`, `self`, `Self`, `fn`, `return`, `match`…), and every occurrence of the same placeholder in a snippet matches the same identifier. `let $x = self.scores.get(player); self.scores.insert(player, $x + points)` accepts the variable under any name, but only when the value inserted is the one read; `let mut $x = …` is supported. Placeholders never bind across snippets;
 - a snippet matches one contiguous piece of code: a snippet with several statements only matches when they are consecutive, with nothing in between. Write one alternative per common shape (a local holding the value, a `let mut` updated in place) rather than relying on statements in between;
-- comments (`//`, nested `/* */`) and the contents of string literals, raw strings included, are removed first, so a snippet written in a comment or a string does not count, and a forbidden snippet left in one does not fail the check.
+- comments (`//`, nested `/* */`) and the contents of string literals, raw strings included, are removed first, so a snippet written in a comment or a string does not count, and a forbidden snippet left in one does not fail the check;
+- `literals` snippets are the exception: they match the code with comments removed but strings kept. A match counts only where each literal of the snippet is a whole string literal of the code and the rest of the match is code, so the snippet written in a comment, or pasted inside another string, still does not count. Literal contents match exactly, whitespace included; the tokens around them follow the rules above, so rustfmt layouts still match.
 
 Every lesson must satisfy, and `apps/web/lib/curriculum/lessons.test.ts` enforces:
 
@@ -231,6 +233,6 @@ Every lesson must satisfy, and `apps/web/lib/curriculum/lessons.test.ts` enforce
 4. the solution still passes when reformatted;
 5. the solution pasted in comments or a raw string fails;
 6. no objective and no `### Your task` step contains any expected snippet of a check, and objectives contain no backticks;
-7. each check has at least two non-empty hints, and only the last one contains the expected code: every part of it for a check with `alsoAnyOf`, none of it in the hints before;
-8. no placeholder appears in anything shown to students: titles, previews, explanations, starter code, quizzes, objectives and hints. Placeholders only belong in `anyOf`, `alsoAnyOf`, `noneOf` and `anchor`; hints show the code with real names;
+7. each check has at least two non-empty hints, and only the last one contains the expected code: every part of it for a check with `alsoAnyOf` or `literals`, none of it in the hints before;
+8. no placeholder appears in anything shown to students: titles, previews, explanations, starter code, quizzes, objectives and hints. Placeholders only belong in `anyOf`, `alsoAnyOf`, `literals`, `noneOf` and `anchor`; hints show the code with real names;
 9. a check with `noneOf` finds one of its forbidden snippets in the starter code: it forbids a bug that the starter plants.
