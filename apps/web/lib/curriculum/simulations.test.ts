@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { LESSONS } from "./lessons";
-import { SIM_CONTRACT_ADDRESS, SIM_START_TIME, UINT256_MAX, callSimulation, functionSelector, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
+import { SIM_CONTRACT_ADDRESS, SIM_START_TIME, UINT256_MAX, UINT64_MAX, callSimulation, functionSelector, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
 import { PRICE_FEED_ADDRESS, SIM_ACCOUNTS, TOKEN_ADDRESS, ZERO_ADDRESS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
@@ -607,5 +607,32 @@ describe("lesson simulations", () => {
     expect(readMapping(state, "deposits", alice.address)).toBe(50n);
     call("set_returns_false", { enabled: "0" });
     expect(call("withdraw", { amount: "10" }).ok).toBe(true);
+  });
+
+  it("lesson 18 converts at the default ink price, saturates to_ink, and prices a batch", () => {
+    const simulation = getSimulation(18)!;
+    const results = run(simulation, [
+      ["ink_price", {}, alice],
+      ["to_gas", { ink: "25000000" }, alice],
+      ["to_gas", { ink: "9999" }, alice],
+      ["to_ink", { gas: "2500" }, alice],
+      ["to_ink", { gas: UINT64_MAX.toString() }, alice],
+      ["set_ink_per_item", { ink: "70000" }, bob],
+      ["gas_for", { items: "3" }, alice],
+      ["ink_per_item", {}, alice],
+    ]);
+    expect(results.map((result) => result.returns)).toEqual([10_000n, 2_500n, 0n, 25_000_000n, UINT64_MAX, undefined, 21n, 70_000n]);
+    // A u64 argument refuses values from 2^64 up.
+    expect(callSimulation(simulation, simulation.initialState(), "to_gas", { ink: (UINT64_MAX + 1n).toString() }, alice)).toMatchObject({ ok: false, error: { error: expect.stringMatching(/uint64/) } });
+  });
+
+  it("lesson 18 reverts with BudgetOverflow where checked_mul overflows, instead of wrapping", () => {
+    const simulation = getSimulation(18)!;
+    expect(callSimulation(simulation, { ink_per_item: 2n }, "gas_for", { items: MAX.toString() }, alice)).toMatchObject({
+      ok: false,
+      error: { error: "BudgetOverflow", args: { items: MAX, ink_per_item: 2n } },
+    });
+    // The largest product that fits does not revert.
+    expect(callSimulation(simulation, { ink_per_item: 1n }, "gas_for", { items: MAX.toString() }, alice).returns).toBe(MAX / 10_000n);
   });
 });
