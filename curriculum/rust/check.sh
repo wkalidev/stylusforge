@@ -5,8 +5,10 @@
 #
 #   curriculum/rust/check.sh <dir>
 #
-# Each file is copied to <crate>/src/lib.rs and checked with `cargo check --locked`. Warnings are
-# allowed (starters have unused parameters); an error fails the run, which lists the failing files.
+# Each file is copied to <crate>/src/lib.rs and checked with `cargo check --locked`. A file that
+# contains `#[cfg(test)]` code (the lessons about testing) is also run with `cargo test --locked`,
+# against the stylus-sdk test VM that the stylus crate enables for tests. Warnings are allowed
+# (starters have unused parameters); an error or a failing test fails the run, which lists the files.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -16,6 +18,7 @@ group() { if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::group::$1"; else echo "=
 endgroup() { if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::endgroup::"; fi; }
 
 checked=0
+tested=0
 failed=()
 for crate in stylus openzeppelin; do
   [ -d "$sources/$crate" ] || continue
@@ -31,6 +34,13 @@ for crate in stylus openzeppelin; do
     else
       failed+=("$crate: $name")
     fi
+    if grep -q '#\[cfg(test)\]' "$file"; then
+      if (cd "$here/$crate" && cargo test --locked --quiet --lib "${features[@]}"); then
+        tested=$((tested + 1))
+      else
+        failed+=("$crate: $name (cargo test)")
+      fi
+    fi
     endgroup
   done
 done
@@ -40,11 +50,11 @@ if [ "$checked" -eq 0 ] && [ "${#failed[@]}" -eq 0 ]; then
   exit 1
 fi
 if [ "${#failed[@]}" -gt 0 ]; then
-  echo "cargo check failed for ${#failed[@]} file(s):" >&2
+  echo "Lesson Rust failed for ${#failed[@]} file(s):" >&2
   for entry in "${failed[@]}"; do
     echo "  $entry" >&2
-    if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::error title=cargo check failed::$entry"; fi
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::error title=Lesson Rust failed::$entry"; fi
   done
   exit 1
 fi
-echo "cargo check passed for $checked lesson Rust files."
+echo "cargo check passed for $checked lesson Rust files, and cargo test for $tested of them."

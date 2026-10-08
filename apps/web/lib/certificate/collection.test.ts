@@ -13,7 +13,7 @@ const none = new Set<number>();
 describe("certificateCollection", () => {
   it("groups every lesson by module, in curriculum order, skipping modules without lessons", () => {
     const { groups } = certificateCollection(none, none);
-    expect(groups.map((group) => group.zone.name)).toEqual(["The Hearth", "The Anvil", "The Mint", "The Bellows"]);
+    expect(groups.map((group) => group.zone.name)).toEqual(["The Hearth", "The Anvil", "The Mint", "The Bellows", "The Quench"]);
     expect(groups.flatMap((group) => group.cards.map((card) => card.lesson.id))).toEqual(LESSONS.map((lesson) => lesson.id));
   });
 
@@ -47,6 +47,7 @@ describe("certificateCollection", () => {
       [2, availableIn("contract-logic")],
       [0, availableIn("tokens")],
       [0, availableIn("interoperability")],
+      [0, availableIn("stylus-specifics")],
     ]);
     expect(collection.groups.map((group) => group.available).slice(0, 2)).toEqual([5, 5]);
   });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { LESSONS } from "./lessons";
-import { SIM_CONTRACT_ADDRESS, SIM_START_TIME, UINT256_MAX, callSimulation, functionSelector, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
+import { SIM_CONTRACT_ADDRESS, SIM_START_TIME, UINT256_MAX, UINT64_MAX, callSimulation, functionSelector, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
 import { PRICE_FEED_ADDRESS, SIM_ACCOUNTS, TOKEN_ADDRESS, ZERO_ADDRESS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
@@ -73,6 +73,26 @@ const OVERFLOW_CASES: Record<
         returns_false: 0n,
       },
     },
+  },
+  // The deposit wraps around past U256::MAX, and the unlock time past it too with a delay of MAX.
+  19: {
+    state: { delay: MAX, deposits: { [alice.address]: MAX }, unlock_at: {} },
+    call: ["deposit", {}, alice],
+    with: { value: "1" },
+    expected: { delay: MAX, deposits: { [alice.address]: 0n }, unlock_at: { [alice.address]: SIM_START_TIME - 1n } },
+  },
+  20: {
+    state: { owner: alice.address, limit: 1000n, balances: { [alice.address]: MAX } },
+    call: ["deposit", {}, alice],
+    with: { value: "1" },
+    expected: { owner: alice.address, limit: 1000n, balances: { [alice.address]: 0n } },
+  },
+  // The shares of the account wrap around; into an empty vault, a deposit mints one share per wei.
+  21: {
+    state: { owner: alice.address, paused: false, total_shares: 0n, shares: { [alice.address]: MAX } },
+    call: ["deposit", {}, alice],
+    with: { value: "1" },
+    expected: { owner: alice.address, paused: false, total_shares: 1n, shares: { [alice.address]: 0n } },
   },
   // The round id is a U80: + 1 wraps around at 2^80.
   17: {
@@ -607,5 +627,128 @@ describe("lesson simulations", () => {
     expect(readMapping(state, "deposits", alice.address)).toBe(50n);
     call("set_returns_false", { enabled: "0" });
     expect(call("withdraw", { amount: "10" }).ok).toBe(true);
+  });
+
+  it("lesson 18 converts at the default ink price, saturates to_ink, and prices a batch", () => {
+    const simulation = getSimulation(18)!;
+    const results = run(simulation, [
+      ["ink_price", {}, alice],
+      ["to_gas", { ink: "25000000" }, alice],
+      ["to_gas", { ink: "9999" }, alice],
+      ["to_ink", { gas: "2500" }, alice],
+      ["to_ink", { gas: UINT64_MAX.toString() }, alice],
+      ["set_ink_per_item", { ink: "70000" }, bob],
+      ["gas_for", { items: "3" }, alice],
+      ["ink_per_item", {}, alice],
+    ]);
+    expect(results.map((result) => result.returns)).toEqual([10_000n, 2_500n, 0n, 25_000_000n, UINT64_MAX, undefined, 21n, 70_000n]);
+    // A u64 argument refuses values from 2^64 up.
+    expect(callSimulation(simulation, simulation.initialState(), "to_gas", { ink: (UINT64_MAX + 1n).toString() }, alice)).toMatchObject({ ok: false, error: { error: expect.stringMatching(/uint64/) } });
+  });
+
+  it("lesson 18 reverts with BudgetOverflow where checked_mul overflows, instead of wrapping", () => {
+    const simulation = getSimulation(18)!;
+    expect(callSimulation(simulation, { ink_per_item: 2n }, "gas_for", { items: MAX.toString() }, alice)).toMatchObject({
+      ok: false,
+      error: { error: "BudgetOverflow", args: { items: MAX, ink_per_item: 2n } },
+    });
+    // The largest product that fits does not revert.
+    expect(callSimulation(simulation, { ink_per_item: 1n }, "gas_for", { items: MAX.toString() }, alice).returns).toBe(MAX / 10_000n);
+  });
+
+  it("lesson 19 locks each deposit for the delay, on the simulated clock", () => {
+    const simulation = getSimulation(19)!;
+    let state = simulation.initialState();
+    let balance = 0n;
+    let sent = 0;
+    // Like the Try it panel: each sent transaction runs in the next block, views in the current one.
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, value = "") => {
+      if (!simulation.functions.find((candidate) => candidate.name === fn)!.view) sent += 1;
+      const result = callSimulation(simulation, state, fn, args, caller, { timestamp: simTimestamp(sent), value, balance });
+      state = result.state;
+      balance = result.balance;
+      return result;
+    };
+    expect(call("withdraw", {}, alice)).toMatchObject({ ok: false, error: { error: "NothingLocked", args: { account: alice.address } } });
+    const deposit = call("deposit", {}, alice, "100");
+    const unlockAt = simTimestamp(2) + 60n;
+    expect(deposit.events).toEqual([{ name: "Deposited", args: { account: alice.address, amount: 100n, unlock_at: unlockAt } }]);
+    expect(call("unlock_time", { account: "Alice" }, bob).returns).toBe(unlockAt);
+    expect(call("withdraw", {}, alice)).toMatchObject({ ok: false, error: { error: "StillLocked", args: { unlock_at: unlockAt, now: simTimestamp(3) } } });
+    // Each sent transaction moves the clock 12 seconds: the lock still holds 12 seconds before it opens.
+    for (let i = 0; i < 3; i += 1) expect(call("withdraw", {}, alice).error?.error).toBe("StillLocked");
+    expect(simTimestamp(sent + 1)).toBe(unlockAt);
+    const withdrawal = call("withdraw", {}, alice);
+    expect(withdrawal).toMatchObject({ ok: true, transfers: [{ to: alice.address, amount: 100n }], balance: 0n });
+    expect(call("deposit_of", { account: "Alice" }, alice).returns).toBe(0n);
+  });
+
+  it("lesson 20 lets only its owner set the limit, and pays out within the limit and the balance", () => {
+    const simulation = getSimulation(20)!;
+    let state = simulation.initialState();
+    let balance = 0n;
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, value = "") => {
+      const result = callSimulation(simulation, state, fn, args, caller, { value, balance });
+      state = result.state;
+      balance = result.balance;
+      return result;
+    };
+    expect(call("set_limit", { limit: "5000" }, bob)).toMatchObject({ ok: false, error: { error: "NotOwner", args: { caller: bob.address } } });
+    expect(call("deposit", {}, bob, "3000").events).toEqual([{ name: "Deposited", args: { account: bob.address, amount: 3000n } }]);
+    expect(call("withdraw", { amount: "2000" }, bob)).toMatchObject({ ok: false, error: { error: "LimitExceeded", args: { limit: 1000n, requested: 2000n } } });
+    // Above the balance, the withdrawal reverts instead of wrapping around.
+    expect(call("withdraw", { amount: "500" }, carol)).toMatchObject({ ok: false, error: { error: "InsufficientBalance", args: { available: 0n, requested: 500n } } });
+    expect(call("set_limit", { limit: "5000" }, alice).ok).toBe(true);
+    expect(call("withdraw", { amount: "2000" }, bob)).toMatchObject({
+      ok: true,
+      transfers: [{ to: bob.address, amount: 2000n }],
+      events: [{ name: "Withdrawn", args: { account: bob.address, amount: 2000n } }],
+      balance: 1000n,
+    });
+    expect(call("balance_of", { account: "Bob" }, alice).returns).toBe(1000n);
+    expect(call("limit", {}, alice).returns).toBe(5000n);
+    expect(call("owner", {}, bob).returns).toBe(alice.address);
+  });
+
+  it("lesson 21 mints shares in proportion, pauses deposits for its owner only, and pays withdrawals out", () => {
+    const simulation = getSimulation(21)!;
+    let state = simulation.initialState();
+    let balance = 0n;
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, value = "") => {
+      const result = callSimulation(simulation, state, fn, args, caller, { value, balance });
+      state = result.state;
+      balance = result.balance;
+      return result;
+    };
+    expect(call("deposit", {}, bob, "1000")).toMatchObject({ ok: true, returns: 1000n, events: [{ name: "Deposited", args: { account: bob.address, assets: 1000n, shares: 1000n } }] });
+    // 500 wei into a vault holding 1,000 wei for 1,000 shares: 500 shares.
+    expect(call("deposit", {}, carol, "500").returns).toBe(500n);
+    expect(call("total_assets", {}, alice).returns).toBe(1500n);
+    expect(call("set_paused", { paused: "true" }, bob)).toMatchObject({ ok: false, error: { error: "NotOwner", args: { caller: bob.address } } });
+    expect(call("set_paused", { paused: "true" }, alice).events).toEqual([{ name: "PausedSet", args: { paused: true } }]);
+    expect(call("paused", {}, bob).returns).toBe(true);
+    expect(call("deposit", {}, bob, "10")).toMatchObject({ ok: false, error: { error: "VaultPaused" }, balance: 1500n });
+    // Withdrawals stay open while the vault is paused.
+    expect(call("withdraw", { shares: "400" }, bob)).toMatchObject({ ok: true, returns: 400n, transfers: [{ to: bob.address, amount: 400n }], balance: 1100n });
+    expect(call("withdraw", { shares: "0" }, bob)).toMatchObject({ ok: false, error: { error: "ZeroShares", args: { assets: 0n } } });
+    expect(call("withdraw", { shares: "601" }, bob)).toMatchObject({ ok: false, error: { error: "InsufficientShares", args: { available: 600n, requested: 601n } } });
+    expect([call("shares_of", { account: "Bob" }, alice).returns, call("total_shares", {}, alice).returns]).toEqual([600n, 1100n]);
+  });
+
+  it("lesson 21 reproduces the donation attack of the lesson, and the zero-share guard", () => {
+    const simulation = getSimulation(21)!;
+    const ether = 10n ** 18n;
+    // The attacker (Alice) holds the only share, and 10 ETH were forced in: the vault holds 10 ETH + 1 wei.
+    const inflated = { owner: alice.address, paused: false, total_shares: 1n, shares: { [alice.address]: 1n } };
+    const held = 10n * ether + 1n;
+    expect(callSimulation(simulation, inflated, "deposit", {}, bob, { value: (5n * ether).toString(), balance: held })).toMatchObject({
+      ok: false,
+      error: { error: "ZeroShares", args: { assets: 5n * ether } },
+    });
+    const victim = callSimulation(simulation, inflated, "deposit", {}, bob, { value: (15n * ether).toString(), balance: held });
+    expect(victim.returns).toBe(1n);
+    // The attacker withdraws their share: half of the 25 ETH (and 1 wei) in the vault.
+    const attacker = callSimulation(simulation, victim.state, "withdraw", { shares: "1" }, alice, { balance: victim.balance });
+    expect(attacker.returns).toBe(12n * ether + ether / 2n);
   });
 });

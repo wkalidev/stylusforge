@@ -188,3 +188,45 @@ describe("validateCode", () => {
     expect(validateCode("task.title.set_str(title);", merged).passed).toBe(false);
   });
 });
+
+describe("validateCode with forbidden snippets", () => {
+  // A planted bug (an unguarded init) and its fix (a constructor), as lesson 20 uses them.
+  const checks = [
+    {
+      anyOf: ["#[constructor] pub fn constructor(&mut self, owner: Address)"],
+      noneOf: ["pub fn init("],
+      objective: "set the owner once, at deployment",
+      hints: [],
+    },
+  ];
+  const fix = "#[constructor]\n    pub fn constructor(&mut self, owner: Address) { self.owner.set(owner); }";
+  const bug = "pub fn init(&mut self, owner: Address) { self.owner.set(owner); }";
+
+  it("fails while the code contains a forbidden snippet, even next to the fix", () => {
+    expect(validateCode(fix, checks)).toEqual({ passed: true, objectives: [] });
+    expect(validateCode(bug, checks)).toEqual({ passed: false, objectives: ["set the owner once, at deployment"] });
+    expect(validateCode(`${fix}\n    ${bug}`, checks).passed).toBe(false);
+  });
+
+  it("ignores a forbidden snippet left in a comment or a string", () => {
+    expect(validateCode(`${fix}\n    // ${bug}`, checks).passed).toBe(true);
+    expect(validateCode(`${fix}\n    /* ${bug} */`, checks).passed).toBe(true);
+    expect(validateCode(`${fix}\n    const OLD: &str = "pub fn init(";`, checks).passed).toBe(true);
+  });
+
+  it("matches forbidden snippets like expected ones: whitespace, identifiers and placeholders", () => {
+    const subtraction = [{ anyOf: ["checked_sub(amount)"], noneOf: ["let $x = available - amount;"], objective: "subtract safely", hints: [] }];
+    const fixed = "let remaining = available.checked_sub(amount).ok_or(error)?;";
+    expect(validateCode(fixed, subtraction).passed).toBe(true);
+    expect(validateCode(`${fixed}\nlet left = available\n    - amount;`, subtraction).passed).toBe(false);
+    // A placeholder never matches a keyword, and a snippet never starts inside an identifier.
+    expect(validateCode(`${fixed}\nlet mut = available - amount;`, subtraction).passed).toBe(true);
+    expect(validateCode(`${fixed}\nlet left = unavailable - amount;`, subtraction).passed).toBe(true);
+  });
+
+  it("reports the anchor line whether the check fails for a missing or a forbidden snippet", () => {
+    const anchored = [{ ...checks[0], anchor: "owner: Address" }];
+    expect(evaluateChecks(`${fix}\n    ${bug}`, anchored)[0]).toMatchObject({ passed: false, line: 2 });
+    expect(evaluateChecks(bug, anchored)[0]).toMatchObject({ passed: false, line: 1 });
+  });
+});

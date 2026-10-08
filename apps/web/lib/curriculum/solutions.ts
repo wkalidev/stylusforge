@@ -992,4 +992,415 @@ impl TokenVault {
     }
 }
 `,
+  18: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{alloy_primitives::U256, alloy_sol_types::sol, prelude::*};
+
+sol! {
+    error BudgetOverflow(uint256 items, uint256 ink_per_item);
+}
+
+#[derive(SolidityError)]
+pub enum BudgetError {
+    BudgetOverflow(BudgetOverflow),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct InkBudget {
+        uint256 ink_per_item;
+    }
+}
+
+#[public]
+impl InkBudget {
+    pub fn ink_price(&self) -> u32 {
+        self.vm().tx_ink_price()
+    }
+
+    pub fn to_gas(&self, ink: u64) -> u64 {
+        self.vm().ink_to_gas(ink)
+    }
+
+    pub fn to_ink(&self, gas: u64) -> u64 {
+        self.vm().gas_to_ink(gas)
+    }
+
+    pub fn ink_per_item(&self) -> U256 {
+        self.ink_per_item.get()
+    }
+
+    pub fn set_ink_per_item(&mut self, ink: U256) {
+        self.ink_per_item.set(ink);
+    }
+
+    pub fn gas_for(&self, items: U256) -> Result<U256, BudgetError> {
+        let ink_per_item = self.ink_per_item.get();
+        let ink = items
+            .checked_mul(ink_per_item)
+            .ok_or(BudgetError::BudgetOverflow(BudgetOverflow { items, ink_per_item }))?;
+        Ok(ink / U256::from(self.vm().tx_ink_price()))
+    }
+}
+`,
+  19: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    call::transfer::transfer_eth,
+    prelude::*,
+};
+
+sol! {
+    event Deposited(address indexed account, uint256 amount, uint256 unlock_at);
+    error NothingLocked(address account);
+    error StillLocked(uint256 unlock_at, uint256 now);
+}
+
+#[derive(SolidityError)]
+pub enum LockError {
+    NothingLocked(NothingLocked),
+    StillLocked(StillLocked),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct TimeLock {
+        uint256 delay;
+        mapping(address => uint256) deposits;
+        mapping(address => uint256) unlock_at;
+    }
+}
+
+#[public]
+impl TimeLock {
+    #[constructor]
+    pub fn constructor(&mut self, delay: U256) {
+        self.delay.set(delay);
+    }
+
+    #[payable]
+    pub fn deposit(&mut self) {
+        let account = self.vm().msg_sender();
+        let amount = self.vm().msg_value();
+        let unlock_at = U256::from(self.vm().block_timestamp()) + self.delay.get();
+        let total = self.deposits.get(account) + amount;
+        self.deposits.insert(account, total);
+        self.unlock_at.insert(account, unlock_at);
+        self.vm().log(Deposited { account, amount, unlock_at });
+    }
+
+    pub fn deposit_of(&self, account: Address) -> U256 {
+        self.deposits.get(account)
+    }
+
+    pub fn unlock_time(&self, account: Address) -> U256 {
+        self.unlock_at.get(account)
+    }
+
+    pub fn withdraw(&mut self) -> Result<(), Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let amount = self.deposits.get(account);
+        if amount.is_zero() {
+            return Err(LockError::NothingLocked(NothingLocked { account }).into());
+        }
+        let unlock_at = self.unlock_at.get(account);
+        let now = U256::from(self.vm().block_timestamp());
+        if now < unlock_at {
+            return Err(LockError::StillLocked(StillLocked { unlock_at, now }).into());
+        }
+        self.deposits.delete(account);
+        transfer_eth(self.vm(), account, amount)?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use stylus_sdk::alloy_primitives::address;
+    use stylus_sdk::alloy_sol_types::SolEvent;
+    use stylus_sdk::testing::*;
+
+    const ALICE: Address = address!("00000000000000000000000000000000000a11ce");
+
+    #[test]
+    fn locks_a_deposit_for_an_hour() {
+        let vm = TestVM::default();
+        let mut contract = TimeLock::from(&vm);
+        contract.constructor(U256::from(3600));
+
+        vm.set_sender(ALICE);
+        vm.set_value(U256::from(100));
+        contract.deposit();
+        assert_eq!(contract.deposit_of(ALICE), U256::from(100));
+
+        assert_eq!(
+            contract.withdraw(),
+            Err(LockError::StillLocked(StillLocked { unlock_at: U256::from(3600), now: U256::ZERO }).into())
+        );
+
+        vm.set_block_timestamp(3600);
+        assert!(contract.withdraw().is_ok());
+        assert_eq!(contract.deposit_of(ALICE), U256::ZERO);
+
+        let logs = vm.get_emitted_logs();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].0[0], Deposited::SIGNATURE_HASH);
+    }
+}
+`,
+  20: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    call::RawCall,
+    prelude::*,
+};
+
+sol! {
+    event Deposited(address indexed account, uint256 amount);
+    event Withdrawn(address indexed account, uint256 amount);
+    error NotOwner(address caller);
+    error LimitExceeded(uint256 limit, uint256 requested);
+    error InsufficientBalance(uint256 available, uint256 requested);
+}
+
+#[derive(SolidityError)]
+pub enum TreasuryError {
+    NotOwner(NotOwner),
+    LimitExceeded(LimitExceeded),
+    InsufficientBalance(InsufficientBalance),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct Treasury {
+        address owner;
+        uint256 limit;
+        mapping(address => uint256) balances;
+    }
+}
+
+#[public]
+impl Treasury {
+    #[constructor]
+    pub fn constructor(&mut self, owner: Address) {
+        self.owner.set(owner);
+    }
+
+    pub fn owner(&self) -> Address {
+        self.owner.get()
+    }
+
+    pub fn limit(&self) -> U256 {
+        self.limit.get()
+    }
+
+    pub fn set_limit(&mut self, limit: U256) -> Result<(), TreasuryError> {
+        self.only_owner()?;
+        self.limit.set(limit);
+        Ok(())
+    }
+
+    #[payable]
+    pub fn deposit(&mut self) {
+        let account = self.vm().msg_sender();
+        let amount = self.vm().msg_value();
+        let total = self.balances.get(account) + amount;
+        self.balances.insert(account, total);
+        self.vm().log(Deposited { account, amount });
+    }
+
+    pub fn balance_of(&self, account: Address) -> U256 {
+        self.balances.get(account)
+    }
+
+    pub fn withdraw(&mut self, amount: U256) -> Result<(), Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let limit = self.limit.get();
+        if amount > limit {
+            return Err(TreasuryError::LimitExceeded(LimitExceeded { limit, requested: amount }).into());
+        }
+        let available = self.balances.get(account);
+        let remaining = available
+            .checked_sub(amount)
+            .ok_or(TreasuryError::InsufficientBalance(InsufficientBalance { available, requested: amount }))?;
+        self.balances.insert(account, remaining);
+        unsafe {
+            RawCall::new_with_value(self.vm(), amount).flush_storage_cache().call(account, &[])?;
+        }
+        self.vm().log(Withdrawn { account, amount });
+        Ok(())
+    }
+}
+
+impl Treasury {
+    fn only_owner(&self) -> Result<(), TreasuryError> {
+        let caller = self.vm().msg_sender();
+        if caller != self.owner.get() {
+            return Err(TreasuryError::NotOwner(NotOwner { caller }));
+        }
+        Ok(())
+    }
+}
+`,
+  21: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    call::transfer::transfer_eth,
+    prelude::*,
+};
+
+sol! {
+    event Deposited(address indexed account, uint256 assets, uint256 shares);
+    event Withdrawn(address indexed account, uint256 assets, uint256 shares);
+    event PausedSet(bool paused);
+    error NotOwner(address caller);
+    error VaultPaused();
+    error ZeroShares(uint256 assets);
+    error InsufficientShares(uint256 available, uint256 requested);
+    error MathOverflow();
+}
+
+#[derive(SolidityError)]
+pub enum VaultError {
+    NotOwner(NotOwner),
+    VaultPaused(VaultPaused),
+    ZeroShares(ZeroShares),
+    InsufficientShares(InsufficientShares),
+    MathOverflow(MathOverflow),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct MiniVault {
+        address owner;
+        bool paused;
+        uint256 total_shares;
+        mapping(address => uint256) shares;
+    }
+}
+
+#[public]
+impl MiniVault {
+    #[constructor]
+    pub fn constructor(&mut self, owner: Address) {
+        self.owner.set(owner);
+    }
+
+    pub fn owner(&self) -> Address {
+        self.owner.get()
+    }
+
+    pub fn paused(&self) -> bool {
+        self.paused.get()
+    }
+
+    pub fn total_shares(&self) -> U256 {
+        self.total_shares.get()
+    }
+
+    pub fn shares_of(&self, account: Address) -> U256 {
+        self.shares.get(account)
+    }
+
+    pub fn total_assets(&self) -> U256 {
+        self.vm().balance(self.vm().contract_address())
+    }
+
+    pub fn set_paused(&mut self, paused: bool) -> Result<(), VaultError> {
+        self.only_owner()?;
+        self.paused.set(paused);
+        self.vm().log(PausedSet { paused });
+        Ok(())
+    }
+
+    #[payable]
+    pub fn deposit(&mut self) -> Result<U256, VaultError> {
+        if self.paused.get() {
+            return Err(VaultError::VaultPaused(VaultPaused {}));
+        }
+        let account = self.vm().msg_sender();
+        let assets = self.vm().msg_value();
+        let supply = self.total_shares.get();
+        let assets_before = self.total_assets() - assets;
+        let shares = if supply.is_zero() {
+            assets
+        } else {
+            assets.checked_mul(supply).ok_or(VaultError::MathOverflow(MathOverflow {}))? / assets_before
+        };
+        if shares.is_zero() {
+            return Err(VaultError::ZeroShares(ZeroShares { assets }));
+        }
+        let balance = self.shares.get(account) + shares;
+        self.shares.insert(account, balance);
+        self.total_shares.set(supply + shares);
+        self.vm().log(Deposited { account, assets, shares });
+        Ok(shares)
+    }
+
+    pub fn withdraw(&mut self, shares: U256) -> Result<U256, Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let available = self.shares.get(account);
+        if shares.is_zero() {
+            return Err(VaultError::ZeroShares(ZeroShares { assets: U256::ZERO }).into());
+        }
+        if available < shares {
+            return Err(VaultError::InsufficientShares(InsufficientShares { available, requested: shares }).into());
+        }
+        let supply = self.total_shares.get();
+        let assets = shares.checked_mul(self.total_assets()).ok_or(VaultError::MathOverflow(MathOverflow {}))? / supply;
+        self.shares.insert(account, available - shares);
+        self.total_shares.set(supply - shares);
+        transfer_eth(self.vm(), account, assets)?;
+        self.vm().log(Withdrawn { account, assets, shares });
+        Ok(assets)
+    }
+}
+
+impl MiniVault {
+    fn only_owner(&self) -> Result<(), VaultError> {
+        let caller = self.vm().msg_sender();
+        if caller != self.owner.get() {
+            return Err(VaultError::NotOwner(NotOwner { caller }));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use stylus_sdk::alloy_primitives::address;
+    use stylus_sdk::testing::*;
+
+    const OWNER: Address = address!("0000000000000000000000000000000000000001");
+    const ALICE: Address = address!("00000000000000000000000000000000000a11ce");
+
+    #[test]
+    fn mints_one_share_per_wei_on_the_first_deposit() {
+        let vm = TestVM::default();
+        let mut vault = MiniVault::from(&vm);
+        vault.constructor(OWNER);
+
+        vm.set_sender(ALICE);
+        vm.set_value(U256::from(1000));
+        vm.set_balance(vm.contract_address(), U256::from(1000));
+        assert_eq!(vault.deposit().ok(), Some(U256::from(1000)));
+        assert_eq!(vault.shares_of(ALICE), U256::from(1000));
+    }
+}
+`,
 };

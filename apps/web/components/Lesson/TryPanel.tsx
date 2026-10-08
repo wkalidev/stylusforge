@@ -37,7 +37,7 @@ function formatArgs(record: Record<string, SimValue> | undefined, accounts: SimA
 }
 
 /** An example value for each argument type. */
-const PLACEHOLDERS: Record<SimType, string> = { address: 'Bob or 0x…', uint256: '0', int256: '-1', string: 'text', bytes4: '0x01ffc9a7' };
+const PLACEHOLDERS: Record<SimType, string> = { address: 'Bob or 0x…', uint256: '0', uint64: '0', int256: '-1', string: 'text', bytes4: '0x01ffc9a7', bool: 'true or false' };
 
 function FunctionForm({ fn, selector, onCall }: { fn: SimFunction; selector?: boolean; onCall: (args: Record<string, string>, value: string) => void }) {
   const id = useId();

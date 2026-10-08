@@ -15,5 +15,9 @@
   { "id": 15, "name": "OpenZeppelin for Stylus", "xp": 350, "available": true, "module": "tokens" },
   { "id": 16, "name": "Calling Solidity", "xp": 350, "available": true, "module": "interoperability" },
   { "id": 17, "name": "Being called (export-abi)", "xp": 300, "available": true, "module": "interoperability" },
-  { "id": 5, "name": "DeFi Interaction", "xp": 400, "available": true, "module": "interoperability" }
+  { "id": 5, "name": "DeFi Interaction", "xp": 400, "available": true, "module": "interoperability" },
+  { "id": 18, "name": "WASM, ink and gas", "xp": 300, "available": true, "module": "stylus-specifics" },
+  { "id": 19, "name": "Testing in Rust", "xp": 350, "available": true, "module": "stylus-specifics" },
+  { "id": 20, "name": "Security pitfalls", "xp": 400, "available": true, "module": "stylus-specifics" },
+  { "id": 21, "name": "Final project, mini vault", "xp": 750, "available": true, "module": "stylus-specifics" }
 ]

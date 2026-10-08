@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   SIM_BLOCK_TIME,
   SIM_CONTRACT_ADDRESS,
+  SIM_INK_PRICE,
   SIM_START_TIME,
   UINT256_MAX,
+  UINT64_MAX,
   ZERO_ADDRESS,
   callSimulation,
   deleteMapping,
@@ -65,6 +67,21 @@ describe("parseArgument", () => {
     expect(parseArgument("address", "bob", [alice, bob])).toBe(bob.address);
     expect(parseArgument("address", "0x" + "ab".repeat(20), [])).toBe("0x" + "ab".repeat(20));
     expect(() => parseArgument("address", "0x123", [])).toThrow(/address/);
+  });
+
+  it("parses uint64 values within range", () => {
+    expect(parseArgument("uint64", " 42 ", [])).toBe(42n);
+    expect(parseArgument("uint64", UINT64_MAX.toString(), [])).toBe(2n ** 64n - 1n);
+    expect(() => parseArgument("uint64", (UINT64_MAX + 1n).toString(), [])).toThrow(/uint64/);
+    expect(() => parseArgument("uint64", "-1", [])).toThrow(/unsigned/);
+  });
+
+  it("parses bool values as true or false, in any case", () => {
+    expect(parseArgument("bool", " true ", [])).toBe(true);
+    expect(parseArgument("bool", "False", [])).toBe(false);
+    expect(() => parseArgument("bool", "1", [])).toThrow(/bool/);
+    expect(() => parseArgument("bool", "", [])).toThrow(/bool/);
+    expect(formatSimValue(false, [])).toBe("false");
   });
 
   it("parses int256 values within range, negative ones included", () => {
@@ -194,6 +211,29 @@ describe("simulated clock", () => {
   });
 });
 
+describe("ink price", () => {
+  const meter: LessonSimulation = {
+    contract: "Meter",
+    accounts: [alice],
+    initialState: () => ({}),
+    functions: [
+      {
+        name: "ink_price",
+        abiName: "inkPrice",
+        view: true,
+        params: [],
+        returns: "uint32",
+        run: (_state, _args, _caller, context) => ({ returns: context.inkPrice }),
+      },
+    ],
+  };
+
+  it("gives every call the default ink price of 10,000 ink per gas", () => {
+    expect(SIM_INK_PRICE).toBe(10_000n);
+    expect(callSimulation(meter, meter.initialState(), "ink_price", {}, alice).returns).toBe(10_000n);
+  });
+});
+
 describe("function selectors", () => {
   const fn = (abiName: string, types: SimType[]): SimFunction => ({
     name: abiName,
@@ -206,6 +246,7 @@ describe("function selectors", () => {
   it("builds the Solidity signature from the ABI name and the parameter types", () => {
     expect(functionSignature(fn("transfer", ["address", "uint256"]))).toBe("transfer(address,uint256)");
     expect(functionSignature(fn("latestRoundData", []))).toBe("latestRoundData()");
+    expect(functionSignature(fn("setPaused", ["bool"]))).toBe("setPaused(bool)");
   });
 
   it("hashes the signature into the selector callers use", () => {

@@ -1,4 +1,4 @@
-import { SIM_START_TIME, UINT256_MAX, ZERO_ADDRESS, deleteMapping, mockState, readAddressMapping, readMapping, readNestedMapping, wrappingAdd, wrappingSub, writeMapping, writeMockState, writeNestedMapping, type LessonSimulation, type SimAccount, type SimEvent, type SimOutcome, type SimState, type SimValue } from './simulation';
+import { SIM_START_TIME, UINT256_MAX, UINT64_MAX, ZERO_ADDRESS, deleteMapping, mockState, readAddressMapping, readMapping, readNestedMapping, wrappingAdd, wrappingSub, writeMapping, writeMockState, writeNestedMapping, type LessonSimulation, type SimAccount, type SimEvent, type SimOutcome, type SimState, type SimValue } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -1021,6 +1021,316 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
         contract: 'Token',
         params: [{ name: 'enabled', type: 'uint256' }],
         run: (state, args) => ({ state: writeMockState(state, 'Token', { returns_false: (args.enabled as bigint) === 0n ? 0n : 1n }) }),
+      },
+    ],
+  },
+  18: {
+    contract: 'InkBudget',
+    note: 'The model runs at the default ink price, 10,000 ink per gas; a chain owner can change it. It converts and prices ink, but meters nothing.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ ink_per_item: 0n }),
+    functions: [
+      {
+        name: 'ink_price',
+        abiName: 'inkPrice',
+        view: true,
+        params: [],
+        returns: 'uint32',
+        run: (_state, _args, _caller, context) => ({ returns: context.inkPrice }),
+      },
+      {
+        name: 'to_gas',
+        abiName: 'toGas',
+        view: true,
+        params: [{ name: 'ink', type: 'uint64' }],
+        returns: 'uint64',
+        run: (_state, args, _caller, context) => ({ returns: (args.ink as bigint) / context.inkPrice }),
+      },
+      {
+        name: 'to_ink',
+        abiName: 'toInk',
+        view: true,
+        params: [{ name: 'gas', type: 'uint64' }],
+        returns: 'uint64',
+        // gas_to_ink saturates at u64::MAX instead of wrapping around.
+        run: (_state, args, _caller, context) => {
+          const ink = (args.gas as bigint) * context.inkPrice;
+          return { returns: ink > UINT64_MAX ? UINT64_MAX : ink };
+        },
+      },
+      {
+        name: 'ink_per_item',
+        abiName: 'inkPerItem',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.ink_per_item as bigint }),
+      },
+      {
+        name: 'set_ink_per_item',
+        abiName: 'setInkPerItem',
+        view: false,
+        params: [{ name: 'ink', type: 'uint256' }],
+        run: (state, args) => ({ state: { ...state, ink_per_item: args.ink } }),
+      },
+      {
+        name: 'gas_for',
+        abiName: 'gasFor',
+        view: true,
+        params: [{ name: 'items', type: 'uint256' }],
+        returns: 'uint256',
+        run: (state, args, _caller, context) => {
+          const items = args.items as bigint;
+          const inkPerItem = state.ink_per_item as bigint;
+          // checked_mul turns an overflow into BudgetOverflow instead of wrapping around.
+          const ink = items * inkPerItem;
+          if (ink > UINT256_MAX) return { revert: { error: 'BudgetOverflow', args: { items, ink_per_item: inkPerItem } } };
+          return { returns: ink / context.inkPrice };
+        },
+      },
+    ],
+  },
+  19: {
+    contract: 'TimeLock',
+    note: 'The model is deployed with a delay of 60 seconds, as if the constructor received 60. Send ETH with deposit using its value field. The block time is a simplified clock that moves 12 seconds per sent transaction; real Arbitrum blocks are much faster.',
+    accounts: SIM_ACCOUNTS,
+    clock: true,
+    initialState: () => ({ delay: 60n, deposits: {}, unlock_at: {} }),
+    functions: [
+      {
+        name: 'deposit',
+        abiName: 'deposit',
+        view: false,
+        payable: true,
+        params: [],
+        run: (state, _args, caller, context) => {
+          const unlockAt = wrappingAdd(context.timestamp, state.delay as bigint);
+          const total = wrappingAdd(readMapping(state, 'deposits', caller.address), context.value);
+          return {
+            state: writeMapping(writeMapping(state, 'deposits', caller.address, total), 'unlock_at', caller.address, unlockAt),
+            events: [{ name: 'Deposited', args: { account: caller.address, amount: context.value, unlock_at: unlockAt } }],
+          };
+        },
+      },
+      {
+        name: 'deposit_of',
+        abiName: 'depositOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'deposits', args.account as string) }),
+      },
+      {
+        name: 'unlock_time',
+        abiName: 'unlockTime',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'unlock_at', args.account as string) }),
+      },
+      {
+        name: 'withdraw',
+        abiName: 'withdraw',
+        view: false,
+        params: [],
+        run: (state, _args, caller, context) => {
+          const amount = readMapping(state, 'deposits', caller.address);
+          if (amount === 0n) return { revert: { error: 'NothingLocked', args: { account: caller.address } } };
+          const unlockAt = readMapping(state, 'unlock_at', caller.address);
+          if (context.timestamp < unlockAt) return { revert: { error: 'StillLocked', args: { unlock_at: unlockAt, now: context.timestamp } } };
+          return { state: deleteMapping(state, 'deposits', caller.address), transfers: [{ to: caller.address, amount }] };
+        },
+      },
+    ],
+  },
+  20: {
+    contract: 'Treasury',
+    note: 'The model is the fixed treasury, deployed with Alice as the owner, as if the constructor received her address, and a withdrawal limit of 1,000 wei. Send ETH with deposit using its value field.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ owner: SIM_ACCOUNTS[0].address, limit: 1000n, balances: {} }),
+    functions: [
+      {
+        name: 'owner',
+        abiName: 'owner',
+        view: true,
+        params: [],
+        returns: 'address',
+        run: (state) => ({ returns: state.owner as string }),
+      },
+      {
+        name: 'limit',
+        abiName: 'limit',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.limit as bigint }),
+      },
+      {
+        name: 'set_limit',
+        abiName: 'setLimit',
+        view: false,
+        params: [{ name: 'limit', type: 'uint256' }],
+        // only_owner compares the owner with msg_sender, never with tx_origin.
+        run: (state, args, caller) =>
+          caller.address.toLowerCase() === (state.owner as string).toLowerCase()
+            ? { state: { ...state, limit: args.limit } }
+            : { revert: { error: 'NotOwner', args: { caller: caller.address } } },
+      },
+      {
+        name: 'deposit',
+        abiName: 'deposit',
+        view: false,
+        payable: true,
+        params: [],
+        run: (state, _args, caller, context) => {
+          const total = wrappingAdd(readMapping(state, 'balances', caller.address), context.value);
+          return {
+            state: writeMapping(state, 'balances', caller.address, total),
+            events: [{ name: 'Deposited', args: { account: caller.address, amount: context.value } }],
+          };
+        },
+      },
+      {
+        name: 'balance_of',
+        abiName: 'balanceOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'balances', args.account as string) }),
+      },
+      {
+        name: 'withdraw',
+        abiName: 'withdraw',
+        view: false,
+        params: [{ name: 'amount', type: 'uint256' }],
+        run: (state, args, caller) => {
+          const amount = args.amount as bigint;
+          const limit = state.limit as bigint;
+          if (amount > limit) return { revert: { error: 'LimitExceeded', args: { limit, requested: amount } } };
+          const available = readMapping(state, 'balances', caller.address);
+          // checked_sub reverts below zero instead of wrapping around.
+          if (available < amount) return { revert: { error: 'InsufficientBalance', args: { available, requested: amount } } };
+          // Effects, then the interaction: the balance is lowered before the ETH is sent.
+          return {
+            state: writeMapping(state, 'balances', caller.address, available - amount),
+            transfers: [{ to: caller.address, amount }],
+            events: [{ name: 'Withdrawn', args: { account: caller.address, amount } }],
+          };
+        },
+      },
+    ],
+  },
+  21: {
+    contract: 'MiniVault',
+    note: 'The model is deployed with Alice as the owner, as if the constructor received her address. Send ETH with deposit using its value field. The panel sends ETH only through deposit, so the donation attack of the lesson cannot be played here.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ owner: SIM_ACCOUNTS[0].address, paused: false, total_shares: 0n, shares: {} }),
+    functions: [
+      {
+        name: 'owner',
+        abiName: 'owner',
+        view: true,
+        params: [],
+        returns: 'address',
+        run: (state) => ({ returns: state.owner as string }),
+      },
+      {
+        name: 'paused',
+        abiName: 'paused',
+        view: true,
+        params: [],
+        returns: 'bool',
+        run: (state) => ({ returns: state.paused as boolean }),
+      },
+      {
+        name: 'total_shares',
+        abiName: 'totalShares',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.total_shares as bigint }),
+      },
+      {
+        name: 'shares_of',
+        abiName: 'sharesOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'shares', args.account as string) }),
+      },
+      {
+        name: 'total_assets',
+        abiName: 'totalAssets',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (_state, _args, _caller, context) => ({ returns: context.balance }),
+      },
+      {
+        name: 'set_paused',
+        abiName: 'setPaused',
+        view: false,
+        params: [{ name: 'paused', type: 'bool' }],
+        run: (state, args, caller) => {
+          if (caller.address.toLowerCase() !== (state.owner as string).toLowerCase()) {
+            return { revert: { error: 'NotOwner', args: { caller: caller.address } } };
+          }
+          return { state: { ...state, paused: args.paused }, events: [{ name: 'PausedSet', args: { paused: args.paused } }] };
+        },
+      },
+      {
+        name: 'deposit',
+        abiName: 'deposit',
+        view: false,
+        payable: true,
+        params: [],
+        returns: 'uint256',
+        run: (state, _args, caller, context) => {
+          if (state.paused) return { revert: { error: 'VaultPaused', args: {} } };
+          const assets = context.value;
+          const supply = state.total_shares as bigint;
+          // The balance during the call already includes the value sent with it.
+          const assetsBefore = wrappingSub(context.balance, assets);
+          let shares = assets;
+          if (supply !== 0n) {
+            const product = assets * supply;
+            if (product > UINT256_MAX) return { revert: { error: 'MathOverflow', args: {} } };
+            // U256 division by zero panics in Rust: the call reverts with no data.
+            if (assetsBefore === 0n) return { revert: { error: 'division by zero (a panic, with no revert data)' } };
+            shares = product / assetsBefore;
+          }
+          if (shares === 0n) return { revert: { error: 'ZeroShares', args: { assets } } };
+          const balance = wrappingAdd(readMapping(state, 'shares', caller.address), shares);
+          return {
+            state: { ...writeMapping(state, 'shares', caller.address, balance), total_shares: wrappingAdd(supply, shares) },
+            returns: shares,
+            events: [{ name: 'Deposited', args: { account: caller.address, assets, shares } }],
+          };
+        },
+      },
+      {
+        name: 'withdraw',
+        abiName: 'withdraw',
+        view: false,
+        params: [{ name: 'shares', type: 'uint256' }],
+        returns: 'uint256',
+        run: (state, args, caller, context) => {
+          const shares = args.shares as bigint;
+          const available = readMapping(state, 'shares', caller.address);
+          if (shares === 0n) return { revert: { error: 'ZeroShares', args: { assets: 0n } } };
+          if (available < shares) return { revert: { error: 'InsufficientShares', args: { available, requested: shares } } };
+          const supply = state.total_shares as bigint;
+          const product = shares * context.balance;
+          if (product > UINT256_MAX) return { revert: { error: 'MathOverflow', args: {} } };
+          const assets = product / supply;
+          // The shares are burned before the ETH leaves.
+          return {
+            state: { ...writeMapping(state, 'shares', caller.address, available - shares), total_shares: supply - shares },
+            returns: assets,
+            transfers: [{ to: caller.address, amount: assets }],
+            events: [{ name: 'Withdrawn', args: { account: caller.address, assets, shares } }],
+          };
+        },
       },
     ],
   },

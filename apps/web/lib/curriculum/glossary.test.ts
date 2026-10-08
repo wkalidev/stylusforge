@@ -39,6 +39,50 @@ describe("glossaryAt", () => {
     expect(idAt("self.vm().evm_ink_left()", 11)).toBe("gas_left");
   });
 
+  it("explains the ink price, ink conversions and panics", () => {
+    const price = "        self.vm().tx_ink_price()";
+    expect(idAt(price, price.indexOf("tx_ink_price") + 1)).toBe("ink_price");
+    const gas = "        self.vm().ink_to_gas(ink)";
+    expect(idAt(gas, gas.indexOf("ink_to_gas") + 1)).toBe("ink_conversion");
+    const ink = "        self.vm().gas_to_ink(gas)";
+    expect(idAt(ink, ink.indexOf("gas_to_ink") + 1)).toBe("ink_conversion");
+    expect(idAt("    pub fn to_gas(&self, ink: u64) -> u64 {", 12)).toBeNull();
+    const expect_ = '        let ink = items.checked_mul(ink_per_item).expect("budget overflow");';
+    expect(idAt(expect_, expect_.indexOf("expect") + 1)).toBe("panic");
+    const unwrap = "        let first = self.batch.get(0).unwrap();";
+    expect(idAt(unwrap, unwrap.indexOf("unwrap") + 1)).toBe("panic");
+    expect(idAt("let unwrap = 1;", 5)).toBeNull();
+  });
+
+  it("explains raw calls and the storage cache", () => {
+    const call = "            RawCall::new_with_value(self.vm(), amount).flush_storage_cache().call(account, &[])?;";
+    expect(idAt(call, call.indexOf("RawCall") + 1)).toBe("raw_call");
+    expect(idAt(call, call.indexOf("flush_storage_cache") + 1)).toBe("storage_cache");
+    const clear = "            .clear_storage_cache()";
+    expect(idAt(clear, clear.indexOf("clear_storage_cache") + 1)).toBe("storage_cache");
+    expect(idAt("        unsafe {", 10)).toBe("unsafe");
+    expect(idAt("let unsafe_total = 1;", 6)).toBeNull();
+  });
+
+  it("explains the test module, the test VM and what it records", () => {
+    expect(glossaryAt("#[cfg(test)]", 3)).toMatchObject({ entry: { id: "cfg_test" }, startColumn: 1, endColumn: 13 });
+    expect(idAt("    #[test]", 7)).toBe("test");
+    const vm = "        let vm = TestVM::default();";
+    expect(idAt(vm, vm.indexOf("TestVM") + 1)).toBe("test_vm");
+    expect(idAt("let vm = TestVMBuilder::new().build();", 12)).toBe("test_vm");
+    const sender = "        vm.set_sender(ALICE);";
+    expect(idAt(sender, sender.indexOf("set_sender") + 1)).toBe("test_vm_setters");
+    const clock = "        vm.set_block_timestamp(3600);";
+    expect(idAt(clock, clock.indexOf("set_block_timestamp") + 1)).toBe("test_vm_setters");
+    expect(idAt("    pub fn set_value(&mut self) {", 12)).toBeNull();
+    const logs = "        let logs = vm.get_emitted_logs();";
+    expect(idAt(logs, logs.indexOf("get_emitted_logs") + 1)).toBe("emitted_logs");
+    const mock = "        vm.mock_call(token, calldata, U256::ZERO, Ok(vec![]));";
+    expect(idAt(mock, mock.indexOf("mock_call") + 1)).toBe("mock_call");
+    const hash = "        assert_eq!(logs[0].0[0], Deposited::SIGNATURE_HASH);";
+    expect(idAt(hash, hash.indexOf("SIGNATURE_HASH") + 1)).toBe("signature_hash");
+  });
+
   it("explains U256::MAX apart from U256", () => {
     const guard = "        if allowed != U256::MAX {";
     expect(glossaryAt(guard, guard.indexOf("MAX") + 1)).toMatchObject({ entry: { id: "u256_max" }, startColumn: guard.indexOf("U256") + 1 });

@@ -143,6 +143,95 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'The gas, or the ink, left for the call. Stylus meters its WebAssembly in ink, a finer unit that converts to gas.',
   },
   {
+    id: 'ink_price',
+    pattern: /\btx_ink_price\(\)/,
+    title: 'tx_ink_price()',
+    description:
+      'How much ink one gas buys on this chain, as a `u32`: 10,000 by default. The chain owner sets it, so read it from the host rather than writing the default in your code.',
+  },
+  {
+    id: 'ink_conversion',
+    pattern: /(?<=\.)(?:ink_to_gas|gas_to_ink)\(/,
+    title: 'ink_to_gas() / gas_to_ink()',
+    description:
+      'Convert between ink and gas at the ink price of the chain: `ink_to_gas` divides by the price, `gas_to_ink` multiplies by it and saturates at `u64::MAX`. Both take and return a `u64`.',
+  },
+  {
+    id: 'raw_call',
+    pattern: /\bRawCall\b/,
+    title: 'RawCall',
+    description:
+      'A call with raw calldata, from `stylus_sdk::call`: `new`, `new_with_value(host, value)`, `new_static` or `new_delegate`, then `call(address, calldata)`, which is `unsafe`. Unlike the calls of `sol_interface!` and `transfer_eth`, it does not flush the storage cache unless asked.',
+  },
+  {
+    id: 'storage_cache',
+    pattern: /(?<=\.)(?:flush|clear)_storage_cache\(\)/,
+    title: 'flush_storage_cache() / clear_storage_cache()',
+    description:
+      'Makes a `RawCall` write the storage cache to storage before calling, so the callee, and any call back into this contract, read your latest writes. `clear_storage_cache` also empties the cache, so storage is read again after the call.',
+  },
+  {
+    id: 'unsafe',
+    pattern: /\bunsafe\b/,
+    title: 'unsafe',
+    description:
+      'Calls code whose safety the compiler cannot check. `RawCall::call` is `unsafe` because a raw call can change storage that your code still holds a reference to.',
+  },
+  {
+    id: 'cfg_test',
+    pattern: /#\[cfg\(test\)\]/,
+    title: '#[cfg(test)]',
+    description: 'Compiles the item only for `cargo test`. Test modules stay out of the WebAssembly you deploy.',
+  },
+  {
+    id: 'test',
+    pattern: /#\[test\]/,
+    title: '#[test]',
+    description: 'Marks a function that `cargo test` runs. It passes unless it panics, so a failed `assert!` or `assert_eq!` fails it.',
+  },
+  {
+    id: 'test_vm',
+    pattern: /\bTestVM(?:Builder)?\b/,
+    title: 'TestVM',
+    description:
+      'The test VM of the SDK (`stylus_sdk::testing`, with the `stylus-test` feature): it stands in for the chain in unit tests. `TestVM::default()` starts from defaults; `TestVMBuilder` sets the sender, the value or the contract address up front. Build the contract on it with `Contract::from(&vm)`.',
+  },
+  {
+    id: 'test_vm_setters',
+    pattern: /(?<=\.)set_(?:sender|value|block_timestamp|block_number|balance|tx_origin|chain_id|contract_address)\(/,
+    title: 'TestVM setters',
+    description:
+      'Set what the next calls see: `set_sender`, `set_value`, `set_block_timestamp`, `set_block_number`, `set_balance` (balances never move on their own in the test VM), `set_tx_origin`, `set_chain_id` and `set_contract_address`.',
+  },
+  {
+    id: 'emitted_logs',
+    pattern: /(?<=\.)get_emitted_logs\(\)/,
+    title: 'get_emitted_logs()',
+    description:
+      'Every log the contract emitted on the test VM, in order, as `(topics, data)`. The first topic of an event is the hash of its signature.',
+  },
+  {
+    id: 'mock_call',
+    pattern: /(?<=\.)mock_(?:call|static_call|delegate_call)\(/,
+    title: 'mock_call()',
+    description:
+      'Gives the test VM the answer of a call to another contract: `Ok(return data)` or `Err(revert data)`. It answers only the exact address and calldata (and value, for `mock_call`); calls that are not mocked succeed with empty return data.',
+  },
+  {
+    id: 'signature_hash',
+    pattern: /\bSIGNATURE_HASH\b/,
+    title: 'SIGNATURE_HASH',
+    description:
+      'The keccak-256 hash of an event signature, from the `SolEvent` trait of `alloy_sol_types`: the first topic of every log of that event.',
+  },
+  {
+    id: 'panic',
+    pattern: /(?<=\.)(?:unwrap\(\)|expect\()/,
+    title: 'unwrap() / expect()',
+    description:
+      'Panic on `None` (or `Err`). In a Stylus contract, a panic makes the call revert with no data, which callers cannot decode, and panic messages take room in the binary. Return an error declared with `sol!` instead, with `ok_or` and `?`. In a test, a panic only fails the test.',
+  },
+  {
     id: 'checked',
     pattern: /(?<=\.)checked_(?:add|sub|mul|div)\(/,
     title: 'checked arithmetic',
