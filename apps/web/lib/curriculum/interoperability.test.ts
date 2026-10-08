@@ -144,6 +144,27 @@ describe("lesson 17: Being called (export-abi)", () => {
     ]);
   });
 
+  it("refuses a selector attribute with another name", () => {
+    for (const name of ["latestRound", "latestRoundData ", "LatestRoundData", ""]) {
+      const wrong = `#[selector(name = "${name}")]\n    pub fn latest_round(&self) -> (U80, I256, U256, U256, U80) {`;
+      expect(variant(17, selector, wrong).objectives, name).toEqual(["Answer callers that call the latest round data function"]);
+    }
+  });
+
+  it("refuses the selector attribute written in a comment or a string", () => {
+    const method = "pub fn latest_round(&self) -> (U80, I256, U256, U256, U80) {";
+    expect(variant(17, selector, `// #[selector(name = "latestRoundData")]\n    ${method}`).passed).toBe(false);
+    expect(variant(17, selector, `/* #[selector(name = "latestRoundData")] */\n    ${method}`).passed).toBe(false);
+    expect(
+      variant(17, selector, `const A: &str = r#"#[selector(name = "latestRoundData")] pub fn latest_round("#;\n    ${method}`).passed,
+    ).toBe(false);
+  });
+
+  it("accepts the selector attribute in a rustfmt layout", () => {
+    const wrapped = '#[selector(\n        name = "latestRoundData"\n    )]\n    pub fn latest_round(&self) -> (U80, I256, U256, U256, U80) {';
+    expect(variant(17, selector, wrapped).passed).toBe(true);
+  });
+
   it("refuses an unsigned answer in storage", () => {
     expect(variant(17, "int256 answer;", "uint256 answer;").objectives).toContain("Store the latest answer as a signed number");
   });

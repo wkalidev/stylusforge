@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluateChecks, snippetPattern, stripCommentsAndStrings, validateCode } from "./validate";
+import { evaluateChecks, snippetPattern, stripComments, stripCommentsAndStrings, validateCode } from "./validate";
 
 describe("snippetPattern", () => {
   it("ignores whitespace around punctuation", () => {
@@ -123,6 +123,15 @@ describe("stripCommentsAndStrings", () => {
   });
 });
 
+describe("stripComments", () => {
+  it("blanks comments in place and keeps every string literal as written", () => {
+    const code = 'a /* "x" */ let s = r#"say "hi" // no"#; // "y"\nlet t = "\\" // z";';
+    const out = stripComments(code);
+    expect(out).toHaveLength(code.length);
+    expect(out).toBe(`a ${" ".repeat(9)} let s = r#"say "hi" // no"#; ${" ".repeat(6)}\nlet t = "\\" // z";`);
+  });
+});
+
 describe("evaluateChecks", () => {
   const checks = [
     { anyOf: ["uint256 count;"], objective: "declare count", hints: [], anchor: "pub struct Counter {" },
@@ -228,5 +237,77 @@ describe("validateCode with forbidden snippets", () => {
     const anchored = [{ ...checks[0], anchor: "owner: Address" }];
     expect(evaluateChecks(`${fix}\n    ${bug}`, anchored)[0]).toMatchObject({ passed: false, line: 2 });
     expect(evaluateChecks(bug, anchored)[0]).toMatchObject({ passed: false, line: 1 });
+  });
+});
+
+describe("validateCode with string literals", () => {
+  // Lesson 17: the method answers latestRoundData() under its own name or with a selector attribute.
+  const checks = [
+    {
+      literals: [['#[selector(name = "latestRoundData")] pub fn $n(', "pub fn latest_round_data(&self)"]],
+      objective: "answer latestRoundData",
+      hints: [],
+    },
+  ];
+  const attribute = '#[selector(name = "latestRoundData")]';
+  const method = "pub fn latest_round(&self) -> U256 {";
+  const passes = (code: string) => validateCode(code, checks).passed;
+
+  it("passes with the right name, or with the method renamed", () => {
+    expect(passes(`${attribute}\n    ${method}`)).toBe(true);
+    expect(passes("pub fn latest_round_data(&self) -> U256 {")).toBe(true);
+  });
+
+  it("fails with a wrong name, a name with extra spaces, or no attribute", () => {
+    expect(passes(`#[selector(name = "latestRound")]\n    ${method}`)).toBe(false);
+    expect(passes(`#[selector(name = "latestRoundDatas")]\n    ${method}`)).toBe(false);
+    expect(passes(`#[selector(name = " latestRoundData")]\n    ${method}`)).toBe(false);
+    expect(passes(`#[selector(name = "")]\n    ${method}`)).toBe(false);
+    expect(passes(method)).toBe(false);
+  });
+
+  it("fails with the attribute in a line or block comment", () => {
+    expect(passes(`// ${attribute}\n    ${method}`)).toBe(false);
+    expect(passes(`/* ${attribute} */\n    ${method}`)).toBe(false);
+    expect(passes(`/* ${attribute}\n    ${method} */`)).toBe(false);
+  });
+
+  it("fails with the attribute inside a normal or raw string", () => {
+    const inside = `${attribute} pub fn latest_round(`;
+    expect(passes(`const S: &str = "${inside.replace(/"/g, '\\"')}";\n    ${method}`)).toBe(false);
+    expect(passes(`const S: &str = r#"${inside}"#;\n    ${method}`)).toBe(false);
+    // The name written as a raw string covers more than the expected literal: it does not line up.
+    expect(passes(`#[selector(name = r"latestRoundData")]\n    ${method}`)).toBe(false);
+  });
+
+  it("fails when the code around the literal is in a string and only the name is code", () => {
+    // `"#[selector(name = "` and `")] pub fn latest_round("` are strings, `latestRoundData` is not.
+    expect(passes('let a = "#[selector(name = "latestRoundData")] pub fn latest_round(";')).toBe(false);
+  });
+
+  it("passes with rustfmt layouts around the attribute", () => {
+    expect(passes(`#[selector(\n        name = "latestRoundData"\n    )]\n    ${method}`)).toBe(true);
+    expect(passes(`#[selector(name = "latestRoundData")]\n\n    /// The latest round.\n    ${method}`)).toBe(true);
+    expect(passes(`#[selector(name = "latestRoundData")] pub fn latest_round(&self) -> U256 {`)).toBe(true);
+  });
+
+  it("finds the attribute after a match that is refused for lying in a string", () => {
+    const code = `const S: &str = r#"${attribute} pub fn latest_round("#;\n${attribute}\n    ${method}`;
+    expect(passes(code)).toBe(true);
+  });
+
+  it("combines with anyOf: both must match", () => {
+    const both = [{ ...checks[0], anyOf: ["-> U256 {"] }];
+    expect(validateCode(`${attribute}\n    ${method}`, both).passed).toBe(true);
+    expect(validateCode(`${attribute}\n    pub fn latest_round(&self) -> u8 {`, both).passed).toBe(false);
+  });
+
+  it("leaves checks without literals blind to string contents", () => {
+    const loose = [{ anyOf: ['#[selector(name = "")] pub fn $n('], objective: "any selector", hints: [] }];
+    expect(validateCode(`#[selector(name = "latestRound")]\n    ${method}`, loose).passed).toBe(true);
+  });
+
+  it("refuses a check with neither anyOf nor literals", () => {
+    expect(() => validateCode("fn main() {}", [{ objective: "nothing", hints: [] }])).toThrow(/anyOf or literals/);
   });
 });
