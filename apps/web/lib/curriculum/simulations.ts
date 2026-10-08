@@ -1090,6 +1090,59 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  19: {
+    contract: 'TimeLock',
+    note: 'The model is deployed with a delay of 60 seconds, as if the constructor received 60. Send ETH with deposit using its value field. The block time is a simplified clock that moves 12 seconds per sent transaction; real Arbitrum blocks are much faster.',
+    accounts: SIM_ACCOUNTS,
+    clock: true,
+    initialState: () => ({ delay: 60n, deposits: {}, unlock_at: {} }),
+    functions: [
+      {
+        name: 'deposit',
+        abiName: 'deposit',
+        view: false,
+        payable: true,
+        params: [],
+        run: (state, _args, caller, context) => {
+          const unlockAt = wrappingAdd(context.timestamp, state.delay as bigint);
+          const total = wrappingAdd(readMapping(state, 'deposits', caller.address), context.value);
+          return {
+            state: writeMapping(writeMapping(state, 'deposits', caller.address, total), 'unlock_at', caller.address, unlockAt),
+            events: [{ name: 'Deposited', args: { account: caller.address, amount: context.value, unlock_at: unlockAt } }],
+          };
+        },
+      },
+      {
+        name: 'deposit_of',
+        abiName: 'depositOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'deposits', args.account as string) }),
+      },
+      {
+        name: 'unlock_time',
+        abiName: 'unlockTime',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'unlock_at', args.account as string) }),
+      },
+      {
+        name: 'withdraw',
+        abiName: 'withdraw',
+        view: false,
+        params: [],
+        run: (state, _args, caller, context) => {
+          const amount = readMapping(state, 'deposits', caller.address);
+          if (amount === 0n) return { revert: { error: 'NothingLocked', args: { account: caller.address } } };
+          const unlockAt = readMapping(state, 'unlock_at', caller.address);
+          if (context.timestamp < unlockAt) return { revert: { error: 'StillLocked', args: { unlock_at: unlockAt, now: context.timestamp } } };
+          return { state: deleteMapping(state, 'deposits', caller.address), transfers: [{ to: caller.address, amount }] };
+        },
+      },
+    ],
+  },
 };
 
 /** The result of a call to lesson 5's mock token: a revert, or its state, its bool and its events. */
