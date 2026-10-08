@@ -87,5 +87,5 @@ jobs:
       - name: Export lesson Rust
         run: pnpm --filter web export:rust "$RUNNER_TEMP/lesson-rust"
 
-      - name: cargo check lesson Rust
+      - name: cargo check and test lesson Rust
         run: curriculum/rust/check.sh "$RUNNER_TEMP/lesson-rust"

@@ -12,6 +12,11 @@ stylus-sdk = "=0.10.10"
 alloy-primitives = "=1.7.3"
 alloy-sol-types = "=1.7.3"
 
+# The stylus-sdk test VM (`stylus_sdk::testing`) for the `#[cfg(test)]` code of lessons about
+# testing. A dev-dependency, so `cargo check --lib` still builds the contract as it is deployed.
+[dev-dependencies]
+stylus-sdk = { version = "=0.10.10", features = ["stylus-test"] }
+
 [features]
 export-abi = ["stylus-sdk/export-abi"]
 # Named in the cfg of the code that #[entrypoint] and #[public] generate.
