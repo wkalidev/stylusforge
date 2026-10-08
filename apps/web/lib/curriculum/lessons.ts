@@ -4452,6 +4452,48 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn gas_for(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Ink and gas",
+          question: "A Stylus call used 25,000,000 ink, at the default ink price. What does its receipt show?",
+          options: ["2,500 gas", "25,000,000 ink", "250,000 gas"],
+          answer: 0,
+          explanation: "Receipts are always in gas. At the default price, 1 gas buys 10,000 ink, so 25,000,000 ink is 2,500 gas.",
+        },
+        {
+          afterStep: "What costs ink",
+          question: "Which part of a Stylus method usually costs the most?",
+          options: [
+            "Arithmetic on local variables",
+            "Storage reads and writes, and other calls to the host",
+            "Calls between functions inside the WebAssembly",
+          ],
+          answer: 1,
+          explanation: "An i32.add costs 70 ink and a call inside the WebAssembly 3,800, a fraction of a gas. A host call costs about 0.84 gas or more, and storage keeps the prices of SLOAD and SSTORE.",
+        },
+        {
+          afterStep: "Binary size",
+          question: "A Stylus method calls unwrap() on a None. What does its caller get?",
+          options: [
+            "The panic message, as a Solidity Error(string)",
+            "A custom error it can decode",
+            "A revert with no data",
+          ],
+          answer: 2,
+          explanation: "A panic makes the call fail with no return data, so the caller cannot tell what went wrong. Returning an error declared with sol! gives it something to decode, and leaves the panic code out of the binary.",
+        },
+        {
+          afterStep: "Activation and caching",
+          question: "A Stylus contract was activated 400 days ago, and nobody kept it alive. What happens to a call to it?",
+          options: [
+            "It runs, but pays the cost of a program that is not cached",
+            "It fails: the activation expired after 365 days, though the code is still on-chain and can be activated again",
+            "It runs as EVM bytecode instead",
+          ],
+          answer: 1,
+          explanation: "Activations expire after 365 days by default. codehashKeepalive extends one before it expires; after that, the code stays on-chain and cargo stylus activate activates it again.",
+        },
+      ],
     },
   },
 };
