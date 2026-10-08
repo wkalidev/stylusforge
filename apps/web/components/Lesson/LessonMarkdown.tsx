@@ -11,6 +11,12 @@ const components: Components = {
   blockquote: ({ children }) => (
     <blockquote className='mb-4 border-l-2 border-amber-300 bg-steel-900/60 py-3 pl-4 pr-3 [&_p]:mb-0'>{children}</blockquote>
   ),
+  // Links point to sources outside the app, such as an official notice: they open in a new tab.
+  a: ({ href, children }) => (
+    <a href={href} target='_blank' rel='noopener noreferrer' className='text-quench-300 underline underline-offset-2 hover:text-quench-400'>
+      {children}
+    </a>
+  ),
   pre: ({ children }) => (
     <pre className='bg-steel-950 border border-steel-700 rounded-[var(--radius-forge)] p-4 mb-4 overflow-x-auto text-sm leading-relaxed'>
       {children}
