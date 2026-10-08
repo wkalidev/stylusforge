@@ -266,6 +266,38 @@ function budgetOverflows(): string[] {
   ];
 }
 
+/**
+ * Snippets for lesson 19's assertion on Alice's deposit: equal to one of `values`, with `assert_eq!`
+ * either way round or with `assert!` and `==`, on the contract kept in a local of any name.
+ */
+function depositAssertions(values: string[]): string[] {
+  const read = '$c.deposit_of(ALICE)';
+  return values.flatMap((value) => [`assert_eq!(${read}, ${value})`, `assert_eq!(${value}, ${read})`, `assert!(${read} == ${value})`]);
+}
+
+/**
+ * Snippets for lesson 19's early withdrawal: the result of `withdraw` compared with the encoded
+ * StillLocked error, either way round, read inline or into a local, or with the error built in a
+ * local first. The fields come in either order, `now` as `U256::ZERO` or `U256::from(0)`; rustfmt
+ * may add trailing commas inside the error and after the last argument of `assert_eq!`.
+ */
+function stillLockedAssertions(): string[] {
+  const fieldLists = ['U256::from(3600)', 'U256::from(3_600)'].flatMap((unlock) =>
+    ['U256::ZERO', 'U256::from(0)'].flatMap((now) => [`unlock_at: ${unlock}, now: ${now}`, `now: ${now}, unlock_at: ${unlock}`]),
+  );
+  const errors = fieldLists.flatMap((fields) => [`StillLocked { ${fields} }`, `StillLocked { ${fields}, }`].map((error) => `LockError::StillLocked(${error})`));
+  const compare = (left: string, right: string) => [`assert_eq!(${left}, ${right})`, `assert_eq!(${left}, ${right},)`];
+  return errors.flatMap((error) => {
+    const expected = `Err(${error}.into())`;
+    return [
+      ...compare('$c.withdraw()', expected),
+      ...compare(expected, '$c.withdraw()'),
+      ...compare('$r', expected).map((assertion) => `let $r = $c.withdraw(); ${assertion}`),
+      ...compare('$c.withdraw()', 'Err($e.into())').map((assertion) => `let $e = ${error}; ${assertion}`),
+    ];
+  });
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -4594,8 +4626,183 @@ const CONTENT: Record<number, LessonContent> = {
         '',
         'Stuck? Each objective has hints, from a nudge to the exact code.',
       ].join('\n'),
-      starterCode: '',
-      checks: [],
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use alloc::vec::Vec;',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{Address, U256},',
+        '    alloy_sol_types::sol,',
+        '    call::transfer::transfer_eth,',
+        '    prelude::*,',
+        '};',
+        '',
+        'sol! {',
+        '    event Deposited(address indexed account, uint256 amount, uint256 unlock_at);',
+        '    error NothingLocked(address account);',
+        '    error StillLocked(uint256 unlock_at, uint256 now);',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum LockError {',
+        '    NothingLocked(NothingLocked),',
+        '    StillLocked(StillLocked),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct TimeLock {',
+        '        uint256 delay;',
+        '        mapping(address => uint256) deposits;',
+        '        mapping(address => uint256) unlock_at;',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl TimeLock {',
+        '    #[constructor]',
+        '    pub fn constructor(&mut self, delay: U256) {',
+        '        self.delay.set(delay);',
+        '    }',
+        '',
+        '    #[payable]',
+        '    pub fn deposit(&mut self) {',
+        '        let account = self.vm().msg_sender();',
+        '        let amount = self.vm().msg_value();',
+        '        let unlock_at = U256::from(self.vm().block_timestamp()) + self.delay.get();',
+        '        let total = self.deposits.get(account) + amount;',
+        '        self.deposits.insert(account, total);',
+        '        self.unlock_at.insert(account, unlock_at);',
+        '        self.vm().log(Deposited { account, amount, unlock_at });',
+        '    }',
+        '',
+        '    pub fn deposit_of(&self, account: Address) -> U256 {',
+        '        self.deposits.get(account)',
+        '    }',
+        '',
+        '    pub fn unlock_time(&self, account: Address) -> U256 {',
+        '        self.unlock_at.get(account)',
+        '    }',
+        '',
+        '    pub fn withdraw(&mut self) -> Result<(), Vec<u8>> {',
+        '        let account = self.vm().msg_sender();',
+        '        let amount = self.deposits.get(account);',
+        '        if amount.is_zero() {',
+        '            return Err(LockError::NothingLocked(NothingLocked { account }).into());',
+        '        }',
+        '        let unlock_at = self.unlock_at.get(account);',
+        '        let now = U256::from(self.vm().block_timestamp());',
+        '        if now < unlock_at {',
+        '            return Err(LockError::StillLocked(StillLocked { unlock_at, now }).into());',
+        '        }',
+        '        self.deposits.delete(account);',
+        '        transfer_eth(self.vm(), account, amount)?;',
+        '        Ok(())',
+        '    }',
+        '}',
+        '',
+        '#[cfg(test)]',
+        'mod tests {',
+        '    use super::*;',
+        '    use stylus_sdk::alloy_primitives::address;',
+        '    use stylus_sdk::alloy_sol_types::SolEvent;',
+        '    use stylus_sdk::testing::*;',
+        '',
+        '    const ALICE: Address = address!("00000000000000000000000000000000000a11ce");',
+        '',
+        '    #[test]',
+        '    fn locks_a_deposit_for_an_hour() {',
+        '        // TODO: build a TestVM and a TimeLock on it, and deploy it with a one-hour delay',
+        '',
+        '        // TODO: as ALICE, deposit 100 wei at the start time of the VM, and check her deposit',
+        '',
+        '        // TODO: check that withdrawing right away reverts with StillLocked',
+        '',
+        '        // TODO: when the lock opens, check that the withdrawal succeeds and clears her deposit',
+        '',
+        '        // TODO: check that the deposit was logged with a Deposited event',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          anyOf: ['TestVM::default()', 'TestVM::new()'].map((vm) => `let $v = ${vm}; let mut $c = TimeLock::from(&$v);`),
+          objective: 'Build a test VM and a TimeLock that runs on it',
+          hints: [
+            'A unit test runs the contract on the test VM of the SDK, which stands in for the chain.',
+            'Create the VM with `TestVM::default()`, then a mutable contract on it with `from`, passing a reference to the VM.',
+            'Write `let vm = TestVM::default(); let mut contract = TimeLock::from(&vm);`.',
+          ],
+          anchor: 'fn locks_a_deposit_for_an_hour(',
+        },
+        {
+          anyOf: ['U256::from(3600)', 'U256::from(3_600)', 'U256::from(60 * 60)'].map((delay) => `.constructor(${delay});`),
+          objective: 'Deploy the lock with a delay of one hour',
+          hints: [
+            'Nothing deploys the contract in a test, so nothing runs its constructor: call it yourself, like any method.',
+            'Pass one hour, in seconds, as a `U256` to `constructor`.',
+            'Write `contract.constructor(U256::from(3600));`.',
+          ],
+          anchor: 'fn locks_a_deposit_for_an_hour(',
+        },
+        {
+          anyOf: ['.set_sender(ALICE);'],
+          alsoAnyOf: [['.set_value(U256::from(100));'], ['.deposit();']],
+          objective: 'Deposit 100 wei as Alice',
+          hints: [
+            'The VM plays the caller: set who calls and how much ETH comes with the call, then call the method.',
+            'Use `set_sender` with `ALICE` and `set_value` with 100 wei as a `U256`, on the VM, then call `deposit` on the contract.',
+            'Write `vm.set_sender(ALICE); vm.set_value(U256::from(100)); contract.deposit();`.',
+          ],
+          anchor: 'fn locks_a_deposit_for_an_hour(',
+        },
+        {
+          anyOf: depositAssertions(['U256::from(100)']),
+          objective: 'Check that her deposit is recorded',
+          hints: [
+            'A test proves only what it asserts: read the deposit back and compare it.',
+            'Compare `deposit_of(ALICE)` with 100 as a `U256`, with `assert_eq!`.',
+            'Write `assert_eq!(contract.deposit_of(ALICE), U256::from(100));`.',
+          ],
+          anchor: 'fn locks_a_deposit_for_an_hour(',
+        },
+        {
+          anyOf: stillLockedAssertions(),
+          objective: 'Check that an early withdrawal reverts with StillLocked, and its fields',
+          hints: [
+            '`withdraw` returns its error encoded: compare the whole result with the error you expect, not just with any error.',
+            'Build the expected `Err` from `LockError::StillLocked(StillLocked { unlock_at, now })` with `.into()`: the lock opens at 3600, and the clock of the VM starts at zero.',
+            'Write `assert_eq!(contract.withdraw(), Err(LockError::StillLocked(StillLocked { unlock_at: U256::from(3600), now: U256::ZERO }).into()));`.',
+          ],
+          anchor: 'fn locks_a_deposit_for_an_hour(',
+        },
+        {
+          anyOf: ['.set_block_timestamp(3600);', '.set_block_timestamp(3_600);'],
+          alsoAnyOf: [
+            ['assert!($c.withdraw().is_ok())', 'assert_eq!($c.withdraw(), Ok(()))', '$c.withdraw().unwrap();', '$c.withdraw().expect('],
+            depositAssertions(['U256::ZERO', 'U256::from(0)']),
+          ],
+          objective: 'When the lock opens, check that the withdrawal succeeds and clears her deposit',
+          hints: [
+            'Move the clock of the VM to the second the lock opens, then withdraw again.',
+            'Use `set_block_timestamp` with 3600, then assert that `withdraw` returns `Ok`, and that `deposit_of(ALICE)` is back to zero.',
+            'Write `vm.set_block_timestamp(3600); assert!(contract.withdraw().is_ok()); assert_eq!(contract.deposit_of(ALICE), U256::ZERO);`.',
+          ],
+          anchor: 'fn locks_a_deposit_for_an_hour(',
+        },
+        {
+          anyOf: ['.get_emitted_logs()'],
+          alsoAnyOf: [['Deposited::SIGNATURE_HASH']],
+          objective: 'Check that the deposit was logged with a Deposited event',
+          hints: [
+            'The VM records every log the contract emits, as its topics and its data.',
+            'Read them from the VM, and compare the first topic of the log with the hash of the event signature, from the `SolEvent` trait.',
+            'Write `let logs = vm.get_emitted_logs(); assert_eq!(logs.len(), 1); assert_eq!(logs[0].0[0], Deposited::SIGNATURE_HASH);`.',
+          ],
+          anchor: 'fn locks_a_deposit_for_an_hour(',
+        },
+      ],
     },
   },
 };
