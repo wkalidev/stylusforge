@@ -1044,4 +1044,114 @@ impl InkBudget {
     }
 }
 `,
+  19: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    call::transfer::transfer_eth,
+    prelude::*,
+};
+
+sol! {
+    event Deposited(address indexed account, uint256 amount, uint256 unlock_at);
+    error NothingLocked(address account);
+    error StillLocked(uint256 unlock_at, uint256 now);
+}
+
+#[derive(SolidityError)]
+pub enum LockError {
+    NothingLocked(NothingLocked),
+    StillLocked(StillLocked),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct TimeLock {
+        uint256 delay;
+        mapping(address => uint256) deposits;
+        mapping(address => uint256) unlock_at;
+    }
+}
+
+#[public]
+impl TimeLock {
+    #[constructor]
+    pub fn constructor(&mut self, delay: U256) {
+        self.delay.set(delay);
+    }
+
+    #[payable]
+    pub fn deposit(&mut self) {
+        let account = self.vm().msg_sender();
+        let amount = self.vm().msg_value();
+        let unlock_at = U256::from(self.vm().block_timestamp()) + self.delay.get();
+        let total = self.deposits.get(account) + amount;
+        self.deposits.insert(account, total);
+        self.unlock_at.insert(account, unlock_at);
+        self.vm().log(Deposited { account, amount, unlock_at });
+    }
+
+    pub fn deposit_of(&self, account: Address) -> U256 {
+        self.deposits.get(account)
+    }
+
+    pub fn unlock_time(&self, account: Address) -> U256 {
+        self.unlock_at.get(account)
+    }
+
+    pub fn withdraw(&mut self) -> Result<(), Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let amount = self.deposits.get(account);
+        if amount.is_zero() {
+            return Err(LockError::NothingLocked(NothingLocked { account }).into());
+        }
+        let unlock_at = self.unlock_at.get(account);
+        let now = U256::from(self.vm().block_timestamp());
+        if now < unlock_at {
+            return Err(LockError::StillLocked(StillLocked { unlock_at, now }).into());
+        }
+        self.deposits.delete(account);
+        transfer_eth(self.vm(), account, amount)?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use stylus_sdk::alloy_primitives::address;
+    use stylus_sdk::alloy_sol_types::SolEvent;
+    use stylus_sdk::testing::*;
+
+    const ALICE: Address = address!("00000000000000000000000000000000000a11ce");
+
+    #[test]
+    fn locks_a_deposit_for_an_hour() {
+        let vm = TestVM::default();
+        let mut contract = TimeLock::from(&vm);
+        contract.constructor(U256::from(3600));
+
+        vm.set_sender(ALICE);
+        vm.set_value(U256::from(100));
+        contract.deposit();
+        assert_eq!(contract.deposit_of(ALICE), U256::from(100));
+
+        assert_eq!(
+            contract.withdraw(),
+            Err(LockError::StillLocked(StillLocked { unlock_at: U256::from(3600), now: U256::ZERO }).into())
+        );
+
+        vm.set_block_timestamp(3600);
+        assert!(contract.withdraw().is_ok());
+        assert_eq!(contract.deposit_of(ALICE), U256::ZERO);
+
+        let logs = vm.get_emitted_logs();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].0[0], Deposited::SIGNATURE_HASH);
+    }
+}
+`,
 };
