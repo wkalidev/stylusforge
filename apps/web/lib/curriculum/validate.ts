@@ -7,13 +7,24 @@ export interface LessonCheck {
   /**
    * Code snippets; the check passes when the code contains any of them, whatever the whitespace.
    * A placeholder such as `$x` stands for a local variable of any name (see snippetPattern).
+   * Every check has `anyOf`, `literals` or both.
    */
-  anyOf: string[];
+  anyOf?: string[];
   /**
    * Further parts of the same goal, each a group of alternative snippets: the check also needs
    * one snippet of every group ("grow the list" and "set the title" of the new element).
    */
   alsoAnyOf?: string[][];
+  /**
+   * Optional groups of snippets with string literals to spell exactly, such as
+   * `#[selector(name = "latestRoundData")] pub fn $n(`: the check also needs one snippet of every
+   * group. Only for a goal that is a string literal, never as a shortcut for code. These snippets
+   * match the code with comments removed but strings kept, and a match counts only where each
+   * literal of the snippet is a whole string literal of the code and the rest of the match is code,
+   * so a snippet written in a comment or inside another string still fails. Literal contents match
+   * exactly, whitespace included; around them, the usual whitespace rules apply.
+   */
+  literals?: string[][];
   /**
    * Optional forbidden snippets: the check fails while the code contains any of them, matched like
    * `anyOf` (comments and strings blanked, placeholders allowed). Use it for a planted bug that a
@@ -49,6 +60,14 @@ export interface ValidationResult {
 }
 
 const TOKEN = /\$[A-Za-z_][A-Za-z0-9_]*|[A-Za-z0-9_]+|\S/g;
+/**
+ * A string literal, delimited as the scanner of stripCommentsAndStrings delimits it: a raw string
+ * (`r"..."`, `r#"..."#`, `br"..."`) or a normal one with escapes.
+ */
+const STRING_LITERAL = /(?<![A-Za-z0-9_])b?r(#*)"[\s\S]*?"\1|"(?:\\[\s\S]|[^"\\])*"/;
+const WHOLE_LITERAL = new RegExp(`^(?:${STRING_LITERAL.source})$`);
+/** The tokens of a `literals` snippet: each string literal is one token. */
+const LITERAL_TOKEN = new RegExp(`${STRING_LITERAL.source}|${TOKEN.source}`, "g");
 /** An identifier, keyword or number token, or a placeholder (which stands for an identifier). */
 const WORD = /^\$?[A-Za-z0-9_]+$/;
 const PLACEHOLDER = /^\$([A-Za-z_][A-Za-z0-9_]*)$/;
@@ -81,12 +100,16 @@ function escapeRegExp(text: string): string {
  * variable under any name, but only when the value written is the one read. `let mut $x` works:
  * `$x` never matches `mut`. Placeholders never bind across snippets.
  *
+ * With `literals` (for the snippets of `LessonCheck.literals`), each string literal of the snippet
+ * is one token, matched exactly with its whitespace and captured in a group named `literal_<n>`,
+ * so evaluateChecks can check that it lines up with a string literal of the code.
+ *
  * Limit: a snippet matches one contiguous piece of code, so a snippet with several statements
  * only matches when the statements are consecutive. `let $x = a; f($x);` does not match when
  * another statement sits between the two.
  */
-export function snippetPattern(snippet: string): RegExp {
-  const tokens: string[] = Array.from(snippet.match(TOKEN) ?? []);
+export function snippetPattern(snippet: string, { literals = false }: { literals?: boolean } = {}): RegExp {
+  const tokens: string[] = Array.from(snippet.match(literals ? LITERAL_TOKEN : TOKEN) ?? []);
   if (tokens.length === 0) {
     throw new Error("A check snippet cannot be empty");
   }
@@ -95,6 +118,10 @@ export function snippetPattern(snippet: string): RegExp {
   tokens.forEach((token, index) => {
     if (index > 0) {
       source += WORD.test(tokens[index - 1]) && WORD.test(token) ? "\\s+" : "\\s*";
+    }
+    if (literals && WHOLE_LITERAL.test(token)) {
+      source += `(?<literal_${index}>${escapeRegExp(token)})`;
+      return;
     }
     const placeholder = PLACEHOLDER.exec(token);
     if (!placeholder) {
@@ -122,13 +149,24 @@ function emptyLiteral(literal: string): string {
   return literal.length < 2 ? blank(literal) : `"${blank(literal.slice(1, -1))}"`;
 }
 
+/** A range of character indexes, start included, end excluded. */
+type Range = [start: number, end: number];
+
+interface ScannedCode {
+  /** The code with comments and string contents blanked in place. */
+  stripped: string;
+  /** Where each string literal of the code lies, quotes, prefix and raw-string hashes included. */
+  literals: Range[];
+}
+
 /**
  * Removes what a check must never match: line comments, (nested) block comments and the
- * contents of string literals, including raw strings. Positions are preserved: removed
- * characters become spaces (newlines stay), so an index in the result is the same index in the
- * original code and matches map back to lines.
+ * contents of string literals, including raw strings, and records where each literal lies.
+ * Positions are preserved: removed characters become spaces (newlines stay), so an index in the
+ * result is the same index in the original code and matches map back to lines.
  */
-export function stripCommentsAndStrings(code: string): string {
+function scan(code: string): ScannedCode {
+  const literals: Range[] = [];
   let out = "";
   let i = 0;
   while (i < code.length) {
@@ -159,6 +197,7 @@ export function stripCommentsAndStrings(code: string): string {
       const closing = `"${opening[1]}`;
       const end = code.indexOf(closing, i + opening[0].length);
       i = end === -1 ? code.length : end + closing.length;
+      literals.push([start, i]);
       out += emptyLiteral(code.slice(start, i));
     } else if (code[i] === '"') {
       i += 1;
@@ -166,13 +205,70 @@ export function stripCommentsAndStrings(code: string): string {
         i += code[i] === "\\" ? 2 : 1;
       }
       i = Math.min(i + 1, code.length);
+      literals.push([start, i]);
       out += emptyLiteral(code.slice(start, i));
     } else {
       out += code[i];
       i += 1;
     }
   }
-  return out;
+  return { stripped: out, literals };
+}
+
+/**
+ * Removes what a check must never match: line comments, (nested) block comments and the
+ * contents of string literals, including raw strings. Positions are preserved: removed
+ * characters become spaces (newlines stay), so an index in the result is the same index in the
+ * original code and matches map back to lines.
+ */
+export function stripCommentsAndStrings(code: string): string {
+  return scan(code).stripped;
+}
+
+/** The stripped code with its string literals put back: comments blanked, strings kept. */
+function restoreLiterals(code: string, { stripped, literals }: ScannedCode): string {
+  let out = "";
+  let at = 0;
+  for (const [start, end] of literals) {
+    out += stripped.slice(at, start) + code.slice(start, end);
+    at = end;
+  }
+  return out + stripped.slice(at);
+}
+
+/**
+ * Removes line and (nested) block comments only, keeping string literals as written: the code
+ * that `literals` snippets match. It shares the scanner of stripCommentsAndStrings, so both agree
+ * on where each literal starts and ends, and positions are preserved the same way.
+ */
+export function stripComments(code: string): string {
+  return restoreLiterals(code, scan(code));
+}
+
+/**
+ * Whether a `literals` snippet matches the code with comments removed (`uncommented`) at a place
+ * where each literal of the snippet is exactly one string literal of the code, and every other
+ * character of the match lies outside the code's literals. A snippet written inside a string,
+ * or with a literal that only covers part of one, never counts.
+ */
+function matchesWithLiterals(snippet: string, uncommented: string, literals: Range[]): boolean {
+  const pattern = snippetPattern(snippet, { literals: true });
+  const search = new RegExp(pattern.source, "dg");
+  for (let match = search.exec(uncommented); match; match = search.exec(uncommented)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    const spans = Object.entries(match.indices?.groups ?? {})
+      .filter(([name]) => name.startsWith("literal_"))
+      .map(([, span]) => span as Range);
+    const same = (a: Range) => (b: Range) => a[0] === b[0] && a[1] === b[1];
+    const inPlace =
+      spans.every((span) => literals.some(same(span))) &&
+      literals.filter(([from, to]) => from < end && to > start).every((literal) => spans.some(same(literal)));
+    if (inPlace) return true;
+    // Try every start: a match refused here may hide a valid one that overlaps it.
+    search.lastIndex = start + 1;
+  }
+  return false;
 }
 
 /** 1-based line of a character index. */
@@ -187,14 +283,27 @@ function lineAt(code: string, index: number): number {
 /**
  * Runs every check against the code, with comments and string contents removed so a check
  * cannot be passed by writing the expected snippet in a comment or a string, nor failed by a
- * forbidden snippet left in one. Each result carries the line of the check's anchor, for editor
- * diagnostics.
+ * forbidden snippet left in one. `literals` snippets match the code with its strings kept, only
+ * where their literals are string literals of the code (see LessonCheck.literals); that view is
+ * built only when a check needs it. Each result carries the line of the check's anchor, for
+ * editor diagnostics.
  */
 export function evaluateChecks(code: string, checks: LessonCheck[]): CheckResult[] {
-  const source = stripCommentsAndStrings(code);
+  const scanned = scan(code);
+  const source = scanned.stripped;
+  let uncommented: string | undefined;
   return checks.map((check) => {
+    if (!check.anyOf && !check.literals) {
+      throw new Error(`The check "${check.objective}" needs anyOf or literals`);
+    }
     const matches = (snippets: string[]) => snippets.some((snippet) => snippetPattern(snippet).test(source));
-    const passed = [check.anyOf, ...(check.alsoAnyOf ?? [])].every(matches) && !matches(check.noneOf ?? []);
+    const matchesLiterals = (snippets: string[]) => {
+      uncommented ??= restoreLiterals(code, scanned);
+      return snippets.some((snippet) => matchesWithLiterals(snippet, uncommented!, scanned.literals));
+    };
+    const groups = [...(check.anyOf ? [check.anyOf] : []), ...(check.alsoAnyOf ?? [])];
+    const passed =
+      groups.every(matches) && (check.literals ?? []).every(matchesLiterals) && !matches(check.noneOf ?? []);
     const anchor = check.anchor ? snippetPattern(check.anchor).exec(source) : null;
     return { check, passed, line: anchor ? lineAt(source, anchor.index) : null };
   });

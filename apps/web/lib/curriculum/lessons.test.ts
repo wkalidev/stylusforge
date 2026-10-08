@@ -10,14 +10,23 @@ import { SOLUTIONS } from "./solutions";
 import { splitSteps } from "./steps";
 import { evaluateChecks, snippetPattern, stripCommentsAndStrings, validateCode, type LessonCheck } from "./validate";
 
+/** The groups of expected snippets of a check, each with the pattern that matches it. */
+function expectedGroups(check: LessonCheck): RegExp[][] {
+  const code = [...(check.anyOf ? [check.anyOf] : []), ...(check.alsoAnyOf ?? [])];
+  return [
+    ...code.map((group) => group.map((snippet) => snippetPattern(snippet))),
+    ...(check.literals ?? []).map((group) => group.map((snippet) => snippetPattern(snippet, { literals: true }))),
+  ];
+}
+
 /** Whether a text gives any expected snippet of a check, matched like the check itself. */
 function givesCode(text: string, check: LessonCheck): boolean {
-  return [check.anyOf, ...(check.alsoAnyOf ?? [])].flat().some((snippet) => snippetPattern(snippet).test(text));
+  return expectedGroups(check).flat().some((pattern) => pattern.test(text));
 }
 
 /** Whether a text gives every part of a check: one snippet of each group. */
 function givesAllCode(text: string, check: LessonCheck): boolean {
-  return [check.anyOf, ...(check.alsoAnyOf ?? [])].every((group) => group.some((snippet) => snippetPattern(snippet).test(text)));
+  return expectedGroups(check).every((group) => group.some((pattern) => pattern.test(text)));
 }
 
 describe("LESSONS", () => {
@@ -108,8 +117,11 @@ describe.each(available)("lesson $id: $title", (lesson) => {
 
   it("shows no snippet placeholder to students", () => {
     // Everything but the snippets themselves: title, preview, explanation, starter code, quizzes,
-    // objectives and hints. A placeholder such as $x only belongs in anyOf, alsoAnyOf, noneOf and anchor.
-    const shown = JSON.stringify(lesson, (key, value) => (["anyOf", "alsoAnyOf", "noneOf", "anchor"].includes(key) ? undefined : value));
+    // objectives and hints. A placeholder such as $x only belongs in anyOf, alsoAnyOf, literals,
+    // noneOf and anchor.
+    const shown = JSON.stringify(lesson, (key, value) =>
+      ["anyOf", "alsoAnyOf", "literals", "noneOf", "anchor"].includes(key) ? undefined : value,
+    );
     expect(shown).toContain(checks[0].objective);
     expect(shown.match(/\$[A-Za-z_][A-Za-z0-9_]*/g) ?? []).toEqual([]);
   });
