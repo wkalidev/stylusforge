@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { LESSONS } from "./lessons";
-import { SIM_START_TIME, UINT256_MAX, callSimulation, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
-import { SIM_ACCOUNTS, ZERO_ADDRESS, getSimulation } from "./simulations";
+import { SIM_CONTRACT_ADDRESS, SIM_START_TIME, UINT256_MAX, callSimulation, functionSelector, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
+import { PRICE_FEED_ADDRESS, SIM_ACCOUNTS, TOKEN_ADDRESS, ZERO_ADDRESS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
 const [alice, bob, carol] = SIM_ACCOUNTS;
@@ -48,6 +48,37 @@ const OVERFLOW_CASES: Record<
       balances: { [alice.address]: 0n, [bob.address]: 0n },
       allowances: { [alice.address]: { [carol.address]: 0n } },
     },
+  },
+  // now - updated_at wraps around when the update is in the future: with max_age at U256::MAX, the
+  // wrapped age is exactly MAX, which is not greater, so Rust returns the answer instead of reverting.
+  16: {
+    state: { feed: PRICE_FEED_ADDRESS, max_age: MAX, PriceFeed: { decimals: 8n, round_id: 1n, answer: 5n, updated_at: SIM_START_TIME + 1n } },
+    call: ["price", {}, alice],
+    with: { timestamp: SIM_START_TIME },
+    expected: { feed: PRICE_FEED_ADDRESS, max_age: MAX, PriceFeed: { decimals: 8n, round_id: 1n, answer: 5n, updated_at: SIM_START_TIME + 1n } },
+  },
+  5: {
+    state: {
+      token: TOKEN_ADDRESS,
+      deposits: { [alice.address]: MAX },
+      Token: { balances: { [alice.address]: 1n }, allowances: { [alice.address]: { [SIM_CONTRACT_ADDRESS]: 1n } }, returns_false: 0n },
+    },
+    call: ["deposit", { amount: "1" }, alice],
+    expected: {
+      token: TOKEN_ADDRESS,
+      deposits: { [alice.address]: 0n },
+      Token: {
+        balances: { [alice.address]: 0n, [SIM_CONTRACT_ADDRESS]: 1n },
+        allowances: { [alice.address]: { [SIM_CONTRACT_ADDRESS]: 0n } },
+        returns_false: 0n,
+      },
+    },
+  },
+  // The round id is a U80: + 1 wraps around at 2^80.
+  17: {
+    state: { owner: alice.address, round_id: (1n << 80n) - 1n, answer: 0n, updated_at: 0n },
+    call: ["set_answer", { answer: "5" }, alice],
+    expected: { owner: alice.address, round_id: 0n, answer: 5n, updated_at: SIM_START_TIME },
   },
   14: {
     state: { owners: { "7": alice.address }, balances: { [alice.address]: 1n, [bob.address]: MAX }, token_approvals: {} },
@@ -111,7 +142,9 @@ describe("lesson simulations", () => {
     for (const lesson of LESSONS.filter((candidate) => candidate.available)) {
       const simulation = getSimulation(lesson.id);
       expect(simulation, lesson.title).not.toBeNull();
-      expect(simulation!.functions.map((fn) => fn.name).sort(), lesson.title).toEqual(exportedFunctions(SOLUTIONS[lesson.id]).sort());
+      // Functions of mock contracts model the contracts the lesson calls, not the lesson's own.
+      const own = simulation!.functions.filter((fn) => !fn.contract).map((fn) => fn.name);
+      expect(own.sort(), lesson.title).toEqual(exportedFunctions(SOLUTIONS[lesson.id]).sort());
     }
   });
 
@@ -472,5 +505,107 @@ describe("lesson simulations", () => {
     // A revert after the allowance is lowered undoes the whole call.
     expect(results[11]).toMatchObject({ ok: false, error: { error: "ERC20InvalidReceiver" } });
     expect(results[12].returns).toBe(200n);
+  });
+  it("lesson 16 reads the mock feed, and refuses a stale round or an answer that is not positive", () => {
+    const simulation = getSimulation(16)!;
+    let state = simulation.initialState();
+    const call = (fn: string, args: Record<string, string>, sent: number) => {
+      const result = callSimulation(simulation, state, fn, args, alice, { timestamp: simTimestamp(sent) });
+      state = result.state;
+      return result;
+    };
+    expect(call("feed", {}, 0).returns).toBe(PRICE_FEED_ADDRESS);
+    expect(call("decimals", {}, 0).returns).toBe(8n);
+    expect(call("price", {}, 0)).toMatchObject({ ok: true, returns: 300_000_000_000n });
+    // A new answer is stamped with the block time and starts a new round.
+    expect(call("set_answer", { answer: "312345000000" }, 1)).toMatchObject({
+      ok: true,
+      events: [{ name: "AnswerUpdated", contract: "PriceFeed", args: { current: 312_345_000_000n, roundId: 2n, updatedAt: SIM_START_TIME + 12n } }],
+    });
+    expect(call("latest_round_data", {}, 1).returns).toEqual([2n, 312_345_000_000n, SIM_START_TIME + 12n, SIM_START_TIME + 12n, 2n]);
+    expect(call("price", {}, 1).returns).toBe(312_345_000_000n);
+    // An update older than max_age, or never completed (0), is stale.
+    call("set_updated_at", { updated_at: (SIM_START_TIME - 3600n).toString() }, 2);
+    expect(call("price", {}, 2)).toMatchObject({ ok: false, error: { error: "StalePrice", args: { updated_at: SIM_START_TIME - 3600n, now: SIM_START_TIME + 24n } } });
+    call("set_updated_at", { updated_at: "0" }, 3);
+    expect(call("price", {}, 3)).toMatchObject({ ok: false, error: { error: "StalePrice", args: { updated_at: 0n } } });
+    // An update in the future wraps now - updated_at around, like U256: stale too.
+    call("set_updated_at", { updated_at: (SIM_START_TIME + 1000n).toString() }, 4);
+    expect(call("price", {}, 4)).toMatchObject({ ok: false, error: { error: "StalePrice" } });
+    call("set_answer", { answer: "-1" }, 5);
+    expect(call("price", {}, 5)).toMatchObject({ ok: false, error: { error: "NegativePrice", args: { answer: -1n } } });
+    call("set_answer", { answer: "0" }, 6);
+    expect(call("price", {}, 6)).toMatchObject({ ok: false, error: { error: "NegativePrice", args: { answer: 0n } } });
+  });
+  it("lesson 17 publishes rounds from its owner only, under the selectors of the Chainlink interface", () => {
+    const simulation = getSimulation(17)!;
+    expect(simulation.selectors).toBe(true);
+    const selectors = Object.fromEntries(simulation.functions.map((fn) => [fn.abiName, functionSelector(fn)]));
+    expect(selectors).toEqual({ decimals: "0x313ce567", description: "0x7284e416", latestRoundData: "0xfeaf968c", setAnswer: "0x99213cd8" });
+    let state = simulation.initialState();
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, sent: number) => {
+      const result = callSimulation(simulation, state, fn, args, caller, { timestamp: simTimestamp(sent) });
+      state = result.state;
+      return result;
+    };
+    expect(call("decimals", {}, bob, 0).returns).toBe(8n);
+    expect(call("description", {}, bob, 0).returns).toBe("ETH / USD");
+    expect(call("latest_round", {}, bob, 0).returns).toEqual([0n, 0n, 0n, 0n, 0n]);
+    expect(call("set_answer", { answer: "312345000000" }, alice, 1).ok).toBe(true);
+    expect(call("set_answer", { answer: "-5" }, alice, 2).ok).toBe(true);
+    expect(call("latest_round", {}, bob, 2).returns).toEqual([2n, -5n, SIM_START_TIME + 24n, SIM_START_TIME + 24n, 2n]);
+    expect(call("set_answer", { answer: "1" }, bob, 3)).toMatchObject({ ok: false, error: { error: "NotOwner", args: { caller: bob.address } } });
+    expect(state).toMatchObject({ round_id: 2n, answer: -5n });
+  });
+  it("lesson 5 pulls approved tokens into the vault and pays them back", () => {
+    const results = run(getSimulation(5)!, [
+      ["deposit", { amount: "100" }, alice],
+      ["approve", { spender: "TokenVault", value: "300" }, alice],
+      ["deposit", { amount: "100" }, alice],
+      ["deposit_of", { account: "Alice" }, bob],
+      ["balance_of", { account: "TokenVault" }, bob],
+      ["allowance", { owner: "Alice", spender: "TokenVault" }, bob],
+      ["withdraw", { amount: "101" }, alice],
+      ["withdraw", { amount: "40" }, alice],
+      ["balance_of", { account: "Alice" }, bob],
+      ["deposit_of", { account: "Alice" }, bob],
+    ]);
+    // Without an approval, the token refuses, and the vault reverts with its error.
+    expect(results[0]).toMatchObject({ ok: false, error: { error: "ERC20InsufficientAllowance", args: { spender: SIM_CONTRACT_ADDRESS, allowance: 0n, needed: 100n } } });
+    expect(results[2]).toMatchObject({
+      ok: true,
+      events: [
+        { name: "Transfer", contract: "Token", args: { from: alice.address, to: SIM_CONTRACT_ADDRESS, value: 100n } },
+        { name: "Deposited", args: { account: alice.address, amount: 100n } },
+      ],
+    });
+    expect(results[3].returns).toBe(100n);
+    expect(results[4].returns).toBe(100n);
+    expect(results[5].returns).toBe(200n);
+    expect(results[6]).toMatchObject({ ok: false, error: { error: "InsufficientDeposit", args: { available: 100n, requested: 101n } } });
+    expect(results[7]).toMatchObject({ ok: true, events: [{ name: "Transfer", contract: "Token" }, { name: "Withdrawn", args: { amount: 40n } }] });
+    expect(results[8].returns).toBe(940n);
+    expect(results[9].returns).toBe(60n);
+  });
+
+  it("lesson 5 reverts with TransferFailed, and undoes every write, when the token returns false", () => {
+    const simulation = getSimulation(5)!;
+    let state = simulation.initialState();
+    const call = (fn: string, args: Record<string, string>) => {
+      const result = callSimulation(simulation, state, fn, args, alice);
+      state = result.state;
+      return result;
+    };
+    call("approve", { spender: "TokenVault", value: "100" });
+    call("deposit", { amount: "50" });
+    call("set_returns_false", { enabled: "1" });
+    const before = state;
+    expect(call("deposit", { amount: "10" })).toMatchObject({ ok: false, error: { error: "TransferFailed", args: { token: TOKEN_ADDRESS } } });
+    // The lowered deposit of a failed withdrawal is undone with the rest of the call.
+    expect(call("withdraw", { amount: "10" })).toMatchObject({ ok: false, error: { error: "TransferFailed" } });
+    expect(state).toBe(before);
+    expect(readMapping(state, "deposits", alice.address)).toBe(50n);
+    call("set_returns_false", { enabled: "0" });
+    expect(call("withdraw", { amount: "10" }).ok).toBe(true);
   });
 });

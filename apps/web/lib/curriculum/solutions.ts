@@ -779,4 +779,217 @@ impl IErc165 for ForgeToken {
     }
 }
 `,
+  16: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, I256, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol_interface! {
+    interface IPriceFeed {
+        function decimals() external view returns (uint8);
+        function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+    }
+}
+
+sol! {
+    error StalePrice(uint256 updated_at, uint256 now);
+    error NegativePrice(int256 answer);
+}
+
+#[derive(SolidityError)]
+pub enum ConsumerError {
+    StalePrice(StalePrice),
+    NegativePrice(NegativePrice),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct PriceConsumer {
+        address feed;
+        uint256 max_age;
+    }
+}
+
+#[public]
+impl PriceConsumer {
+    #[constructor]
+    pub fn constructor(&mut self, feed: Address, max_age: U256) {
+        self.feed.set(feed);
+        self.max_age.set(max_age);
+    }
+
+    pub fn feed(&self) -> Address {
+        self.feed.get()
+    }
+
+    pub fn decimals(&self) -> Result<u8, Vec<u8>> {
+        let feed = IPriceFeed::new(self.feed.get());
+        Ok(feed.decimals(self.vm(), Call::new())?)
+    }
+
+    pub fn price(&self) -> Result<U256, Vec<u8>> {
+        let now = U256::from(self.vm().block_timestamp());
+        let feed = IPriceFeed::new(self.feed.get());
+        let (_, answer, _, updated_at, _) = feed.latest_round_data(self.vm(), Call::new())?;
+        if now - updated_at > self.max_age.get() {
+            return Err(ConsumerError::StalePrice(StalePrice { updated_at, now }).into());
+        }
+        if answer <= I256::ZERO {
+            return Err(ConsumerError::NegativePrice(NegativePrice { answer }).into());
+        }
+        Ok(answer.into_raw())
+    }
+}
+`,
+  17: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::string::String;
+use stylus_sdk::{
+    alloy_primitives::{aliases::U80, Address, I256, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol! {
+    error NotOwner(address caller);
+}
+
+#[derive(SolidityError)]
+pub enum FeedError {
+    NotOwner(NotOwner),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct PriceFeed {
+        address owner;
+        uint80 round_id;
+        int256 answer;
+        uint256 updated_at;
+    }
+}
+
+#[public]
+impl PriceFeed {
+    #[constructor]
+    pub fn constructor(&mut self, owner: Address) {
+        self.owner.set(owner);
+    }
+
+    pub fn decimals(&self) -> u8 {
+        8
+    }
+
+    pub fn description(&self) -> String {
+        String::from("ETH / USD")
+    }
+
+    #[selector(name = "latestRoundData")]
+    pub fn latest_round(&self) -> (U80, I256, U256, U256, U80) {
+        let round = self.round_id.get();
+        let updated_at = self.updated_at.get();
+        (round, self.answer.get(), updated_at, updated_at, round)
+    }
+
+    pub fn set_answer(&mut self, answer: I256) -> Result<(), FeedError> {
+        let caller = self.vm().msg_sender();
+        if caller != self.owner.get() {
+            return Err(FeedError::NotOwner(NotOwner { caller }));
+        }
+        let round = self.round_id.get() + U80::from(1);
+        self.round_id.set(round);
+        self.answer.set(answer);
+        self.updated_at.set(U256::from(self.vm().block_timestamp()));
+        Ok(())
+    }
+}
+`,
+  5: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    prelude::*,
+};
+
+sol_interface! {
+    interface IERC20 {
+        function transfer(address to, uint256 value) external returns (bool);
+        function transferFrom(address from, address to, uint256 value) external returns (bool);
+    }
+}
+
+sol! {
+    event Deposited(address indexed account, uint256 amount);
+    event Withdrawn(address indexed account, uint256 amount);
+    error TransferFailed(address token);
+    error InsufficientDeposit(uint256 available, uint256 requested);
+}
+
+#[derive(SolidityError)]
+pub enum VaultError {
+    TransferFailed(TransferFailed),
+    InsufficientDeposit(InsufficientDeposit),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct TokenVault {
+        address token;
+        mapping(address => uint256) deposits;
+    }
+}
+
+#[public]
+impl TokenVault {
+    #[constructor]
+    pub fn constructor(&mut self, token: Address) {
+        self.token.set(token);
+    }
+
+    pub fn deposit_of(&self, account: Address) -> U256 {
+        self.deposits.get(account)
+    }
+
+    pub fn deposit(&mut self, amount: U256) -> Result<(), Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let vault = self.vm().contract_address();
+        let token = IERC20::new(self.token.get());
+        let config = Call::new_mutating(self);
+        let ok = token.transfer_from(self.vm(), config, account, vault, amount)?;
+        if !ok {
+            return Err(VaultError::TransferFailed(TransferFailed { token: self.token.get() }).into());
+        }
+        let total = self.deposits.get(account) + amount;
+        self.deposits.insert(account, total);
+        self.vm().log(Deposited { account, amount });
+        Ok(())
+    }
+
+    pub fn withdraw(&mut self, amount: U256) -> Result<(), Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let available = self.deposits.get(account);
+        if available < amount {
+            return Err(VaultError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into());
+        }
+        self.deposits.insert(account, available - amount);
+        let token = IERC20::new(self.token.get());
+        let config = Call::new_mutating(self);
+        let ok = token.transfer(self.vm(), config, account, amount)?;
+        if !ok {
+            return Err(VaultError::TransferFailed(TransferFailed { token: self.token.get() }).into());
+        }
+        self.vm().log(Withdrawn { account, amount });
+        Ok(())
+    }
+}
+`,
 };

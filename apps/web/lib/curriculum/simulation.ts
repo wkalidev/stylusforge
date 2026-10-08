@@ -3,8 +3,13 @@
  * pass. They show what the contract does; they never execute the student's Rust.
  */
 
-/** Argument types; a `bytes4` (such as an ERC-165 interface id) is kept as lowercase hex. */
-export type SimType = 'uint256' | 'address' | 'string' | 'bytes4';
+import { toFunctionSelector } from 'viem';
+
+/**
+ * Argument types; a `bytes4` (such as an ERC-165 interface id) is kept as lowercase hex, an `int256`
+ * is a bigint that may be negative.
+ */
+export type SimType = 'uint256' | 'int256' | 'address' | 'string' | 'bytes4';
 export type SimValue = bigint | string;
 
 /**
@@ -27,10 +32,29 @@ export interface SimAccount {
 export interface SimEvent {
   name: string;
   args: Record<string, SimValue>;
+  /** The mock contract that emitted the event; absent when the lesson's contract did. */
+  contract?: string;
 }
 
-/** What a function body sees of its call besides the arguments: the block and the ETH. */
+/**
+ * A contract that the lesson's contract calls, such as a price feed or a token, modelled in
+ * JavaScript and labelled as a mock. Its storage is the record `state[name]`, and its functions
+ * have `contract: name`.
+ */
+export interface SimMock {
+  name: string;
+  address: `0x${string}`;
+  /** One sentence on what the mock stands for. */
+  note: string;
+}
+
+/** The address of the lesson's contract in every simulation (`contract_address()`). */
+export const SIM_CONTRACT_ADDRESS = '0x000000000000000000000000000000000000c0de';
+
+/** What a function body sees of its call besides the arguments: the block, the ETH and its address. */
 export interface SimContext {
+  /** The address of the lesson's contract, SIM_CONTRACT_ADDRESS. */
+  self: string;
   /** Block time, in Unix seconds. */
   timestamp: bigint;
   /** Wei sent with the call (`msg_value()`); zero unless the function is payable. */
@@ -82,9 +106,15 @@ export interface SimFunction {
   /** `#[payable]`: accepts ETH. A call sending ETH to any other function reverts. */
   payable?: boolean;
   params: { name: string; type: SimType }[];
-  /** Return type, as shown in the panel; an array for a tuple, such as `(string, bool)`. A `uint8` is returned as a bigint. */
-  returns?: SimType | 'bool' | 'uint8' | (SimType | 'bool')[];
-  /** Pure: receives a copy of the state, the parsed arguments, the caller, the block and the ETH. */
+  /** Return type, as shown in the panel; an array for a tuple, such as `(string, bool)`. A `uint8` or `uint80` is returned as a bigint. */
+  returns?: SimType | 'bool' | 'uint8' | (SimType | 'bool' | 'uint80')[];
+  /** The mock contract the function belongs to; absent for the lesson's contract. */
+  contract?: string;
+  /**
+   * Pure: receives a copy of the whole state (mocks included), the parsed arguments, the caller,
+   * the block and the ETH. A function of the lesson's contract that calls a mock reads and writes
+   * the mock's record directly, in the same transaction: a revert undoes both.
+   */
   run(state: SimState, args: Record<string, SimValue>, caller: SimAccount, context: SimContext): SimOutcome;
 }
 
@@ -98,9 +128,44 @@ export interface LessonSimulation {
   functions: SimFunction[];
   /** Whether the contract reads the block time, so the panel shows the simulated clock. */
   clock?: boolean;
+  /** Contracts the lesson's contract calls, modelled in JavaScript. */
+  mocks?: SimMock[];
+  /** Whether the panel shows the 4-byte selector of each function, for lessons about the ABI. */
+  selectors?: boolean;
+}
+
+/** The Solidity signature of a function, such as `transfer(address,uint256)`: what its selector hashes. */
+export function functionSignature(fn: SimFunction): string {
+  return `${fn.abiName}(${fn.params.map((param) => param.type).join(',')})`;
+}
+
+/** The 4-byte selector of a function: the first 4 bytes of the keccak-256 hash of its signature. */
+export function functionSelector(fn: SimFunction): `0x${string}` {
+  return toFunctionSelector(functionSignature(fn));
+}
+
+/** Every named address of a simulation: the accounts, the lesson's contract and its mocks. */
+export function namedAddresses(simulation: LessonSimulation): SimAccount[] {
+  return [
+    ...simulation.accounts,
+    { name: simulation.contract, address: SIM_CONTRACT_ADDRESS },
+    ...(simulation.mocks ?? []).map(({ name, address }) => ({ name, address })),
+  ];
+}
+
+/** The storage record of a mock contract. */
+export function mockState(state: SimState, mock: string): SimState {
+  return state[mock] as SimState;
+}
+
+/** Returns a state copy with some fields of a mock contract's storage replaced. */
+export function writeMockState(state: SimState, mock: string, fields: SimState): SimState {
+  return { ...state, [mock]: { ...mockState(state, mock), ...fields } };
 }
 
 export const UINT256_MAX = (1n << 256n) - 1n;
+export const INT256_MIN = -(1n << 255n);
+export const INT256_MAX = (1n << 255n) - 1n;
 
 export class SimArgumentError extends Error {}
 
@@ -114,11 +179,17 @@ export function parseArgument(type: SimType, raw: string, accounts: SimAccount[]
     if (value > UINT256_MAX) throw new SimArgumentError(`${text} does not fit in a uint256`);
     return value;
   }
+  if (type === 'int256') {
+    if (!/^-?\d+$/.test(text)) throw new SimArgumentError(`"${raw}" is not an integer`);
+    const value = BigInt(text);
+    if (value < INT256_MIN || value > INT256_MAX) throw new SimArgumentError(`${text} does not fit in an int256`);
+    return value;
+  }
   if (type === 'bytes4') {
     if (!/^0x[0-9a-fA-F]{8}$/.test(text)) throw new SimArgumentError(`"${raw}" is not a bytes4 (0x and 8 hex digits)`);
     return text.toLowerCase();
   }
-  const account =accounts.find((candidate) => candidate.name.toLowerCase() === text.toLowerCase());
+  const account = accounts.find((candidate) => candidate.name.toLowerCase() === text.toLowerCase());
   if (account) return account.address;
   if (!/^0x[0-9a-fA-F]{40}$/.test(text)) throw new SimArgumentError(`"${raw}" is not an address (or an account name)`);
   return text;
@@ -253,10 +324,11 @@ export function callSimulation(
     // Like the SDK: a function without #[payable] reverts, with no error data, when it receives ETH.
     if (value > 0n && !fn.payable) return failed({ error: `method ${fn.name} not payable` });
     const args: Record<string, SimValue> = {};
+    const named = namedAddresses(simulation);
     for (const param of fn.params) {
-      args[param.name] = parseArgument(param.type, rawArgs[param.name] ?? '', simulation.accounts);
+      args[param.name] = parseArgument(param.type, rawArgs[param.name] ?? '', named);
     }
-    const context: SimContext = { timestamp: call.timestamp ?? SIM_START_TIME, value, balance: before + value };
+    const context: SimContext = { self: SIM_CONTRACT_ADDRESS, timestamp: call.timestamp ?? SIM_START_TIME, value, balance: before + value };
     const snapshot = structuredClone(state);
     const outcome = fn.run(snapshot, args, caller, context);
     if ('revert' in outcome) return failed(outcome.revert);

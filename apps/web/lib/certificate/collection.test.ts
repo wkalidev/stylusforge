@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { LESSONS } from "@/lib/curriculum/lessons";
 import { certificateCollection } from "./collection";
+import { UNAVAILABLE_LESSON } from "@/test/unavailableLesson";
+
+vi.mock("@/lib/curriculum/lessons", async (importOriginal) =>
+  (await import("@/test/unavailableLesson")).withUnavailableLesson(importOriginal),
+);
 
 const none = new Set<number>();
 
@@ -29,7 +34,7 @@ describe("certificateCollection", () => {
     const cards = groups.flatMap((group) => group.cards);
     expect(cards.find((card) => card.lesson.id === 1)?.state).toBe("claimed");
     expect(cards.find((card) => card.lesson.id === 7)?.state).toBe("ready");
-    expect(cards.find((card) => card.lesson.id === 5)?.state).toBe("soon");
+    expect(cards.find((card) => card.lesson.id === UNAVAILABLE_LESSON)?.state).toBe("soon");
   });
 
   it("counts claimed certificates against the available lessons only", () => {
@@ -47,6 +52,6 @@ describe("certificateCollection", () => {
   });
 
   it("never counts a claimed id that is not an available lesson", () => {
-    expect(certificateCollection(new Set([5, 99]), none).claimed).toBe(0);
+    expect(certificateCollection(new Set([UNAVAILABLE_LESSON, 99]), none).claimed).toBe(0);
   });
 });

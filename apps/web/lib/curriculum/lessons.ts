@@ -120,6 +120,122 @@ function eitherSupports(): string[] {
   );
 }
 
+/**
+ * Snippets for a static call of lesson 16 to `method` of the feed: on the feed kept in a local of
+ * any name or built inline, with `Call::new()` or `Call::default()` written inline, or kept in a local
+ * declared just before the statement of the call (with the feed's local in between, or not). The
+ * statement returns the result, keeps it in a local or destructures the round. The result is passed
+ * on with `?`. A configuration local is only accepted from `Call::new()` or `Call::default()`, so a
+ * local holding `Call::new_mutating(self)` does not count.
+ */
+function feedCalls(method: string): string[] {
+  const feeds = ['$f', 'IPriceFeed::new(self.feed.get())', 'IPriceFeed::from(self.feed.get())'];
+  const configs = ['Call::new()', 'Call::default()'];
+  const statements = ['', 'Ok(', 'let $d = ', 'let (_, $a, _, $u, _) = '];
+  return [
+    ...feeds.flatMap((feed) => configs.map((config) => `${feed}.${method}(self.vm(), ${config})?`)),
+    ...configs.flatMap((config) =>
+      statements.flatMap((statement) => [
+        ...feeds.map((feed) => `let $c = ${config}; ${statement}${feed}.${method}(self.vm(), $c)?`),
+        `let $c = ${config}; let $f = IPriceFeed::new(self.feed.get()); ${statement}$f.${method}(self.vm(), $c)?`,
+      ]),
+    ),
+  ];
+}
+
+/**
+ * Snippets for lesson 16's age check: the time since `updated_at` (kept in a local of any name)
+ * greater than `max_age`, read inline or into a local, either way round; with `saturating_sub`; or as
+ * `now` past `updated_at + max_age`.
+ */
+function staleConditions(): string[] {
+  const ages = ['now - $u', 'now.saturating_sub($u)'];
+  const limits = ['self.max_age.get()', '$m'];
+  return [
+    ...ages.flatMap((age) => limits.flatMap((limit) => [`if ${age} > ${limit} {`, `if ${limit} < ${age} {`])),
+    ...limits.flatMap((limit) => [`if now > $u + ${limit} {`, `if $u + ${limit} < now {`]),
+  ];
+}
+
+/**
+ * Snippets for returning a custom error from a method that returns `Result<_, Vec<u8>>`: built in
+ * place up to its fields, or kept in a local first (the error or the enum variant), then converted
+ * with `.into()`. Each entry of `fieldLists` is one accepted way to write the fields.
+ */
+function intoErrorReturns(enumName: string, variant: string, fieldLists: string[]): string[] {
+  return [
+    `Err(${enumName}::${variant}(${variant} {`,
+    ...fieldLists.flatMap((fields) =>
+      [`${variant} { ${fields} }`, `${variant} { ${fields}, }`].flatMap((error) => [
+        `let $x = ${error}; return Err(${enumName}::${variant}($x).into())`,
+        `let $x = ${enumName}::${variant}(${error}); return Err($x.into())`,
+      ]),
+    ),
+  ];
+}
+
+/**
+ * Snippets for lesson 17's new round: the stored round plus one (`U80::from(1)` or `U80::ONE`, either
+ * order), written with `set`, directly or from a local; or the stored round read into a local first.
+ */
+function nextRounds(): string[] {
+  const values = ['U80::from(1)', 'U80::ONE'].flatMap((one) => [`self.round_id.get() + ${one}`, `${one} + self.round_id.get()`]);
+  const fromRead = ['U80::from(1)', 'U80::ONE'].flatMap((one) => [
+    `let $r = self.round_id.get(); self.round_id.set($r + ${one})`,
+    `let $r = self.round_id.get(); self.round_id.set(${one} + $r)`,
+  ]);
+  return [...values.flatMap((value) => [`self.round_id.set(${value})`, `let $n = ${value}; self.round_id.set($n)`]), ...fromRead];
+}
+
+/** Receivers of lesson 5's token calls: the token kept in a local of any name, or built inline. */
+const VAULT_TOKENS = ['$t', 'IERC20::new(self.token.get())', 'IERC20::from(self.token.get())'];
+
+/**
+ * Snippets for a writing call of lesson 5 to `method` of the token with one of `argLists`, the
+ * configuration kept in a local (`Call::new_mutating(self)` written inline does not compile next to
+ * `self.vm()`) and the result passed on with `?`. With `checked`, the call is followed by the test of
+ * its `bool`: kept in a local of any name, or tested inline, with `!` or `== false`.
+ */
+function tokenCalls(method: string, argLists: string[], checked: boolean): string[] {
+  return VAULT_TOKENS.flatMap((token) =>
+    argLists.flatMap((args) => {
+      const call = `${token}.${method}(self.vm(), $c, ${args})?`;
+      return checked ? [`let $ok = ${call}; if !$ok {`, `let $ok = ${call}; if $ok == false {`, `if !${call} {`, `if ${call} == false {`] : [call];
+    }),
+  );
+}
+
+/** Snippets for lesson 5's credit: the deposit plus `amount` (either order), written with `insert` or `setter`, directly or from a local. */
+function credits(): string[] {
+  const sums = ['self.deposits.get(account) + amount', 'amount + self.deposits.get(account)'];
+  return sums.flatMap((sum) => [
+    `self.deposits.insert(account, ${sum})`,
+    `let $x = ${sum}; self.deposits.insert(account, $x)`,
+    `let $x = ${sum}; self.deposits.setter(account).set($x)`,
+  ]);
+}
+
+/**
+ * Snippets for lesson 5's withdrawal in checks-effects-interactions order: the deposit lowered, then
+ * the token called. The token and the configuration may be kept in locals in between, in any order.
+ */
+function lowerThenSend(): string[] {
+  const lowers = [
+    'self.deposits.insert(account, available - amount);',
+    'self.deposits.setter(account).set(available - amount);',
+    'let $l = available - amount; self.deposits.insert(account, $l);',
+    'let $l = available - amount; self.deposits.setter(account).set($l);',
+  ];
+  const setups = [
+    '',
+    'let $c = Call::new_mutating(self);',
+    'let $t = IERC20::new(self.token.get()); let $c = Call::new_mutating(self);',
+    'let $c = Call::new_mutating(self); let $t = IERC20::new(self.token.get());',
+  ];
+  const sends = tokenCalls('transfer', ['account, amount'], false).flatMap((call) => [`let $ok = ${call}`, `if !${call}`]);
+  return lowers.flatMap((lower) => setups.flatMap((setup) => sends.map((send) => `${lower} ${setup} ${send}`)));
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -760,8 +876,235 @@ const CONTENT: Record<number, LessonContent> = {
   5: {
     slug: 'defi-interaction',
     difficulty: 'Advanced',
-    preview: 'A contract that calls into a DeFi protocol.',
+    preview: 'A vault that pulls and pays out ERC-20 tokens through calls to the token contract.',
     minutes: 25,
+    exercise: {
+      explanation: [
+        '## DeFi Interaction',
+        '',
+        'DeFi contracts move tokens that other contracts hold: a vault takes deposits, a pool swaps, a lender takes collateral. They do it with calls that change the state of the token, which take a different configuration from the static calls of lesson 16.',
+        '',
+        '### Writing calls',
+        '',
+        'A function that is not `view` or `pure` needs `Call::new_mutating(self)`, and a `payable` one `Call::new_payable(self, value)`, which sends `value` wei with the call:',
+        '',
+        '```rust',
+        'let token = IERC20::new(self.token.get());',
+        'let config = Call::new_mutating(self);',
+        'let ok = token.transfer(self.vm(), config, to, amount)?;',
+        '```',
+        '',
+        '```rust',
+        'let config = Call::new_payable(self, amount);',
+        'pool.deposit(self.vm(), config)?;',
+        '```',
+        '',
+        'Both take `&mut self`: only a method that may write can let a callee write. Build the configuration first, then pass it. Written inline, `token.transfer(self.vm(), Call::new_mutating(self), to, amount)` does not compile: `self.vm()` borrows `self` for the whole call, and `new_mutating` needs it mutably at the same time (error E0502).',
+        '',
+        'Before a writing call, the SDK writes the storage cache of your contract back to storage and clears it, so the callee and anything it calls see your latest writes, and you read theirs afterwards.',
+        '',
+        '### Pulling tokens',
+        '',
+        'A vault cannot take tokens on its own: the depositor first approves the vault on the token, as in lesson 13, then calls the vault, which calls `transfer_from(depositor, vault, amount)` on the token. The address of the vault is `self.vm().contract_address()`.',
+        '',
+        'ERC-20 `transfer` and `transfer_from` return a `bool`. Most tokens revert on failure, but some return `false` instead, so a vault that ignores the result would credit tokens it never received. Check it, and revert when it is `false`.',
+        '',
+        '### Order of operations',
+        '',
+        '`withdraw` follows checks-effects-interactions, as in lesson 11: check the deposit, lower it, then call the token. Until the call returns, the token runs code you do not control, and your storage must already say that the tokens are gone.',
+        '',
+        'By default, the entrypoint of a Stylus contract also reverts any call that enters it again while it is still running. stylus-sdk 0.10 marks that guard as deprecated, to be removed in a future release, so keep the order safe on its own.',
+        '',
+        '`deposit` calls the token first, then credits the deposit: the deposit must not count until the tokens have arrived, and a revert of `transfer_from` undoes everything anyway.',
+        '',
+        '### Tokens that behave differently',
+        '',
+        'A fee-on-transfer token keeps part of each transfer, so the vault receives less than `amount`, and crediting `amount` would promise tokens that are not there. A real vault measures what arrived, as the Uniswap V2 router does for these tokens with `balanceOf` before and after:',
+        '',
+        '```rust',
+        'let before = token.balance_of(self.vm(), Call::new(), vault)?;',
+        'let config = Call::new_mutating(self);',
+        'token.transfer_from(self.vm(), config, account, vault, amount)?;',
+        'let received = token.balance_of(self.vm(), Call::new(), vault)? - before;',
+        '```',
+        '',
+        'Some tokens return nothing at all: on Ethereum mainnet, the verified ABI of USDT declares `transfer` and `transferFrom` without a return value. An interface that expects a `bool` then cannot decode the empty answer: the SDK returns a decoding error, which `?` turns into a revert, even though the token did not fail. That is why libraries such as SafeERC20 of OpenZeppelin exist: they revert when a token returns `false`, and accept a call that returns no value without reverting. openzeppelin-stylus has a `SafeErc20` too, on stylus-sdk 0.9 (lesson 15).',
+        '',
+        '### Your task',
+        '',
+        '`TokenVault` holds deposits of one token, set by its constructor. The interface of the token and the check of `withdraw` are written.',
+        '',
+        '1. `deposit` pulls `amount` tokens from the caller to the vault.',
+        '2. It reverts with `TransferFailed` when the token returns `false`.',
+        '3. It adds `amount` to the deposit of the caller.',
+        '4. `withdraw` lowers the deposit of the caller before it sends any token.',
+        '5. It sends `amount` tokens to the caller, and reverts with `TransferFailed` when the token returns `false`.',
+        '',
+        'Stuck? Each objective has hints, from a nudge to the exact code.',
+      ].join('\n'),
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use alloc::vec::Vec;',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{Address, U256},',
+        '    alloy_sol_types::sol,',
+        '    prelude::*,',
+        '};',
+        '',
+        'sol_interface! {',
+        '    interface IERC20 {',
+        '        function transfer(address to, uint256 value) external returns (bool);',
+        '        function transferFrom(address from, address to, uint256 value) external returns (bool);',
+        '    }',
+        '}',
+        '',
+        'sol! {',
+        '    event Deposited(address indexed account, uint256 amount);',
+        '    event Withdrawn(address indexed account, uint256 amount);',
+        '    error TransferFailed(address token);',
+        '    error InsufficientDeposit(uint256 available, uint256 requested);',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum VaultError {',
+        '    TransferFailed(TransferFailed),',
+        '    InsufficientDeposit(InsufficientDeposit),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct TokenVault {',
+        '        address token;',
+        '        mapping(address => uint256) deposits;',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl TokenVault {',
+        '    #[constructor]',
+        '    pub fn constructor(&mut self, token: Address) {',
+        '        self.token.set(token);',
+        '    }',
+        '',
+        '    pub fn deposit_of(&self, account: Address) -> U256 {',
+        '        self.deposits.get(account)',
+        '    }',
+        '',
+        '    pub fn deposit(&mut self, amount: U256) -> Result<(), Vec<u8>> {',
+        '        let account = self.vm().msg_sender();',
+        '        let vault = self.vm().contract_address();',
+        '        // TODO: pull amount tokens from account to the vault, revert with TransferFailed',
+        '        // when the token returns false, then add amount to the deposit of account',
+        '        self.vm().log(Deposited { account, amount });',
+        '        Ok(())',
+        '    }',
+        '',
+        '    pub fn withdraw(&mut self, amount: U256) -> Result<(), Vec<u8>> {',
+        '        let account = self.vm().msg_sender();',
+        '        let available = self.deposits.get(account);',
+        '        if available < amount {',
+        '            return Err(VaultError::InsufficientDeposit(InsufficientDeposit { available, requested: amount }).into());',
+        '        }',
+        '        // TODO: lower the deposit, then send amount tokens to account and revert with',
+        '        // TransferFailed when the token returns false',
+        '        self.vm().log(Withdrawn { account, amount });',
+        '        Ok(())',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          anyOf: tokenCalls('transfer_from', ['account, vault, amount', 'account, self.vm().contract_address(), amount'], false),
+          alsoAnyOf: [['let $c = Call::new_mutating(self);']],
+          objective: 'Pull the deposit from the caller to the vault',
+          hints: [
+            'The caller approved the vault on the token: the vault now asks the token to move the tokens, a call that writes.',
+            'Build `Call::new_mutating(self)` into a local first, then call `transfer_from` on `IERC20::new(self.token.get())` from `account` to `vault`.',
+            'Write `let token = IERC20::new(self.token.get()); let config = Call::new_mutating(self);` then `let ok = token.transfer_from(self.vm(), config, account, vault, amount)?;`.',
+          ],
+          anchor: 'pub fn deposit(',
+        },
+        {
+          anyOf: tokenCalls('transfer_from', ['account, vault, amount', 'account, self.vm().contract_address(), amount'], true),
+          alsoAnyOf: [intoErrorReturns('VaultError', 'TransferFailed', ['token: self.token.get()', 'token: *$t', 'token: $t.address', 'token'])],
+          objective: 'Refuse a deposit when the token reports a failed transfer',
+          hints: [
+            'Some tokens return `false` instead of reverting: the vault must not count tokens that never arrived.',
+            'Test the `bool` that `transfer_from` returns, and return the `TransferFailed` error converted with `.into()` when it is `false`.',
+            'Write `let ok = token.transfer_from(self.vm(), config, account, vault, amount)?; if !ok { return Err(VaultError::TransferFailed(TransferFailed { token: self.token.get() }).into()); }`.',
+          ],
+          anchor: 'pub fn deposit(',
+        },
+        {
+          anyOf: credits(),
+          objective: 'Credit the deposit to the caller',
+          hints: [
+            'Once the tokens are in the vault, the deposit of the caller grows by the same amount.',
+            'Read the deposit of `account`, add `amount`, and write it back with `insert`.',
+            'Write `let total = self.deposits.get(account) + amount; self.deposits.insert(account, total);`.',
+          ],
+          anchor: 'pub fn deposit(',
+        },
+        {
+          anyOf: lowerThenSend(),
+          objective: 'Lower the deposit before sending any token',
+          hints: [
+            'Checks, effects, interactions: the deposit must already be lower when the token runs.',
+            'Write `available - amount` to the deposit of `account`, then build the configuration and call `transfer` on the token.',
+            'Write `self.deposits.insert(account, available - amount); let token = IERC20::new(self.token.get()); let config = Call::new_mutating(self); let ok = token.transfer(self.vm(), config, account, amount)?;`.',
+          ],
+          anchor: 'pub fn withdraw(',
+        },
+        {
+          anyOf: tokenCalls('transfer', ['account, amount'], true),
+          alsoAnyOf: [intoErrorReturns('VaultError', 'TransferFailed', ['token: self.token.get()', 'token: *$t', 'token: $t.address', 'token'])],
+          objective: 'Refuse a withdrawal when the token reports a failed transfer',
+          hints: [
+            'The token may return `false` instead of reverting: then the caller got nothing, and the lowered deposit must be undone.',
+            'Test the `bool` that `transfer` returns, and return the `TransferFailed` error converted with `.into()`: the revert undoes the lowered deposit too.',
+            'Write `let ok = token.transfer(self.vm(), config, account, amount)?; if !ok { return Err(VaultError::TransferFailed(TransferFailed { token: self.token.get() }).into()); }`.',
+          ],
+          anchor: 'pub fn withdraw(',
+        },
+      ],
+      quizzes: [
+        {
+          afterStep: "Writing calls",
+          question: "Why build Call::new_mutating(self) in a local before calling token.transfer(self.vm(), config, to, amount)?",
+          options: [
+            "Written inline, it needs self mutably while self.vm() still borrows it, which does not compile",
+            "A local configuration costs less gas",
+            "The SDK reads the configuration before the host",
+          ],
+          answer: 0,
+          explanation: "self.vm() borrows self for the whole call, and new_mutating takes &mut self: written inline, the two borrows overlap (E0502). Built first, the configuration no longer borrows anything.",
+        },
+        {
+          afterStep: "Tokens that behave differently",
+          question: "A token keeps a 1% fee on every transfer. A vault credits each deposit with the amount passed to transfer_from. What goes wrong?",
+          options: [
+            "Nothing: the fee is paid by the vault later",
+            "transfer_from reverts for fee-on-transfer tokens",
+            "The vault credits more than it received, so the last withdrawals cannot be paid",
+          ],
+          answer: 2,
+          explanation: "With a fee, the vault receives less than the amount. Measuring its balance before and after transfer_from, and crediting the difference, keeps deposits backed by tokens.",
+        },
+        {
+          afterStep: "Tokens that behave differently",
+          question: "A token's transfer returns no value, and the vault's interface declares it as returning a bool. What happens on a successful transfer?",
+          options: [
+            "The call reverts: the empty return data cannot be decoded as a bool",
+            "The vault reads false and reverts with TransferFailed",
+            "The vault reads true",
+          ],
+          answer: 0,
+          explanation: "Decoding expects a bool and finds nothing, so the call returns a decoding error, which ? turns into a revert. SafeERC20 libraries accept an empty answer as success instead.",
+        },
+      ],
+    },
   },
   6: {
     slug: 'mappings',
@@ -3344,6 +3687,511 @@ const CONTENT: Record<number, LessonContent> = {
           options: ["Nobody: _mint is not exported", "Only the recipient of the supply", "Anyone"],
           answer: 0,
           explanation: "_mint is a plain Rust method of the Erc20 component, never exported. Only the constructor calls it, so the supply is fixed at deployment.",
+        },
+      ],
+    },
+  },
+  16: {
+    slug: 'calling-solidity',
+    difficulty: 'Intermediate',
+    preview: 'A price consumer that reads a Chainlink-style feed with typed static calls.',
+    minutes: 25,
+    exercise: {
+      explanation: [
+        '## Calling Solidity',
+        '',
+        'Most contracts work with other contracts: tokens, oracles, exchanges, usually written in Solidity. A Stylus contract calls them through their ABI, as a Solidity contract would, and they cannot tell the difference.',
+        '',
+        '### Interfaces with sol_interface!',
+        '',
+        '`sol_interface!` takes Solidity interface declarations and turns each one into a Rust type that wraps the address of a deployed contract:',
+        '',
+        '```rust',
+        'sol_interface! {',
+        '    interface ICounter {',
+        '        function count() external view returns (uint256);',
+        '        function increment() external;',
+        '    }',
+        '}',
+        '```',
+        '',
+        '`ICounter::new(address)` points it at a contract, and each function becomes a method in snake_case. A call is routed by its selector, computed from the Solidity name and parameter types, so they must match the deployed contract exactly. The names of return values are only labels.',
+        '',
+        '### Static calls',
+        '',
+        'A method takes the host, `self.vm()`, then a call configuration, then the Solidity arguments:',
+        '',
+        '```rust',
+        'let counter = ICounter::new(self.counter.get());',
+        'let count = counter.count(self.vm(), Call::new())?;',
+        '```',
+        '',
+        'A `view` or `pure` function takes `Call::new()`, a static call: the callee cannot change any state. `Call` comes with the prelude. Calls that write take another configuration, the topic of lesson 5.',
+        '',
+        'A call returns a `Result`: its error holds the revert data of the callee, or says that the data returned does not match the interface. `?` converts it into `Vec<u8>`, so a method that returns `Result<_, Vec<u8>>` reverts with the data of the callee (a mismatch becomes a generic `Panic`). Your own errors join with `.into()`, as in lesson 11.',
+        '',
+        '### Chainlink price feeds',
+        '',
+        'Chainlink price feeds implement `AggregatorV3Interface`: `decimals()`, and `latestRoundData()`, which returns `roundId`, `answer` (an `int256`), `startedAt`, `updatedAt` and `answeredInRound` (deprecated). A Rust tuple destructures the five values, with `_` for the ones you skip.',
+        '',
+        '`answer` is an integer, and `decimals()` says how many of its digits are decimals: with 8, an answer of 312,345,000,000 is 3,123.45. Feeds do not all use the same number, so read it, and scale before comparing answers of different feeds:',
+        '',
+        '```rust',
+        'let decimals = feed.decimals(self.vm(), Call::new())?;',
+        '// To 18 decimals, for a feed with at most 18.',
+        'let scaled = price * U256::from(10).pow(U256::from(18 - decimals));',
+        '```',
+        '',
+        'A feed is updated when the price moves past its deviation threshold, or when its heartbeat time has passed, and some heartbeats last hours. Chainlink asks consumers to check `updatedAt` and refuse an answer older than they can accept. A zero `updatedAt` marks a round that is not complete; an age check refuses it too, since its age is the whole Unix time.',
+        '',
+        'Check that `answer` is positive before turning it into a `U256` with `into_raw()`, which keeps the bits: -1 would become 2^256 - 1. `I256` compares with `<=` and has `is_positive()`, `is_negative()` and `is_zero()`.',
+        '',
+        '### On Arbitrum: the sequencer',
+        '',
+        'Arbitrum orders transactions with a sequencer. For feeds on L2 networks such as Arbitrum, Chainlink says you must also check its L2 Sequencer Uptime Feed, so that the data stays accurate during a sequencer outage. While the sequencer is down, it produces no new blocks and users lose the usual way to send transactions, while those who can go through L1 keep an advantage. When it comes back, it first processes the transactions that waited in the delayed inbox.',
+        '',
+        'The uptime feed has the same `latestRoundData`: an `answer` of 0 means the sequencer is up, 1 that it is down, and `startedAt` is when the status last changed. Chainlink\'s example reverts while it is down, and until a grace period has passed since it came back (3600 seconds in their example), so that users can react before, for example, mass liquidations:',
+        '',
+        '```rust',
+        'let (_, status, started_at, _, _) = uptime.latest_round_data(self.vm(), Call::new())?;',
+        'let sequencer_up = status == I256::ZERO;',
+        'let back_for = now - started_at;',
+        '// Accept prices only when sequencer_up and back_for > grace_period.',
+        '```',
+        '',
+        'On Arbitrum, `startedAt` is 0 while the uptime contract is not yet initialized. Chainlink lists the address of each uptime feed in its documentation; this lesson leaves the check out to stay short.',
+        '',
+        '### Your task',
+        '',
+        '`PriceConsumer` stores the address of a feed and the oldest age it accepts, `max_age`, both set by its constructor.',
+        '',
+        '1. Declare `latestRoundData` in `IPriceFeed`, with the return types listed in the starter.',
+        '2. `decimals` returns the decimals of the feed, read with a static call.',
+        '3. `price` reads the latest round of the feed with a static call.',
+        '4. It reverts with `StalePrice` when that round is older than `max_age`.',
+        '5. It reverts with `NegativePrice` when the answer is zero or negative.',
+        '6. It returns the answer as a `U256`.',
+        '',
+        'Stuck? Each objective has hints, from a nudge to the exact code.',
+      ].join('\n'),
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use alloc::vec::Vec;',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{Address, I256, U256},',
+        '    alloy_sol_types::sol,',
+        '    prelude::*,',
+        '};',
+        '',
+        'sol_interface! {',
+        '    interface IPriceFeed {',
+        '        function decimals() external view returns (uint8);',
+        '        // TODO: declare latestRoundData, which returns roundId (uint80), answer (int256),',
+        '        // startedAt (uint256), updatedAt (uint256) and answeredInRound (uint80)',
+        '    }',
+        '}',
+        '',
+        'sol! {',
+        '    error StalePrice(uint256 updated_at, uint256 now);',
+        '    error NegativePrice(int256 answer);',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum ConsumerError {',
+        '    StalePrice(StalePrice),',
+        '    NegativePrice(NegativePrice),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct PriceConsumer {',
+        '        address feed;',
+        '        uint256 max_age;',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl PriceConsumer {',
+        '    #[constructor]',
+        '    pub fn constructor(&mut self, feed: Address, max_age: U256) {',
+        '        self.feed.set(feed);',
+        '        self.max_age.set(max_age);',
+        '    }',
+        '',
+        '    pub fn feed(&self) -> Address {',
+        '        self.feed.get()',
+        '    }',
+        '',
+        '    pub fn decimals(&self) -> Result<u8, Vec<u8>> {',
+        '        // TODO: return the decimals of the feed',
+        '        Ok(0)',
+        '    }',
+        '',
+        '    pub fn price(&self) -> Result<U256, Vec<u8>> {',
+        '        let now = U256::from(self.vm().block_timestamp());',
+        '        // TODO: read the latest round of the feed, revert with StalePrice when it is older',
+        '        // than max_age and with NegativePrice when the answer is not positive, then return it',
+        '        Ok(U256::ZERO)',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          // Return names are labels: any names, or none.
+          anyOf: [
+            'function latestRoundData() external view returns (uint80 $a, int256 $b, uint256 $c, uint256 $d, uint80 $e);',
+            'function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80);',
+          ],
+          objective: 'Declare the latest round data function of the feed',
+          hints: [
+            'Copy the Solidity signature: its name, `external view`, and the five return types, in order.',
+            'It takes no parameters and returns a `uint80`, an `int256`, two `uint256` and a `uint80`; the names of return values are optional labels.',
+            'Add `function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);` to `IPriceFeed`.',
+          ],
+          anchor: 'interface IPriceFeed {',
+        },
+        {
+          anyOf: feedCalls('decimals'),
+          objective: 'Return the decimals of the feed',
+          hints: [
+            'Point the interface at the stored address, then call its `decimals` with a static call.',
+            'Build it with `IPriceFeed::new(self.feed.get())`, pass `self.vm()` and `Call::new()` to `decimals`, and let `?` pass a failed call on.',
+            'Write `let feed = IPriceFeed::new(self.feed.get());` then `Ok(feed.decimals(self.vm(), Call::new())?)`.',
+          ],
+          anchor: 'pub fn decimals(',
+        },
+        {
+          anyOf: feedCalls('latest_round_data'),
+          objective: 'Read the latest round of the feed without changing state',
+          hints: [
+            'The feed only reads its storage to answer: a static call is enough.',
+            'Call `latest_round_data` on the feed with `self.vm()` and `Call::new()`, and destructure the tuple it returns.',
+            'Write `let (_, answer, _, updated_at, _) = feed.latest_round_data(self.vm(), Call::new())?;`.',
+          ],
+          anchor: 'pub fn price(',
+        },
+        {
+          anyOf: staleConditions(),
+          alsoAnyOf: [intoErrorReturns('ConsumerError', 'StalePrice', ['updated_at, now', 'updated_at: $u, now'])],
+          objective: 'Refuse a price older than the maximum age',
+          hints: [
+            'The age of the round is the time since its update; compare it with the stored maximum age.',
+            'Subtract `updated_at` from `now`, and when the result is greater than `self.max_age.get()`, return the `StalePrice` error converted with `.into()`.',
+            'Write `if now - updated_at > self.max_age.get() { return Err(ConsumerError::StalePrice(StalePrice { updated_at, now }).into()); }`.',
+          ],
+          anchor: 'pub fn price(',
+        },
+        {
+          anyOf: [
+            'if $a <= I256::ZERO {',
+            'if I256::ZERO >= $a {',
+            'if $a < I256::ONE {',
+            'if I256::ONE > $a {',
+            'if !$a.is_positive() {',
+            'if $a.is_negative() || $a.is_zero() {',
+            'if $a.is_zero() || $a.is_negative() {',
+          ],
+          alsoAnyOf: [intoErrorReturns('ConsumerError', 'NegativePrice', ['answer', 'answer: $a'])],
+          objective: 'Refuse an answer that is zero or negative',
+          hints: [
+            'A price of zero or below is a broken answer, and a negative one would turn into a huge unsigned number.',
+            'Compare `answer` with `I256::ZERO`, zero included, and return the `NegativePrice` error converted with `.into()`.',
+            'Write `if answer <= I256::ZERO { return Err(ConsumerError::NegativePrice(NegativePrice { answer }).into()); }`.',
+          ],
+          anchor: 'pub fn price(',
+        },
+        {
+          anyOf: ['Ok($a.into_raw())', 'Ok($a.unsigned_abs())', 'let $x = $a.into_raw(); Ok($x)', 'let $x = $a.unsigned_abs(); Ok($x)'],
+          objective: 'Return the answer as an unsigned number',
+          hints: [
+            'Once the answer is known to be positive, its bits read the same as an unsigned number.',
+            '`I256` has a method that returns its bits as a `U256`.',
+            'Replace `Ok(U256::ZERO)` with `Ok(answer.into_raw())`.',
+          ],
+          anchor: 'pub fn price(',
+        },
+      ],
+      quizzes: [
+        {
+          afterStep: "Static calls",
+          question: "The feed reverts while price runs feed.latest_round_data(self.vm(), Call::new())?. What does price do?",
+          options: [
+            "It returns zero",
+            "It reverts too, with the revert data of the feed",
+            "It goes on with the previous answer of the feed",
+          ],
+          answer: 1,
+          explanation: "The call returns an Err holding the revert data of the feed, and ? converts it into the Vec<u8> error of price, which reverts with that data.",
+        },
+        {
+          afterStep: "Chainlink price feeds",
+          question: "A feed with 8 decimals answers 250,000,000,000. What price is that?",
+          options: ["2,500", "250,000,000,000", "25"],
+          answer: 0,
+          explanation: "The last 8 digits are decimals: 250,000,000,000 / 10^8 = 2,500. Read decimals() from the feed instead of assuming it.",
+        },
+        {
+          afterStep: "On Arbitrum: the sequencer",
+          question: "The uptime feed answers 0, and its startedAt was 10 minutes ago. With the 3600-second grace period of Chainlink's example, should the consumer accept prices?",
+          options: [
+            "Yes: an answer of 0 means the sequencer is up",
+            "No: an answer of 0 means the sequencer is down",
+            "No: the sequencer came back 10 minutes ago, within the grace period",
+          ],
+          answer: 2,
+          explanation: "0 means up, and startedAt is when the status last changed: the sequencer has only been back for 600 seconds, so users have not had the grace period to react yet.",
+        },
+      ],
+    },
+  },
+  17: {
+    slug: 'being-called',
+    difficulty: 'Intermediate',
+    preview: 'A price feed that Solidity callers can use: exact names, selectors and ABI types.',
+    minutes: 20,
+    exercise: {
+      explanation: [
+        '## Being called',
+        '',
+        'Lesson 16 called a Solidity contract. The other way round, Solidity contracts, wallets and frontends call a Stylus contract through its ABI. When the ABI differs from the interface they were written against, their calls fail.',
+        '',
+        '### The ABI of a Stylus contract',
+        '',
+        'The methods of `#[public]` blocks are the ABI. `cargo stylus export-abi` prints it as a Solidity interface; for the price feed of this lesson:',
+        '',
+        '```solidity',
+        'interface IPriceFeed {',
+        '    function decimals() external view returns (uint8);',
+        '    function description() external view returns (string memory);',
+        '    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80);',
+        '    function setAnswer(int256 answer) external;',
+        '    error NotOwner(address);',
+        '}',
+        '```',
+        '',
+        'Method names go from snake_case to camelCase, and the receiver sets the state mutability, as in lesson 12. This is the interface of Chainlink feeds that lesson 16 called, so the consumer of lesson 16 could read this contract.',
+        '',
+        '### Selectors',
+        '',
+        'A call does not carry a function name. The first 4 bytes of its data are the selector: the first 4 bytes of the keccak-256 hash of the signature, such as `latestRoundData()`. The contract routes the call by its selector; without a fallback, it reverts on a selector it does not know, with no error data.',
+        '',
+        'So each method must produce exactly the name of the interface. When camelCase cannot, `#[selector(name = ...)]` sets it. Tokens that support EIP-2612 permits, for instance, must expose `DOMAIN_SEPARATOR()`, which `domain_separator` would turn into `domainSeparator`:',
+        '',
+        '```rust',
+        '#[selector(name = "DOMAIN_SEPARATOR")]',
+        'pub fn domain_separator(&self) -> B256 {',
+        '    self.domain_separator.get()',
+        '}',
+        '```',
+        '',
+        'Try it shows the selector of each function of this lesson.',
+        '',
+        '### Types',
+        '',
+        '| Solidity | Rust |',
+        '|---|---|',
+        '| `uint8` | `u8` |',
+        '| `uint80` | `U80`, from `alloy_primitives::aliases` |',
+        '| `uint256` | `U256` |',
+        '| `int256` | `I256` |',
+        '| `address` | `Address` |',
+        '| `string` | `String` |',
+        '| `bool` | `bool` |',
+        '',
+        'The selector only hashes the parameter types, but the return types are part of the interface too: callers and their tools are built against it, and `export-abi` prints them. Return a `u8` where the interface says `uint8`, not a `U256`.',
+        '',
+        'In storage, `sol_storage!` takes the Solidity types: `uint80 round_id;` reads and writes a `U80`, and `int256 answer;` an `I256`:',
+        '',
+        '```rust',
+        'pub fn round(&self) -> (U80, I256) {',
+        '    (self.round_id.get(), self.answer.get())',
+        '}',
+        '```',
+        '',
+        '### Reading and writing',
+        '',
+        'Solidity calls `view` functions with `STATICCALL`, which makes any change of state revert. Keep `&self` on the methods that only read, so they are `view` in the ABI. Methods that write check their caller, as in lesson 10: here, only the owner may publish an answer.',
+        '',
+        '### Your task',
+        '',
+        'The constructor sets the owner, and `set_answer` already refuses any other caller.',
+        '',
+        '1. Store the latest answer as a signed 256-bit integer.',
+        '2. Make `decimals` return the Solidity `uint8` that callers expect.',
+        '3. Let callers reach the latest round under the name `latestRoundData`.',
+        '4. Return the latest round with the types of the interface: the stored round and answer, then the update time twice, then the round again.',
+        '5. In `set_answer`, start a new round, store the answer and record the block time.',
+        '',
+        'Stuck? Each objective has hints, from a nudge to the exact code.',
+      ].join('\n'),
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use alloc::string::String;',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{aliases::U80, Address, I256, U256},',
+        '    alloy_sol_types::sol,',
+        '    prelude::*,',
+        '};',
+        '',
+        'sol! {',
+        '    error NotOwner(address caller);',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum FeedError {',
+        '    NotOwner(NotOwner),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct PriceFeed {',
+        '        address owner;',
+        '        uint80 round_id;',
+        '        // TODO: store the latest answer, a signed 256-bit integer',
+        '        uint256 updated_at;',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl PriceFeed {',
+        '    #[constructor]',
+        '    pub fn constructor(&mut self, owner: Address) {',
+        '        self.owner.set(owner);',
+        '    }',
+        '',
+        '    // TODO: callers expect a uint8',
+        '    pub fn decimals(&self) -> U256 {',
+        '        U256::from(8)',
+        '    }',
+        '',
+        '    pub fn description(&self) -> String {',
+        '        String::from("ETH / USD")',
+        '    }',
+        '',
+        '    // TODO: callers call latestRoundData() and expect (uint80, int256, uint256, uint256, uint80)',
+        '    pub fn latest_round(&self) -> (U256, I256, U256, U256, U256) {',
+        '        let updated_at = self.updated_at.get();',
+        '        (U256::ZERO, I256::ZERO, updated_at, updated_at, U256::ZERO)',
+        '    }',
+        '',
+        '    pub fn set_answer(&mut self, answer: I256) -> Result<(), FeedError> {',
+        '        let caller = self.vm().msg_sender();',
+        '        if caller != self.owner.get() {',
+        '            return Err(FeedError::NotOwner(NotOwner { caller }));',
+        '        }',
+        '        // TODO: start a new round, store answer and record the block time',
+        '        Ok(())',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          anyOf: ['int256 answer;'],
+          objective: 'Store the latest answer as a signed number',
+          hints: [
+            'Prices can be negative in the interface: the answer is a signed 256-bit integer.',
+            'Declare it in `sol_storage!` with its Solidity type, `int256`, and name it `answer`.',
+            'Add `int256 answer;` to `pub struct PriceFeed { ... }`.',
+          ],
+          anchor: 'pub struct PriceFeed {',
+        },
+        {
+          anyOf: ['pub fn decimals(&self) -> u8 {'],
+          objective: 'Return the number of decimals with the type callers expect',
+          hints: [
+            'The interface declares `decimals()` as returning a `uint8`, not a `uint256`.',
+            'The Rust type of a Solidity `uint8` is `u8`, and a literal such as `8` fits it.',
+            'Write the signature as `pub fn decimals(&self) -> u8 {` and return `8`.',
+          ],
+          anchor: 'pub fn decimals(',
+        },
+        {
+          // The name inside #[selector(name = "...")] is a string, which checks never read (they blank
+          // strings so that code pasted into one cannot pass): any selector attribute counts.
+          anyOf: ['#[selector(name = "")] pub fn $n(', 'pub fn latest_round_data(&self)'],
+          objective: 'Answer callers that call the latest round data function',
+          hints: [
+            'Callers send the selector of `latestRoundData()`, and the camelCase of `latest_round` is `latestRound`.',
+            'Rename the method so that its camelCase is the name of the interface, or set that name with a `#[selector]` attribute.',
+            'Add `#[selector(name = "latestRoundData")]` above `pub fn latest_round(`, or rename it `pub fn latest_round_data(&self)`.',
+          ],
+          anchor: 'pub fn latest_round(',
+        },
+        {
+          anyOf: ['(&self) -> (U80, I256, U256, U256, U80) {'],
+          alsoAnyOf: [['self.answer.get()'], ['self.round_id.get()']],
+          objective: 'Return the latest round with the types of the interface',
+          hints: [
+            'The interface returns `(uint80, int256, uint256, uint256, uint80)`: the round, the answer, two times and the round again.',
+            'A `uint80` is a `U80`. Read the round and the answer from storage instead of returning zeros.',
+            'Write the signature as `pub fn latest_round(&self) -> (U80, I256, U256, U256, U80) {`, and build the tuple with `self.round_id.get()`, `self.answer.get()` and the update time.',
+          ],
+          anchor: 'pub fn latest_round(',
+        },
+        {
+          anyOf: nextRounds(),
+          objective: 'Start a new round with each answer',
+          hints: [
+            'Each answer gets the next round id: one more than the stored one.',
+            'Add `U80::from(1)` to the stored round, and write the result back with `set`.',
+            'Write `self.round_id.set(self.round_id.get() + U80::from(1));`.',
+          ],
+          anchor: 'pub fn set_answer(',
+        },
+        {
+          anyOf: ['self.answer.set(answer)'],
+          objective: 'Store the new answer',
+          hints: [
+            'The answer passed by the owner replaces the stored one.',
+            'A storage field is written with `set`.',
+            'Write `self.answer.set(answer);`.',
+          ],
+          anchor: 'pub fn set_answer(',
+        },
+        {
+          anyOf: ['self.updated_at.set(U256::from(self.vm().block_timestamp()))', 'let $t = U256::from(self.vm().block_timestamp()); self.updated_at.set($t)'],
+          objective: 'Record when the answer was published',
+          hints: [
+            'Consumers check how old the answer is, from the time of its update.',
+            'Read the block time from the host, as in lesson 9, and convert it to a `U256`.',
+            'Write `self.updated_at.set(U256::from(self.vm().block_timestamp()));`.',
+          ],
+          anchor: 'pub fn set_answer(',
+        },
+      ],
+      quizzes: [
+        {
+          afterStep: "Selectors",
+          question: "A Solidity contract calls latestRoundData() on a Stylus contract whose method is latest_round, without a selector attribute. What happens?",
+          options: [
+            "Stylus matches the closest name and runs latest_round",
+            "The call reverts: no method has the selector of latestRoundData()",
+            "The call returns empty data without reverting",
+          ],
+          answer: 1,
+          explanation: "latest_round is exported as latestRound(), whose selector differs. Without a fallback, an unknown selector reverts with no error data.",
+        },
+        {
+          afterStep: "Types",
+          question: "Which Rust return type gives a Solidity uint8 in the ABI that export-abi prints?",
+          options: ["u8", "U256", "u128"],
+          answer: 0,
+          explanation: "A u8 is exported as uint8 (so is U8 from alloy_primitives::aliases). A U256 would export as uint256 and a u128 as uint128, and no longer match the interface that callers expect.",
+        },
+        {
+          afterStep: "Reading and writing",
+          question: "Why keep &self on latest_round_data, which only reads?",
+          options: [
+            "A &mut self method cannot read storage",
+            "It saves the gas of the storage cache",
+            "It makes the method view in the ABI, which matches the interface and lets Solidity call it with STATICCALL",
+          ],
+          answer: 2,
+          explanation: "The receiver sets the state mutability. Solidity calls view functions with STATICCALL, so the ABI should say view for a method that only reads.",
         },
       ],
     },

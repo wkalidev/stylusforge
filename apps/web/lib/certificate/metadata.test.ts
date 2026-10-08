@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { LESSONS } from "@/lib/curriculum/lessons";
 import { certificateLesson, certificateMetadata, parseTokenId } from "./metadata";
+import { UNAVAILABLE_LESSON } from "@/test/unavailableLesson";
+
+vi.mock("@/lib/curriculum/lessons", async (importOriginal) =>
+  (await import("@/test/unavailableLesson")).withUnavailableLesson(importOriginal),
+);
 
 describe("parseTokenId", () => {
   it("accepts decimal ids", () => {
@@ -25,7 +30,7 @@ describe("parseTokenId", () => {
 describe("certificateLesson", () => {
   it("returns available lessons only", () => {
     expect(certificateLesson(1)?.slug).toBe("hello-world");
-    expect(certificateLesson(5)).toBeNull();
+    expect(certificateLesson(UNAVAILABLE_LESSON)).toBeNull();
     expect(certificateLesson(99)).toBeNull();
   });
 });
