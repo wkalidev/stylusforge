@@ -162,7 +162,7 @@ describe("lesson 20: Security pitfalls", () => {
   const objectives = [
     "Set the owner once, when the contract is deployed",
     "Authorize the account that calls the treasury",
-    "Refuse a withdrawal above the balance instead of wrapping around",
+    "Subtract with checked_sub, so a withdrawal above the balance fails instead of wrapping around",
     "Lower the balance before the ETH leaves",
     "Write the storage cache to storage before sending the ETH",
   ];

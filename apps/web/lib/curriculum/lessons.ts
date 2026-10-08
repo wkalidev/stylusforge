@@ -5154,10 +5154,10 @@ const CONTENT: Record<number, LessonContent> = {
           anyOf: checkedWithdrawals(),
           // The planted bug: a subtraction that wraps around below zero.
           noneOf: ['- amount', '-= amount'],
-          objective: 'Refuse a withdrawal above the balance instead of wrapping around',
+          objective: 'Subtract with checked_sub, so a withdrawal above the balance fails instead of wrapping around',
           hints: [
             'Subtracting more than the balance wraps around to a huge number: the account would be left with a fortune instead of an error.',
-            'Use `checked_sub`, which returns `None` below zero, and turn the `None` into `InsufficientBalance` with `ok_or` and `?`.',
+            'Replace the plain `-` with `checked_sub`, which returns `None` below zero, and turn the `None` into `InsufficientBalance` with `ok_or` and `?`. An `if amount > available` guard before a plain `-` does not pass: this check asks for `checked_sub`, so the subtraction itself can never wrap, even if the guard is later changed or removed.',
             'Write `let remaining = available.checked_sub(amount).ok_or(TreasuryError::InsufficientBalance(InsufficientBalance { available, requested: amount }))?;`.',
           ],
           anchor: 'pub fn withdraw(',
