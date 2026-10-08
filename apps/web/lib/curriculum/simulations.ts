@@ -1143,6 +1143,83 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  20: {
+    contract: 'Treasury',
+    note: 'The model is the fixed treasury, deployed with Alice as the owner, as if the constructor received her address, and a withdrawal limit of 1,000 wei. Send ETH with deposit using its value field.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ owner: SIM_ACCOUNTS[0].address, limit: 1000n, balances: {} }),
+    functions: [
+      {
+        name: 'owner',
+        abiName: 'owner',
+        view: true,
+        params: [],
+        returns: 'address',
+        run: (state) => ({ returns: state.owner as string }),
+      },
+      {
+        name: 'limit',
+        abiName: 'limit',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.limit as bigint }),
+      },
+      {
+        name: 'set_limit',
+        abiName: 'setLimit',
+        view: false,
+        params: [{ name: 'limit', type: 'uint256' }],
+        // only_owner compares the owner with msg_sender, never with tx_origin.
+        run: (state, args, caller) =>
+          caller.address.toLowerCase() === (state.owner as string).toLowerCase()
+            ? { state: { ...state, limit: args.limit } }
+            : { revert: { error: 'NotOwner', args: { caller: caller.address } } },
+      },
+      {
+        name: 'deposit',
+        abiName: 'deposit',
+        view: false,
+        payable: true,
+        params: [],
+        run: (state, _args, caller, context) => {
+          const total = wrappingAdd(readMapping(state, 'balances', caller.address), context.value);
+          return {
+            state: writeMapping(state, 'balances', caller.address, total),
+            events: [{ name: 'Deposited', args: { account: caller.address, amount: context.value } }],
+          };
+        },
+      },
+      {
+        name: 'balance_of',
+        abiName: 'balanceOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'balances', args.account as string) }),
+      },
+      {
+        name: 'withdraw',
+        abiName: 'withdraw',
+        view: false,
+        params: [{ name: 'amount', type: 'uint256' }],
+        run: (state, args, caller) => {
+          const amount = args.amount as bigint;
+          const limit = state.limit as bigint;
+          if (amount > limit) return { revert: { error: 'LimitExceeded', args: { limit, requested: amount } } };
+          const available = readMapping(state, 'balances', caller.address);
+          // checked_sub reverts below zero instead of wrapping around.
+          if (available < amount) return { revert: { error: 'InsufficientBalance', args: { available, requested: amount } } };
+          // Effects, then the interaction: the balance is lowered before the ETH is sent.
+          return {
+            state: writeMapping(state, 'balances', caller.address, available - amount),
+            transfers: [{ to: caller.address, amount }],
+            events: [{ name: 'Withdrawn', args: { account: caller.address, amount } }],
+          };
+        },
+      },
+    ],
+  },
 };
 
 /** The result of a call to lesson 5's mock token: a revert, or its state, its bool and its events. */
