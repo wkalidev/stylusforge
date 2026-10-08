@@ -286,7 +286,40 @@ describe("lesson 12: View/pure and gas", () => {
       "let scaled = amount\n            .checked_mul(rate_bps)\n            .ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?;",
       "let scaled = amount * rate_bps;",
     );
-    expect(result.objectives).toEqual(["Multiply without silently wrapping around", "Revert with FeeOverflow when the product does not fit"]);
+    expect(result.objectives).toEqual([
+      "Multiply without silently wrapping around",
+      "Revert with FeeOverflow when the product does not fit",
+      "Return the fee as a share of 10,000 basis points",
+    ]);
+  });
+
+  const fee = `${product}\n        Ok(scaled / U256::from(10_000))`;
+
+  it("accepts the checked product under any local name", () => {
+    const renamed = "let product = amount\n            .checked_mul(rate_bps)\n            .ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?;\n        Ok(product / U256::from(10_000))";
+    expect(variant(12, fee, renamed).passed).toBe(true);
+    const local = "let p = rate_bps.checked_mul(amount).ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?;\n        let bps = p / U256::from(10000);\n        Ok(bps)";
+    expect(variant(12, fee, local).passed).toBe(true);
+  });
+
+  it("refuses a fee divided from another local than the checked product", () => {
+    const other = `${product}\n        Ok(amount / U256::from(10_000))`;
+    expect(variant(12, fee, other).objectives).toEqual(["Return the fee as a share of 10,000 basis points"]);
+    const renamedOnce = `${product.replace("let scaled", "let product")}\n        Ok(scaled / U256::from(10_000))`;
+    expect(variant(12, fee, renamedOnce).objectives).toEqual(["Return the fee as a share of 10,000 basis points"]);
+  });
+
+  const pair = "let rate = self.rate_bps.get();\n        Ok((Self::fee(first, rate)?, Self::fee(second, rate)?))";
+
+  it("accepts the rate read once under any local name", () => {
+    expect(variant(12, pair, "let bps = self.rate_bps.get();\n        Ok((Self::fee(first, bps)?, Self::fee(second, bps)?))").passed).toBe(true);
+  });
+
+  it("refuses a pair of fees that do not both use the local rate", () => {
+    const mixed = "let bps = self.rate_bps.get();\n        Ok((Self::fee(first, bps)?, Self::fee(second, rate)?))";
+    expect(variant(12, pair, mixed).objectives).toEqual(["Read the rate from storage only once"]);
+    const once = "let bps = self.rate_bps.get();\n        Ok((Self::fee(first, bps)?, Self::fee(second, self.rate_bps.get())?))";
+    expect(variant(12, pair, once).objectives).toEqual(["Read the rate from storage only once"]);
   });
 
   it("refuses a fee that keeps self, and a quote that takes &mut self", () => {

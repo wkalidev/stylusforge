@@ -215,6 +215,9 @@ const DEPOSIT_TOTALS = [
   'let mut $s = self.vm().msg_value(); $s += self.deposits.get(account);',
 ];
 
+/** Lesson 12's checked product of the amount and the rate, kept in a local of any name. */
+const CHECKED_PRODUCTS = ['let $s = amount.checked_mul(rate_bps)', 'let $s = rate_bps.checked_mul(amount)'];
+
 /** Receivers of lesson 5's token calls: the token kept in a local of any name, or built inline. */
 const VAULT_TOKENS = ['$t', 'IERC20::new(self.token.get())', 'IERC20::from(self.token.get())'];
 
@@ -2832,7 +2835,7 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn fee(',
         },
         {
-          anyOf: ['let scaled = amount.checked_mul(rate_bps)', 'let scaled = rate_bps.checked_mul(amount)'],
+          anyOf: CHECKED_PRODUCTS,
           objective: 'Multiply without silently wrapping around',
           hints: [
             '`*` on `U256` wraps around on overflow and gives a wrong fee instead of an error.',
@@ -2859,13 +2862,9 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn fee(',
         },
         {
-          anyOf: [
-            'Ok(scaled / U256::from(10_000))',
-            'Ok(scaled / U256::from(10000))',
-            // The fee computed in a local first (the product is still named scaled, #111).
-            'let $x = scaled / U256::from(10_000); Ok($x)',
-            'let $x = scaled / U256::from(10000); Ok($x)',
-          ],
+          // The checked product kept in a local of any name, divided inline or into a local first.
+          given: [CHECKED_PRODUCTS],
+          anyOf: ['U256::from(10_000)', 'U256::from(10000)'].flatMap((bps) => [`Ok($s / ${bps})`, `let $x = $s / ${bps}; Ok($x)`]),
           objective: 'Return the fee as a share of 10,000 basis points',
           hints: [
             'The checked product is in basis points: 10,000 of them are 100%.',
@@ -2900,8 +2899,9 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn quote(',
         },
         {
-          anyOf: ['let rate = self.rate_bps.get();'],
-          alsoAnyOf: [['Self::fee(first, rate)?'], ['Self::fee(second, rate)?']],
+          // The rate kept in a local of any name, the same one passed to both fees.
+          anyOf: ['let $r = self.rate_bps.get();'],
+          alsoAnyOf: [['Self::fee(first, $r)?'], ['Self::fee(second, $r)?']],
           objective: 'Read the rate from storage only once',
           hints: [
             'Every storage read is a call to the host: read the rate once, before both fees.',
