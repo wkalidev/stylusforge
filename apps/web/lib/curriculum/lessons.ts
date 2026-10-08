@@ -4851,6 +4851,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  20: {
+    slug: 'security-pitfalls',
+    difficulty: 'Advanced',
+    preview: 'An audit of a small treasury: five planted bugs to remove, from an open init to a raw call that skips the storage cache.',
+    minutes: 30,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
