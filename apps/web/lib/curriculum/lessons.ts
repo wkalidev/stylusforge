@@ -4251,9 +4251,8 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn decimals(',
         },
         {
-          // The name inside #[selector(name = "...")] is a string, which checks never read (they blank
-          // strings so that code pasted into one cannot pass): any selector attribute counts.
-          anyOf: ['#[selector(name = "")] pub fn $n(', 'pub fn latest_round_data(&self)'],
+          // The name inside #[selector(name = "...")] is a string literal: it must be spelled exactly.
+          literals: [['#[selector(name = "latestRoundData")] pub fn $n(', 'pub fn latest_round_data(&self)']],
           objective: 'Answer callers that call the latest round data function',
           hints: [
             'Callers send the selector of `latestRoundData()`, and the camelCase of `latest_round` is `latestRound`.',
