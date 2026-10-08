@@ -14,18 +14,40 @@ function variant(lessonId: number, from: string, to: string) {
 }
 
 describe("lesson 9: msg context", () => {
+  const body =
+    "let visitor = self.vm().msg_sender();\n        let now = U256::from(self.vm().block_timestamp());\n        self.check_ins.insert(visitor, now);\n        self.last_visitor.set(visitor);";
+
   it("accepts setter(key).set(value) to record the check-in", () => {
     expect(variant(9, "self.check_ins.insert(visitor, now);", "self.check_ins.setter(visitor).set(now);").passed).toBe(true);
   });
 
-  it("refuses tx_origin as the visitor", () => {
-    const result = variant(9, "let visitor = self.vm().msg_sender();", "let visitor = self.vm().tx_origin();");
-    expect(result.objectives).toEqual(["Find out who is checking in"]);
+  it("accepts the caller and the time under any local names", () => {
+    const renamed =
+      "let sender = self.vm().msg_sender();\n        let timestamp = U256::from(self.vm().block_timestamp());\n        self.check_ins.setter(sender).set(timestamp);\n        self.last_visitor.set(sender);";
+    expect(variant(9, body, renamed).passed).toBe(true);
+    const timeFirst =
+      "let t = U256::from(self.vm().block_timestamp());\n        let who = self.vm().msg_sender();\n        self.last_visitor.set(who);\n        self.check_ins.insert(who, t);";
+    expect(variant(9, body, timeFirst).passed).toBe(true);
   });
 
-  it("refuses the L1 block number in place of the block time", () => {
+  it("refuses the time and the visitor swapped, or a local that is neither", () => {
+    expect(variant(9, "self.check_ins.insert(visitor, now);", "self.check_ins.insert(now, visitor);").objectives).toEqual([
+      "Record the visitor's check-in time",
+    ]);
+    expect(variant(9, "self.last_visitor.set(visitor);", "self.last_visitor.set(now);").objectives).toEqual(["Make the caller the last visitor"]);
+    expect(variant(9, "self.check_ins.insert(visitor, now);", "self.check_ins.insert(account, now);").objectives).toEqual([
+      "Record the visitor's check-in time",
+    ]);
+  });
+
+  it("refuses tx_origin as the visitor, and so the visitor recorded and kept", () => {
+    const result = variant(9, "let visitor = self.vm().msg_sender();", "let visitor = self.vm().tx_origin();");
+    expect(result.objectives).toEqual(["Find out who is checking in", "Record the visitor's check-in time", "Make the caller the last visitor"]);
+  });
+
+  it("refuses the L1 block number in place of the block time, and so the time recorded", () => {
     const result = variant(9, "self.vm().block_timestamp()", "self.vm().block_number()");
-    expect(result.objectives).toEqual(["Read the current block time as a 256-bit number"]);
+    expect(result.objectives).toEqual(["Read the current block time as a 256-bit number", "Record the visitor's check-in time"]);
   });
 
   it("refuses a check-in that does not update the last visitor", () => {
@@ -77,6 +99,24 @@ describe("lesson 10: Access control", () => {
     expect(variant(10, refuse, "let error = AccessError::Unauthorized(Unauthorized { caller });\n            return Err(error);").passed).toBe(true);
   });
 
+  const guard = "let caller = self.vm().msg_sender();\n        if caller != self.owner.get() {\n            return Err(AccessError::Unauthorized(Unauthorized { caller }));";
+  const guardNamed = (name: string, compared = name, field = `caller: ${name}`) =>
+    `let ${name} = self.vm().msg_sender();\n        if ${compared} != self.owner.get() {\n            return Err(AccessError::Unauthorized(Unauthorized { ${field} }));`;
+
+  it("accepts the caller under any local name, in the comparison and the error", () => {
+    expect(variant(10, guard, guardNamed("sender")).passed).toBe(true);
+    expect(variant(10, guard, guardNamed("caller", "caller", "caller: caller")).passed).toBe(true);
+    expect(
+      variant(10, guard, "let account = self.vm().msg_sender();\n        if self.owner.get() != account {\n            let error = Unauthorized { caller: account };\n            return Err(AccessError::Unauthorized(error));").passed,
+    ).toBe(true);
+  });
+
+  it("refuses a comparison or an error that uses another local than the caller's", () => {
+    expect(variant(10, guard, guardNamed("sender", "caller")).objectives).toEqual(["Compare the caller with the owner"]);
+    expect(variant(10, guard, guardNamed("sender", "sender", "caller")).objectives).toEqual(["Refuse every caller but the owner"]);
+    expect(variant(10, guard, guardNamed("sender", "sender", "caller: owner")).objectives).toEqual(["Refuse every caller but the owner"]);
+  });
+
   it("refuses an error built in a local but never returned", () => {
     const result = variant(10, refuse, "let _error = Unauthorized { caller };\n            return Ok(());");
     expect(result.objectives).toEqual(["Refuse every caller but the owner"]);
@@ -87,9 +127,9 @@ describe("lesson 10: Access control", () => {
     expect(result.objectives).toEqual(["Store the owner chosen at deployment"]);
   });
 
-  it("refuses a guard that checks tx_origin", () => {
+  it("refuses a guard that checks tx_origin, and so the comparison and the error that use it", () => {
     const result = variant(10, "let caller = self.vm().msg_sender();", "let caller = self.vm().tx_origin();");
-    expect(result.objectives).toEqual(["Find out who is calling"]);
+    expect(result.objectives).toEqual(["Find out who is calling", "Compare the caller with the owner", "Refuse every caller but the owner"]);
   });
 
   it("refuses a guard called after the write", () => {
@@ -126,9 +166,27 @@ describe("lesson 11: Payable and sending ETH", () => {
     expect(variant(11, deposit, "let mut total = self.deposits.get(account);\n        total += self.vm().msg_value();").passed).toBe(true);
   });
 
-  it("refuses a local ETH amount that is never added", () => {
+  it("refuses a local ETH amount that is never added, and so the deposit saved", () => {
     const result = variant(11, deposit, "let sent = self.vm().msg_value();\n        let total = self.deposits.get(account) + U256::from(1);");
-    expect(result.objectives).toEqual(["Add the ETH sent with the call to the caller's deposit"]);
+    expect(result.objectives).toEqual(["Add the ETH sent with the call to the caller's deposit", "Save the caller's new deposit"]);
+  });
+
+  const save = `${deposit}\n        self.deposits.insert(account, total);`;
+
+  it("accepts the new deposit under any local name", () => {
+    expect(variant(11, save, "let balance = self.deposits.get(account) + self.vm().msg_value();\n        self.deposits.insert(account, balance);").passed).toBe(true);
+    expect(
+      variant(11, save, "let mut credited = self.deposits.get(account);\n        credited += self.vm().msg_value();\n        self.deposits.setter(account).set(credited);").passed,
+    ).toBe(true);
+    expect(
+      variant(11, save, "let sent = self.vm().msg_value();\n        let new_deposit = sent + self.deposits.get(account);\n        self.deposits.insert(account, new_deposit);").passed,
+    ).toBe(true);
+  });
+
+  it("refuses a deposit saved from another local than the new total", () => {
+    const fromSent = "let sent = self.vm().msg_value();\n        let sum = self.deposits.get(account) + sent;\n        self.deposits.insert(account, sent);";
+    expect(variant(11, save, fromSent).objectives).toEqual(["Save the caller's new deposit"]);
+    expect(variant(11, save, `${deposit}\n        self.deposits.insert(account, totals);`).objectives).toEqual(["Save the caller's new deposit"]);
   });
 
   it("accepts the lowered deposit computed in a local variable first", () => {
@@ -228,7 +286,40 @@ describe("lesson 12: View/pure and gas", () => {
       "let scaled = amount\n            .checked_mul(rate_bps)\n            .ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?;",
       "let scaled = amount * rate_bps;",
     );
-    expect(result.objectives).toEqual(["Multiply without silently wrapping around", "Revert with FeeOverflow when the product does not fit"]);
+    expect(result.objectives).toEqual([
+      "Multiply without silently wrapping around",
+      "Revert with FeeOverflow when the product does not fit",
+      "Return the fee as a share of 10,000 basis points",
+    ]);
+  });
+
+  const fee = `${product}\n        Ok(scaled / U256::from(10_000))`;
+
+  it("accepts the checked product under any local name", () => {
+    const renamed = "let product = amount\n            .checked_mul(rate_bps)\n            .ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?;\n        Ok(product / U256::from(10_000))";
+    expect(variant(12, fee, renamed).passed).toBe(true);
+    const local = "let p = rate_bps.checked_mul(amount).ok_or(QuoteError::FeeOverflow(FeeOverflow { amount, rate_bps }))?;\n        let bps = p / U256::from(10000);\n        Ok(bps)";
+    expect(variant(12, fee, local).passed).toBe(true);
+  });
+
+  it("refuses a fee divided from another local than the checked product", () => {
+    const other = `${product}\n        Ok(amount / U256::from(10_000))`;
+    expect(variant(12, fee, other).objectives).toEqual(["Return the fee as a share of 10,000 basis points"]);
+    const renamedOnce = `${product.replace("let scaled", "let product")}\n        Ok(scaled / U256::from(10_000))`;
+    expect(variant(12, fee, renamedOnce).objectives).toEqual(["Return the fee as a share of 10,000 basis points"]);
+  });
+
+  const pair = "let rate = self.rate_bps.get();\n        Ok((Self::fee(first, rate)?, Self::fee(second, rate)?))";
+
+  it("accepts the rate read once under any local name", () => {
+    expect(variant(12, pair, "let bps = self.rate_bps.get();\n        Ok((Self::fee(first, bps)?, Self::fee(second, bps)?))").passed).toBe(true);
+  });
+
+  it("refuses a pair of fees that do not both use the local rate", () => {
+    const mixed = "let bps = self.rate_bps.get();\n        Ok((Self::fee(first, bps)?, Self::fee(second, rate)?))";
+    expect(variant(12, pair, mixed).objectives).toEqual(["Read the rate from storage only once"]);
+    const once = "let bps = self.rate_bps.get();\n        Ok((Self::fee(first, bps)?, Self::fee(second, self.rate_bps.get())?))";
+    expect(variant(12, pair, once).objectives).toEqual(["Read the rate from storage only once"]);
   });
 
   it("refuses a fee that keeps self, and a quote that takes &mut self", () => {

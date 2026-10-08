@@ -90,16 +90,18 @@ function guardedReturns(conditions: string[], errors: string[]): string[] {
  * the read would borrow the mapping while the setter holds it, which does not compile.
  */
 function balanceUpdates(account: string, op: '+' | '-'): string[] {
+  // Placeholders bind across the groups of a check: each account gets its own locals.
+  const [read, written] = [`$${account}_read`, `$${account}_written`];
   const sums = (balance: string) =>
     ['U256::from(1)', 'U256::ONE'].flatMap((one) => [`${balance} ${op} ${one}`, ...(op === '+' ? [`${one} + ${balance}`] : [])]);
-  const fromLocal = sums('$x');
+  const fromLocal = sums(read);
   const inline = sums(`self.balances.get(${account})`);
   const insert = (value: string) => `self.balances.insert(${account}, ${value})`;
   const set = (value: string) => `self.balances.setter(${account}).set(${value})`;
   return [
     ...fromLocal.flatMap((value) => [insert(value), set(value)]),
     ...inline.map(insert),
-    ...[...fromLocal, ...inline].flatMap((value) => [`let $y = ${value}; ${insert('$y')}`, `let $y = ${value}; ${set('$y')}`]),
+    ...[...fromLocal, ...inline].flatMap((value) => [`let ${written} = ${value}; ${insert(written)}`, `let ${written} = ${value}; ${set(written)}`]),
   ];
 }
 
@@ -186,6 +188,35 @@ function nextRounds(): string[] {
   ]);
   return [...values.flatMap((value) => [`self.round_id.set(${value})`, `let $n = ${value}; self.round_id.set($n)`]), ...fromRead];
 }
+
+/** Lesson 9's caller and block time, each read into a local of any name. */
+const VISITOR = 'let $v = self.vm().msg_sender();';
+const CHECK_IN_TIME = 'let $t = U256::from(self.vm().block_timestamp());';
+
+/** Lesson 10's guard reading the caller into a local of any name. */
+const GUARD_CALLER = 'let $c = self.vm().msg_sender();';
+
+/**
+ * Lesson 11's new deposit, kept in a local of any name: the deposit of `account` plus the ETH sent,
+ * in either order, each read inline or into a local first, or a `let mut` updated in place.
+ */
+const DEPOSIT_TOTALS = [
+  'let $s = self.deposits.get(account) + self.vm().msg_value();',
+  'let $s = self.vm().msg_value() + self.deposits.get(account);',
+  'let $x = self.vm().msg_value(); let $s = self.deposits.get(account) + $x;',
+  'let $x = self.vm().msg_value(); let $s = $x + self.deposits.get(account);',
+  'let $x = self.deposits.get(account); let $s = $x + self.vm().msg_value();',
+  'let $x = self.deposits.get(account); let $s = self.vm().msg_value() + $x;',
+  'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let $s = $x + $y;',
+  'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let $s = $y + $x;',
+  'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let $s = $x + $y;',
+  'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let $s = $y + $x;',
+  'let mut $s = self.deposits.get(account); $s += self.vm().msg_value();',
+  'let mut $s = self.vm().msg_value(); $s += self.deposits.get(account);',
+];
+
+/** Lesson 12's checked product of the amount and the rate, kept in a local of any name. */
+const CHECKED_PRODUCTS = ['let $s = amount.checked_mul(rate_bps)', 'let $s = rate_bps.checked_mul(amount)'];
 
 /** Receivers of lesson 5's token calls: the token kept in a local of any name, or built inline. */
 const VAULT_TOKENS = ['$t', 'IERC20::new(self.token.get())', 'IERC20::from(self.token.get())'];
@@ -2066,7 +2097,7 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub struct Attendance {',
         },
         {
-          anyOf: ['let visitor = self.vm().msg_sender();'],
+          anyOf: [VISITOR],
           objective: 'Find out who is checking in',
           hints: [
             'The account that called the contract comes from the host, `self.vm()`.',
@@ -2076,7 +2107,7 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn check_in(',
         },
         {
-          anyOf: ['let now = U256::from(self.vm().block_timestamp());'],
+          anyOf: [CHECK_IN_TIME],
           objective: 'Read the current block time as a 256-bit number',
           hints: [
             'The host also knows the block the call runs in, including its time.',
@@ -2086,7 +2117,9 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn check_in(',
         },
         {
-          anyOf: ['self.check_ins.insert(visitor, now)', 'self.check_ins.setter(visitor).set(now)'],
+          // The visitor and the time are kept in locals of any name, written under the right key.
+          given: [[VISITOR], [CHECK_IN_TIME]],
+          anyOf: ['self.check_ins.insert($v, $t)', 'self.check_ins.setter($v).set($t)'],
           objective: "Record the visitor's check-in time",
           hints: [
             'Write the time into the `check_ins` mapping, under the visitor.',
@@ -2096,7 +2129,8 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn check_in(',
         },
         {
-          anyOf: ['self.last_visitor.set(visitor)'],
+          given: [[VISITOR]],
+          anyOf: ['self.last_visitor.set($v)'],
           objective: 'Make the caller the last visitor',
           hints: [
             'The last visitor changes on every check-in.',
@@ -2305,7 +2339,7 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn constructor(',
         },
         {
-          anyOf: ['let caller = self.vm().msg_sender();'],
+          anyOf: [GUARD_CALLER],
           objective: 'Find out who is calling',
           hints: [
             'The guard needs the account that called the contract.',
@@ -2315,7 +2349,8 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'fn only_owner(',
         },
         {
-          anyOf: ['if caller != self.owner.get() {', 'if self.owner.get() != caller {'],
+          given: [[GUARD_CALLER]],
+          anyOf: ['if $c != self.owner.get() {', 'if self.owner.get() != $c {'],
           objective: 'Compare the caller with the owner',
           hints: [
             'Read the stored owner and compare it with `caller`.',
@@ -2325,12 +2360,14 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'fn only_owner(',
         },
         {
-          anyOf: [
-            'Err(AccessError::Unauthorized(Unauthorized { caller }))',
-            // The error built in a local first.
-            'let $x = Unauthorized { caller }; return Err(AccessError::Unauthorized($x))',
-            'let $x = AccessError::Unauthorized(Unauthorized { caller }); return Err($x)',
-          ],
+          // The caller's local as the field value, or by shorthand when it is named caller ({ $c } then
+          // binds caller); the error inline or built in a local first.
+          given: [[GUARD_CALLER]],
+          anyOf: ['caller: $c', '$c'].flatMap((field) => [
+            `Err(AccessError::Unauthorized(Unauthorized { ${field} }))`,
+            `let $x = Unauthorized { ${field} }; return Err(AccessError::Unauthorized($x))`,
+            `let $x = AccessError::Unauthorized(Unauthorized { ${field} }); return Err($x)`,
+          ]),
           objective: 'Refuse every caller but the owner',
           hints: [
             'Returning an `Err` from the guard makes every method that uses it revert.',
@@ -2548,21 +2585,7 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn deposit(',
         },
         {
-          // The new deposit is still named total (#111); the deposit and the ETH sent may be read into locals first.
-          anyOf: [
-            'let total = self.deposits.get(account) + self.vm().msg_value();',
-            'let total = self.vm().msg_value() + self.deposits.get(account);',
-            'let $x = self.vm().msg_value(); let total = self.deposits.get(account) + $x;',
-            'let $x = self.vm().msg_value(); let total = $x + self.deposits.get(account);',
-            'let $x = self.deposits.get(account); let total = $x + self.vm().msg_value();',
-            'let $x = self.deposits.get(account); let total = self.vm().msg_value() + $x;',
-            'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let total = $x + $y;',
-            'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let total = $y + $x;',
-            'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let total = $x + $y;',
-            'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let total = $y + $x;',
-            'let mut total = self.deposits.get(account); total += self.vm().msg_value();',
-            'let mut total = self.vm().msg_value(); total += self.deposits.get(account);',
-          ],
+          anyOf: DEPOSIT_TOTALS,
           objective: "Add the ETH sent with the call to the caller's deposit",
           hints: [
             'The wei sent with the call comes from the host. Add it to what `account` already deposited.',
@@ -2572,7 +2595,8 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn deposit(',
         },
         {
-          anyOf: ['self.deposits.insert(account, total)', 'self.deposits.setter(account).set(total)'],
+          given: [DEPOSIT_TOTALS],
+          anyOf: ['self.deposits.insert(account, $s)', 'self.deposits.setter(account).set($s)'],
           objective: "Save the caller's new deposit",
           hints: [
             'Computing the total is not enough: write it back to the entry of `account`.',
@@ -2811,7 +2835,7 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn fee(',
         },
         {
-          anyOf: ['let scaled = amount.checked_mul(rate_bps)', 'let scaled = rate_bps.checked_mul(amount)'],
+          anyOf: CHECKED_PRODUCTS,
           objective: 'Multiply without silently wrapping around',
           hints: [
             '`*` on `U256` wraps around on overflow and gives a wrong fee instead of an error.',
@@ -2838,13 +2862,9 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn fee(',
         },
         {
-          anyOf: [
-            'Ok(scaled / U256::from(10_000))',
-            'Ok(scaled / U256::from(10000))',
-            // The fee computed in a local first (the product is still named scaled, #111).
-            'let $x = scaled / U256::from(10_000); Ok($x)',
-            'let $x = scaled / U256::from(10000); Ok($x)',
-          ],
+          // The checked product kept in a local of any name, divided inline or into a local first.
+          given: [CHECKED_PRODUCTS],
+          anyOf: ['U256::from(10_000)', 'U256::from(10000)'].flatMap((bps) => [`Ok($s / ${bps})`, `let $x = $s / ${bps}; Ok($x)`]),
           objective: 'Return the fee as a share of 10,000 basis points',
           hints: [
             'The checked product is in basis points: 10,000 of them are 100%.',
@@ -2879,8 +2899,9 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn quote(',
         },
         {
-          anyOf: ['let rate = self.rate_bps.get();'],
-          alsoAnyOf: [['Self::fee(first, rate)?'], ['Self::fee(second, rate)?']],
+          // The rate kept in a local of any name, the same one passed to both fees.
+          anyOf: ['let $r = self.rate_bps.get();'],
+          alsoAnyOf: [['Self::fee(first, $r)?'], ['Self::fee(second, $r)?']],
           objective: 'Read the rate from storage only once',
           hints: [
             'Every storage read is a call to the host: read the rate once, before both fees.',
