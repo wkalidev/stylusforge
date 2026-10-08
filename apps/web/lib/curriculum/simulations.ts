@@ -1220,6 +1220,120 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
       },
     ],
   },
+  21: {
+    contract: 'MiniVault',
+    note: 'The model is deployed with Alice as the owner, as if the constructor received her address. Send ETH with deposit using its value field. The panel sends ETH only through deposit, so the donation attack of the lesson cannot be played here.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ owner: SIM_ACCOUNTS[0].address, paused: false, total_shares: 0n, shares: {} }),
+    functions: [
+      {
+        name: 'owner',
+        abiName: 'owner',
+        view: true,
+        params: [],
+        returns: 'address',
+        run: (state) => ({ returns: state.owner as string }),
+      },
+      {
+        name: 'paused',
+        abiName: 'paused',
+        view: true,
+        params: [],
+        returns: 'bool',
+        run: (state) => ({ returns: state.paused as boolean }),
+      },
+      {
+        name: 'total_shares',
+        abiName: 'totalShares',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.total_shares as bigint }),
+      },
+      {
+        name: 'shares_of',
+        abiName: 'sharesOf',
+        view: true,
+        params: [{ name: 'account', type: 'address' }],
+        returns: 'uint256',
+        run: (state, args) => ({ returns: readMapping(state, 'shares', args.account as string) }),
+      },
+      {
+        name: 'total_assets',
+        abiName: 'totalAssets',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (_state, _args, _caller, context) => ({ returns: context.balance }),
+      },
+      {
+        name: 'set_paused',
+        abiName: 'setPaused',
+        view: false,
+        params: [{ name: 'paused', type: 'bool' }],
+        run: (state, args, caller) => {
+          if (caller.address.toLowerCase() !== (state.owner as string).toLowerCase()) {
+            return { revert: { error: 'NotOwner', args: { caller: caller.address } } };
+          }
+          return { state: { ...state, paused: args.paused }, events: [{ name: 'PausedSet', args: { paused: args.paused } }] };
+        },
+      },
+      {
+        name: 'deposit',
+        abiName: 'deposit',
+        view: false,
+        payable: true,
+        params: [],
+        returns: 'uint256',
+        run: (state, _args, caller, context) => {
+          if (state.paused) return { revert: { error: 'VaultPaused', args: {} } };
+          const assets = context.value;
+          const supply = state.total_shares as bigint;
+          // The balance during the call already includes the value sent with it.
+          const assetsBefore = wrappingSub(context.balance, assets);
+          let shares = assets;
+          if (supply !== 0n) {
+            const product = assets * supply;
+            if (product > UINT256_MAX) return { revert: { error: 'MathOverflow', args: {} } };
+            // U256 division by zero panics in Rust: the call reverts with no data.
+            if (assetsBefore === 0n) return { revert: { error: 'division by zero (a panic, with no revert data)' } };
+            shares = product / assetsBefore;
+          }
+          if (shares === 0n) return { revert: { error: 'ZeroShares', args: { assets } } };
+          const balance = wrappingAdd(readMapping(state, 'shares', caller.address), shares);
+          return {
+            state: { ...writeMapping(state, 'shares', caller.address, balance), total_shares: wrappingAdd(supply, shares) },
+            returns: shares,
+            events: [{ name: 'Deposited', args: { account: caller.address, assets, shares } }],
+          };
+        },
+      },
+      {
+        name: 'withdraw',
+        abiName: 'withdraw',
+        view: false,
+        params: [{ name: 'shares', type: 'uint256' }],
+        returns: 'uint256',
+        run: (state, args, caller, context) => {
+          const shares = args.shares as bigint;
+          const available = readMapping(state, 'shares', caller.address);
+          if (shares === 0n) return { revert: { error: 'ZeroShares', args: { assets: 0n } } };
+          if (available < shares) return { revert: { error: 'InsufficientShares', args: { available, requested: shares } } };
+          const supply = state.total_shares as bigint;
+          const product = shares * context.balance;
+          if (product > UINT256_MAX) return { revert: { error: 'MathOverflow', args: {} } };
+          const assets = product / supply;
+          // The shares are burned before the ETH leaves.
+          return {
+            state: { ...writeMapping(state, 'shares', caller.address, available - shares), total_shares: supply - shares },
+            returns: assets,
+            transfers: [{ to: caller.address, amount: assets }],
+            events: [{ name: 'Withdrawn', args: { account: caller.address, assets, shares } }],
+          };
+        },
+      },
+    ],
+  },
 };
 
 /** The result of a call to lesson 5's mock token: a revert, or its state, its bool and its events. */
