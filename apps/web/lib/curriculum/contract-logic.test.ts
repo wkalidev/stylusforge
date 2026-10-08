@@ -99,6 +99,24 @@ describe("lesson 10: Access control", () => {
     expect(variant(10, refuse, "let error = AccessError::Unauthorized(Unauthorized { caller });\n            return Err(error);").passed).toBe(true);
   });
 
+  const guard = "let caller = self.vm().msg_sender();\n        if caller != self.owner.get() {\n            return Err(AccessError::Unauthorized(Unauthorized { caller }));";
+  const guardNamed = (name: string, compared = name, field = `caller: ${name}`) =>
+    `let ${name} = self.vm().msg_sender();\n        if ${compared} != self.owner.get() {\n            return Err(AccessError::Unauthorized(Unauthorized { ${field} }));`;
+
+  it("accepts the caller under any local name, in the comparison and the error", () => {
+    expect(variant(10, guard, guardNamed("sender")).passed).toBe(true);
+    expect(variant(10, guard, guardNamed("caller", "caller", "caller: caller")).passed).toBe(true);
+    expect(
+      variant(10, guard, "let account = self.vm().msg_sender();\n        if self.owner.get() != account {\n            let error = Unauthorized { caller: account };\n            return Err(AccessError::Unauthorized(error));").passed,
+    ).toBe(true);
+  });
+
+  it("refuses a comparison or an error that uses another local than the caller's", () => {
+    expect(variant(10, guard, guardNamed("sender", "caller")).objectives).toEqual(["Compare the caller with the owner"]);
+    expect(variant(10, guard, guardNamed("sender", "sender", "caller")).objectives).toEqual(["Refuse every caller but the owner"]);
+    expect(variant(10, guard, guardNamed("sender", "sender", "caller: owner")).objectives).toEqual(["Refuse every caller but the owner"]);
+  });
+
   it("refuses an error built in a local but never returned", () => {
     const result = variant(10, refuse, "let _error = Unauthorized { caller };\n            return Ok(());");
     expect(result.objectives).toEqual(["Refuse every caller but the owner"]);
@@ -109,9 +127,9 @@ describe("lesson 10: Access control", () => {
     expect(result.objectives).toEqual(["Store the owner chosen at deployment"]);
   });
 
-  it("refuses a guard that checks tx_origin", () => {
+  it("refuses a guard that checks tx_origin, and so the comparison and the error that use it", () => {
     const result = variant(10, "let caller = self.vm().msg_sender();", "let caller = self.vm().tx_origin();");
-    expect(result.objectives).toEqual(["Find out who is calling"]);
+    expect(result.objectives).toEqual(["Find out who is calling", "Compare the caller with the owner", "Refuse every caller but the owner"]);
   });
 
   it("refuses a guard called after the write", () => {

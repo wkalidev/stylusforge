@@ -193,6 +193,9 @@ function nextRounds(): string[] {
 const VISITOR = 'let $v = self.vm().msg_sender();';
 const CHECK_IN_TIME = 'let $t = U256::from(self.vm().block_timestamp());';
 
+/** Lesson 10's guard reading the caller into a local of any name. */
+const GUARD_CALLER = 'let $c = self.vm().msg_sender();';
+
 /** Receivers of lesson 5's token calls: the token kept in a local of any name, or built inline. */
 const VAULT_TOKENS = ['$t', 'IERC20::new(self.token.get())', 'IERC20::from(self.token.get())'];
 
@@ -2314,7 +2317,7 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn constructor(',
         },
         {
-          anyOf: ['let caller = self.vm().msg_sender();'],
+          anyOf: [GUARD_CALLER],
           objective: 'Find out who is calling',
           hints: [
             'The guard needs the account that called the contract.',
@@ -2324,7 +2327,8 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'fn only_owner(',
         },
         {
-          anyOf: ['if caller != self.owner.get() {', 'if self.owner.get() != caller {'],
+          given: [[GUARD_CALLER]],
+          anyOf: ['if $c != self.owner.get() {', 'if self.owner.get() != $c {'],
           objective: 'Compare the caller with the owner',
           hints: [
             'Read the stored owner and compare it with `caller`.',
@@ -2334,12 +2338,14 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'fn only_owner(',
         },
         {
-          anyOf: [
-            'Err(AccessError::Unauthorized(Unauthorized { caller }))',
-            // The error built in a local first.
-            'let $x = Unauthorized { caller }; return Err(AccessError::Unauthorized($x))',
-            'let $x = AccessError::Unauthorized(Unauthorized { caller }); return Err($x)',
-          ],
+          // The caller's local as the field value, or by shorthand when it is named caller ({ $c } then
+          // binds caller); the error inline or built in a local first.
+          given: [[GUARD_CALLER]],
+          anyOf: ['caller: $c', '$c'].flatMap((field) => [
+            `Err(AccessError::Unauthorized(Unauthorized { ${field} }))`,
+            `let $x = Unauthorized { ${field} }; return Err(AccessError::Unauthorized($x))`,
+            `let $x = AccessError::Unauthorized(Unauthorized { ${field} }); return Err($x)`,
+          ]),
           objective: 'Refuse every caller but the owner',
           hints: [
             'Returning an `Err` from the guard makes every method that uses it revert.',
