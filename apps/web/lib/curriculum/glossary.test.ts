@@ -39,6 +39,21 @@ describe("glossaryAt", () => {
     expect(idAt("self.vm().evm_ink_left()", 11)).toBe("gas_left");
   });
 
+  it("explains the ink price, ink conversions and panics", () => {
+    const price = "        self.vm().tx_ink_price()";
+    expect(idAt(price, price.indexOf("tx_ink_price") + 1)).toBe("ink_price");
+    const gas = "        self.vm().ink_to_gas(ink)";
+    expect(idAt(gas, gas.indexOf("ink_to_gas") + 1)).toBe("ink_conversion");
+    const ink = "        self.vm().gas_to_ink(gas)";
+    expect(idAt(ink, ink.indexOf("gas_to_ink") + 1)).toBe("ink_conversion");
+    expect(idAt("    pub fn to_gas(&self, ink: u64) -> u64 {", 12)).toBeNull();
+    const expect_ = '        let ink = items.checked_mul(ink_per_item).expect("budget overflow");';
+    expect(idAt(expect_, expect_.indexOf("expect") + 1)).toBe("panic");
+    const unwrap = "        let first = self.batch.get(0).unwrap();";
+    expect(idAt(unwrap, unwrap.indexOf("unwrap") + 1)).toBe("panic");
+    expect(idAt("let unwrap = 1;", 5)).toBeNull();
+  });
+
   it("explains U256::MAX apart from U256", () => {
     const guard = "        if allowed != U256::MAX {";
     expect(glossaryAt(guard, guard.indexOf("MAX") + 1)).toMatchObject({ entry: { id: "u256_max" }, startColumn: guard.indexOf("U256") + 1 });

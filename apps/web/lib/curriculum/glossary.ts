@@ -143,6 +143,27 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
     description: 'The gas, or the ink, left for the call. Stylus meters its WebAssembly in ink, a finer unit that converts to gas.',
   },
   {
+    id: 'ink_price',
+    pattern: /\btx_ink_price\(\)/,
+    title: 'tx_ink_price()',
+    description:
+      'How much ink one gas buys on this chain, as a `u32`: 10,000 by default. The chain owner sets it, so read it from the host rather than writing the default in your code.',
+  },
+  {
+    id: 'ink_conversion',
+    pattern: /(?<=\.)(?:ink_to_gas|gas_to_ink)\(/,
+    title: 'ink_to_gas() / gas_to_ink()',
+    description:
+      'Convert between ink and gas at the ink price of the chain: `ink_to_gas` divides by the price, `gas_to_ink` multiplies by it and saturates at `u64::MAX`. Both take and return a `u64`.',
+  },
+  {
+    id: 'panic',
+    pattern: /(?<=\.)(?:unwrap\(\)|expect\()/,
+    title: 'unwrap() / expect()',
+    description:
+      'Panic on `None` (or `Err`). In a Stylus contract, a panic makes the call revert with no data, which callers cannot decode, and panic messages take room in the binary. Return an error declared with `sol!` instead, with `ok_or` and `?`. In a test, a panic only fails the test.',
+  },
+  {
     id: 'checked',
     pattern: /(?<=\.)checked_(?:add|sub|mul|div)\(/,
     title: 'checked arithmetic',
