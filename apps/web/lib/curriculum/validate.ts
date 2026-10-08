@@ -6,8 +6,9 @@
 export interface LessonCheck {
   /**
    * Code snippets; the check passes when the code contains any of them, whatever the whitespace.
-   * A placeholder such as `$x` stands for a local variable of any name (see snippetPattern).
-   * Every check has `anyOf`, `literals` or both.
+   * A placeholder such as `$x` stands for a local variable of any name (see snippetPattern). A
+   * placeholder binds across `given`, `anyOf` and `alsoAnyOf`: every snippet of the check that uses
+   * `$x` must match with the same name. Every check has `anyOf`, `literals` or both.
    */
   anyOf?: string[];
   /**
@@ -15,6 +16,13 @@ export interface LessonCheck {
    * one snippet of every group ("grow the list" and "set the title" of the new element).
    */
   alsoAnyOf?: string[][];
+  /**
+   * Optional groups of snippets that name a value the check uses, usually code that an earlier
+   * check asks for: the check also needs one snippet of every group, and binds its placeholders
+   * with the others. `given: [['let $c = self.vm().msg_sender();']]` with `anyOf: ['if $c != owner']`
+   * accepts the caller under any name, but only the caller. Hints need not repeat these snippets.
+   */
+  given?: string[][];
   /**
    * Optional groups of snippets with string literals to spell exactly, such as
    * `#[selector(name = "latestRoundData")] pub fn $n(`: the check also needs one snippet of every
@@ -27,7 +35,7 @@ export interface LessonCheck {
   literals?: string[][];
   /**
    * Optional forbidden snippets: the check fails while the code contains any of them, matched like
-   * `anyOf` (comments and strings blanked, placeholders allowed). Use it for a planted bug that a
+   * `anyOf` (comments and strings blanked, placeholders allowed, each snippet binding its own). Use it for a planted bug that a
    * fix written next to it would leave in place, such as an unguarded `init` kept beside a new
    * `#[constructor]`.
    */
@@ -81,6 +89,12 @@ const KEYWORDS = [
   "priv", "try", "typeof", "unsized", "virtual", "yield",
 ];
 
+/** Identifiers bound to placeholders, by placeholder name without the `$`: `{ c: "caller" }`. */
+export type Bindings = Readonly<Record<string, string>>;
+
+/** The prefix of the regular expression group that captures a placeholder's identifier. */
+const PLACEHOLDER_GROUP = "placeholder_";
+
 /** A Rust identifier that is not a keyword, nor `_` (a wildcard, not a name). */
 const IDENTIFIER = `(?!(?:${KEYWORDS.join("|")}|_)(?![A-Za-z0-9_]))[A-Za-z_][A-Za-z0-9_]*`;
 
@@ -98,7 +112,9 @@ function escapeRegExp(text: string): string {
  * Rust identifier except a keyword, and every occurrence of the same placeholder in a snippet
  * matches the same identifier. `let $x = self.count.get(); self.count.set($x + one)` accepts the
  * variable under any name, but only when the value written is the one read. `let mut $x` works:
- * `$x` never matches `mut`. Placeholders never bind across snippets.
+ * `$x` never matches `mut`. A pattern binds placeholders within its own snippet; `bindings` lists
+ * placeholders already bound by other snippets of the check, which then match that identifier
+ * only (see evaluateChecks).
  *
  * With `literals` (for the snippets of `LessonCheck.literals`), each string literal of the snippet
  * is one token, matched exactly with its whitespace and captured in a group named `literal_<n>`,
@@ -108,12 +124,15 @@ function escapeRegExp(text: string): string {
  * only matches when the statements are consecutive. `let $x = a; f($x);` does not match when
  * another statement sits between the two.
  */
-export function snippetPattern(snippet: string, { literals = false }: { literals?: boolean } = {}): RegExp {
+export function snippetPattern(
+  snippet: string,
+  { literals = false, bindings = {} }: { literals?: boolean; bindings?: Bindings } = {},
+): RegExp {
   const tokens: string[] = Array.from(snippet.match(literals ? LITERAL_TOKEN : TOKEN) ?? []);
   if (tokens.length === 0) {
     throw new Error("A check snippet cannot be empty");
   }
-  const bound = new Set<string>();
+  const captured = new Set<string>();
   let source = "";
   tokens.forEach((token, index) => {
     if (index > 0) {
@@ -128,11 +147,13 @@ export function snippetPattern(snippet: string, { literals = false }: { literals
       source += escapeRegExp(token);
       return;
     }
-    // The first occurrence captures the identifier; the next ones must repeat it exactly.
-    const group = `placeholder_${placeholder[1]}`;
-    const name = bound.has(group) ? `\\k<${group}>` : `(?<${group}>${IDENTIFIER})`;
+    // A placeholder bound by another snippet matches its identifier. Otherwise, the first
+    // occurrence captures the identifier and the next ones must repeat it exactly.
+    const group = `${PLACEHOLDER_GROUP}${placeholder[1]}`;
+    const known = bindings[placeholder[1]];
+    const name = known ? escapeRegExp(known) : captured.has(group) ? `\\k<${group}>` : `(?<${group}>${IDENTIFIER})`;
     source += `(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`;
-    bound.add(group);
+    captured.add(group);
   });
   const start = WORD.test(tokens[0]) ? "(?<![A-Za-z0-9_])" : "";
   const end = WORD.test(tokens[tokens.length - 1]) ? "(?![A-Za-z0-9_])" : "";
@@ -271,6 +292,37 @@ function matchesWithLiterals(snippet: string, uncommented: string, literals: Ran
   return false;
 }
 
+/**
+ * Every way a snippet matches the code, as the bindings of its placeholders added to `bindings`:
+ * one per distinct set of identifiers, so `let $x = self.count.get();` written twice under two
+ * names gives both. Every start position is tried, so overlapping matches are found too.
+ */
+function snippetBindings(snippet: string, source: string, bindings: Bindings): Bindings[] {
+  const search = new RegExp(snippetPattern(snippet, { bindings }).source, "g");
+  const found = new Map<string, Bindings>();
+  for (let match = search.exec(source); match; match = search.exec(source)) {
+    const next: Record<string, string> = { ...bindings };
+    for (const [group, name] of Object.entries(match.groups ?? {})) {
+      if (group.startsWith(PLACEHOLDER_GROUP)) next[group.slice(PLACEHOLDER_GROUP.length)] = name;
+    }
+    found.set(JSON.stringify(next), next);
+    search.lastIndex = match.index + 1;
+  }
+  return [...found.values()];
+}
+
+/**
+ * Whether the code has one snippet of every group, each placeholder bound to the same identifier
+ * in all of them. Tries every binding a group allows, and backtracks when a later group refuses it.
+ */
+function groupsMatch(groups: string[][], source: string, bindings: Bindings = {}): boolean {
+  if (groups.length === 0) return true;
+  const [group, ...rest] = groups;
+  return group.some((snippet) =>
+    snippetBindings(snippet, source, bindings).some((next) => groupsMatch(rest, source, next)),
+  );
+}
+
 /** 1-based line of a character index. */
 function lineAt(code: string, index: number): number {
   let line = 1;
@@ -283,7 +335,8 @@ function lineAt(code: string, index: number): number {
 /**
  * Runs every check against the code, with comments and string contents removed so a check
  * cannot be passed by writing the expected snippet in a comment or a string, nor failed by a
- * forbidden snippet left in one. `literals` snippets match the code with its strings kept, only
+ * forbidden snippet left in one. Placeholders bind across the `given`, `anyOf` and `alsoAnyOf`
+ * groups of a check; each `literals` and `noneOf` snippet binds its own. `literals` snippets match the code with its strings kept, only
  * where their literals are string literals of the code (see LessonCheck.literals); that view is
  * built only when a check needs it. Each result carries the line of the check's anchor, for
  * editor diagnostics.
@@ -301,9 +354,10 @@ export function evaluateChecks(code: string, checks: LessonCheck[]): CheckResult
       uncommented ??= restoreLiterals(code, scanned);
       return snippets.some((snippet) => matchesWithLiterals(snippet, uncommented!, scanned.literals));
     };
-    const groups = [...(check.anyOf ? [check.anyOf] : []), ...(check.alsoAnyOf ?? [])];
+    // The given snippets come first: they usually bind the names that the others use.
+    const groups = [...(check.given ?? []), ...(check.anyOf ? [check.anyOf] : []), ...(check.alsoAnyOf ?? [])];
     const passed =
-      groups.every(matches) && (check.literals ?? []).every(matchesLiterals) && !matches(check.noneOf ?? []);
+      groupsMatch(groups, source) && (check.literals ?? []).every(matchesLiterals) && !matches(check.noneOf ?? []);
     const anchor = check.anchor ? snippetPattern(check.anchor).exec(source) : null;
     return { check, passed, line: anchor ? lineAt(source, anchor.index) : null };
   });

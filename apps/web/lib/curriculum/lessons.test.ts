@@ -117,10 +117,10 @@ describe.each(available)("lesson $id: $title", (lesson) => {
 
   it("shows no snippet placeholder to students", () => {
     // Everything but the snippets themselves: title, preview, explanation, starter code, quizzes,
-    // objectives and hints. A placeholder such as $x only belongs in anyOf, alsoAnyOf, literals,
-    // noneOf and anchor.
+    // objectives and hints. A placeholder such as $x only belongs in anyOf, alsoAnyOf, given,
+    // literals, noneOf and anchor.
     const shown = JSON.stringify(lesson, (key, value) =>
-      ["anyOf", "alsoAnyOf", "literals", "noneOf", "anchor"].includes(key) ? undefined : value,
+      ["anyOf", "alsoAnyOf", "given", "literals", "noneOf", "anchor"].includes(key) ? undefined : value,
     );
     expect(shown).toContain(checks[0].objective);
     expect(shown.match(/\$[A-Za-z_][A-Za-z0-9_]*/g) ?? []).toEqual([]);

@@ -311,3 +311,59 @@ describe("validateCode with string literals", () => {
     expect(() => validateCode("fn main() {}", [{ objective: "nothing", hints: [] }])).toThrow(/anyOf or literals/);
   });
 });
+
+describe("validateCode with placeholders bound across groups", () => {
+  // Lesson 10: the guard compares the caller, read into a local of any name, with the owner.
+  const compare = [
+    {
+      given: [["let $c = self.vm().msg_sender();"]],
+      anyOf: ["if $c != self.owner.get() {", "if self.owner.get() != $c {"],
+      objective: "compare the caller with the owner",
+      hints: [],
+    },
+  ];
+  const guard = (name: string, compared = name) => `let ${name} = self.vm().msg_sender();\n        if ${compared} != self.owner.get() {`;
+
+  it("accepts the local under any name, used consistently", () => {
+    expect(validateCode(guard("caller"), compare).passed).toBe(true);
+    expect(validateCode(guard("sender"), compare).passed).toBe(true);
+    expect(validateCode("let who = self.vm().msg_sender();\nlet x = 1;\nif self.owner.get() != who {", compare).passed).toBe(true);
+  });
+
+  it("refuses a comparison with another local, or a missing given snippet", () => {
+    expect(validateCode(guard("sender", "caller"), compare).passed).toBe(false);
+    expect(validateCode(guard("sender", "sender2"), compare).passed).toBe(false);
+    expect(validateCode("let origin = self.vm().tx_origin();\n        if origin != self.owner.get() {", compare).passed).toBe(false);
+    expect(validateCode("if caller != self.owner.get() {", compare).passed).toBe(false);
+  });
+
+  it("tries every binding: the right local may be read after another one", () => {
+    const code = "let first = self.vm().msg_sender();\nlet second = self.vm().msg_sender();\nif second != self.owner.get() {";
+    expect(validateCode(code, compare).passed).toBe(true);
+  });
+
+  it("binds across anyOf and alsoAnyOf too", () => {
+    const once = [
+      {
+        anyOf: ["let $r = self.rate_bps.get();"],
+        alsoAnyOf: [["Self::fee(first, $r)?"], ["Self::fee(second, $r)?"]],
+        objective: "read the rate once",
+        hints: [],
+      },
+    ];
+    expect(validateCode("let r = self.rate_bps.get();\nOk((Self::fee(first, r)?, Self::fee(second, r)?))", once).passed).toBe(true);
+    expect(validateCode("let r = self.rate_bps.get();\nOk((Self::fee(first, r)?, Self::fee(second, rate)?))", once).passed).toBe(false);
+  });
+
+  it("keeps placeholders of different names independent across groups", () => {
+    const two = [{ anyOf: ["let $a = 1;"], alsoAnyOf: [["let $b = 2;"]], objective: "two locals", hints: [] }];
+    expect(validateCode("let a = 1; let b = 2;", two).passed).toBe(true);
+    expect(validateCode("let a = 1; let a = 2;", two).passed).toBe(true);
+  });
+
+  it("binds each forbidden snippet on its own", () => {
+    const check = [{ given: [["let $x = a();"]], anyOf: ["f($x)"], noneOf: ["g($x)"], objective: "no g", hints: [] }];
+    expect(validateCode("let x = a(); f(x);", check).passed).toBe(true);
+    expect(validateCode("let x = a(); f(x); g(other);", check).passed).toBe(false);
+  });
+});
