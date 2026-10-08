@@ -87,6 +87,13 @@ const OVERFLOW_CASES: Record<
     with: { value: "1" },
     expected: { owner: alice.address, limit: 1000n, balances: { [alice.address]: 0n } },
   },
+  // The shares of the account wrap around; into an empty vault, a deposit mints one share per wei.
+  21: {
+    state: { owner: alice.address, paused: false, total_shares: 0n, shares: { [alice.address]: MAX } },
+    call: ["deposit", {}, alice],
+    with: { value: "1" },
+    expected: { owner: alice.address, paused: false, total_shares: 1n, shares: { [alice.address]: 0n } },
+  },
   // The round id is a U80: + 1 wraps around at 2^80.
   17: {
     state: { owner: alice.address, round_id: (1n << 80n) - 1n, answer: 0n, updated_at: 0n },

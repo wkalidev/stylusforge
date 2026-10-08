@@ -19,5 +19,5 @@
   { "id": 18, "name": "WASM, ink and gas", "xp": 300, "available": true, "module": "stylus-specifics" },
   { "id": 19, "name": "Testing in Rust", "xp": 350, "available": true, "module": "stylus-specifics" },
   { "id": 20, "name": "Security pitfalls", "xp": 400, "available": true, "module": "stylus-specifics" },
-  { "id": 21, "name": "Final project, mini vault", "xp": 750, "available": false, "module": "stylus-specifics" }
+  { "id": 21, "name": "Final project, mini vault", "xp": 750, "available": true, "module": "stylus-specifics" }
 ]
