@@ -14,18 +14,40 @@ function variant(lessonId: number, from: string, to: string) {
 }
 
 describe("lesson 9: msg context", () => {
+  const body =
+    "let visitor = self.vm().msg_sender();\n        let now = U256::from(self.vm().block_timestamp());\n        self.check_ins.insert(visitor, now);\n        self.last_visitor.set(visitor);";
+
   it("accepts setter(key).set(value) to record the check-in", () => {
     expect(variant(9, "self.check_ins.insert(visitor, now);", "self.check_ins.setter(visitor).set(now);").passed).toBe(true);
   });
 
-  it("refuses tx_origin as the visitor", () => {
-    const result = variant(9, "let visitor = self.vm().msg_sender();", "let visitor = self.vm().tx_origin();");
-    expect(result.objectives).toEqual(["Find out who is checking in"]);
+  it("accepts the caller and the time under any local names", () => {
+    const renamed =
+      "let sender = self.vm().msg_sender();\n        let timestamp = U256::from(self.vm().block_timestamp());\n        self.check_ins.setter(sender).set(timestamp);\n        self.last_visitor.set(sender);";
+    expect(variant(9, body, renamed).passed).toBe(true);
+    const timeFirst =
+      "let t = U256::from(self.vm().block_timestamp());\n        let who = self.vm().msg_sender();\n        self.last_visitor.set(who);\n        self.check_ins.insert(who, t);";
+    expect(variant(9, body, timeFirst).passed).toBe(true);
   });
 
-  it("refuses the L1 block number in place of the block time", () => {
+  it("refuses the time and the visitor swapped, or a local that is neither", () => {
+    expect(variant(9, "self.check_ins.insert(visitor, now);", "self.check_ins.insert(now, visitor);").objectives).toEqual([
+      "Record the visitor's check-in time",
+    ]);
+    expect(variant(9, "self.last_visitor.set(visitor);", "self.last_visitor.set(now);").objectives).toEqual(["Make the caller the last visitor"]);
+    expect(variant(9, "self.check_ins.insert(visitor, now);", "self.check_ins.insert(account, now);").objectives).toEqual([
+      "Record the visitor's check-in time",
+    ]);
+  });
+
+  it("refuses tx_origin as the visitor, and so the visitor recorded and kept", () => {
+    const result = variant(9, "let visitor = self.vm().msg_sender();", "let visitor = self.vm().tx_origin();");
+    expect(result.objectives).toEqual(["Find out who is checking in", "Record the visitor's check-in time", "Make the caller the last visitor"]);
+  });
+
+  it("refuses the L1 block number in place of the block time, and so the time recorded", () => {
     const result = variant(9, "self.vm().block_timestamp()", "self.vm().block_number()");
-    expect(result.objectives).toEqual(["Read the current block time as a 256-bit number"]);
+    expect(result.objectives).toEqual(["Read the current block time as a 256-bit number", "Record the visitor's check-in time"]);
   });
 
   it("refuses a check-in that does not update the last visitor", () => {

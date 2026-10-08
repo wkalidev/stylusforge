@@ -189,6 +189,10 @@ function nextRounds(): string[] {
   return [...values.flatMap((value) => [`self.round_id.set(${value})`, `let $n = ${value}; self.round_id.set($n)`]), ...fromRead];
 }
 
+/** Lesson 9's caller and block time, each read into a local of any name. */
+const VISITOR = 'let $v = self.vm().msg_sender();';
+const CHECK_IN_TIME = 'let $t = U256::from(self.vm().block_timestamp());';
+
 /** Receivers of lesson 5's token calls: the token kept in a local of any name, or built inline. */
 const VAULT_TOKENS = ['$t', 'IERC20::new(self.token.get())', 'IERC20::from(self.token.get())'];
 
@@ -2068,7 +2072,7 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub struct Attendance {',
         },
         {
-          anyOf: ['let visitor = self.vm().msg_sender();'],
+          anyOf: [VISITOR],
           objective: 'Find out who is checking in',
           hints: [
             'The account that called the contract comes from the host, `self.vm()`.',
@@ -2078,7 +2082,7 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn check_in(',
         },
         {
-          anyOf: ['let now = U256::from(self.vm().block_timestamp());'],
+          anyOf: [CHECK_IN_TIME],
           objective: 'Read the current block time as a 256-bit number',
           hints: [
             'The host also knows the block the call runs in, including its time.',
@@ -2088,7 +2092,9 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn check_in(',
         },
         {
-          anyOf: ['self.check_ins.insert(visitor, now)', 'self.check_ins.setter(visitor).set(now)'],
+          // The visitor and the time are kept in locals of any name, written under the right key.
+          given: [[VISITOR], [CHECK_IN_TIME]],
+          anyOf: ['self.check_ins.insert($v, $t)', 'self.check_ins.setter($v).set($t)'],
           objective: "Record the visitor's check-in time",
           hints: [
             'Write the time into the `check_ins` mapping, under the visitor.',
@@ -2098,7 +2104,8 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn check_in(',
         },
         {
-          anyOf: ['self.last_visitor.set(visitor)'],
+          given: [[VISITOR]],
+          anyOf: ['self.last_visitor.set($v)'],
           objective: 'Make the caller the last visitor',
           hints: [
             'The last visitor changes on every check-in.',
