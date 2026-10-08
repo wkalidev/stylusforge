@@ -21,6 +21,7 @@ import {
   readAddressMapping,
   readMapping,
   readNestedMapping,
+  sendEthDirectly,
   simTimestamp,
   wrappingAdd,
   wrappingSub,
@@ -407,6 +408,30 @@ describe("payable calls", () => {
   it("knows which simulations hold ETH", () => {
     expect(holdsEth(jar)).toBe(true);
     expect(holdsEth(vault)).toBe(false);
+  });
+});
+
+describe("ETH sent without a method call", () => {
+  it("credits a self-destruct to the balance, without running any code", () => {
+    expect(sendEthDirectly("selfdestruct", "10", 5n)).toEqual({ ok: true, balance: 15n });
+  });
+
+  it("treats an empty value as no ETH", () => {
+    expect(sendEthDirectly("selfdestruct", " ", 5n)).toEqual({ ok: true, balance: 5n });
+  });
+
+  it("reverts a plain transfer, since the contract has no receive function", () => {
+    const result = sendEthDirectly("transfer", "10", 5n);
+    expect(result).toMatchObject({ ok: false, balance: 5n });
+    expect(result.error?.error).toMatch(/no receive function/);
+  });
+
+  it("reports an invalid value, and keeps the balance", () => {
+    expect(sendEthDirectly("selfdestruct", "1.5", 5n)).toMatchObject({ ok: false, balance: 5n, error: { error: expect.stringMatching(/unsigned/) } });
+  });
+
+  it("refuses a balance beyond uint256", () => {
+    expect(sendEthDirectly("selfdestruct", "1", UINT256_MAX)).toMatchObject({ ok: false, balance: UINT256_MAX });
   });
 });
 
