@@ -1,4 +1,4 @@
-import { SIM_START_TIME, UINT256_MAX, ZERO_ADDRESS, deleteMapping, mockState, readAddressMapping, readMapping, readNestedMapping, wrappingAdd, wrappingSub, writeMapping, writeMockState, writeNestedMapping, type LessonSimulation, type SimAccount, type SimEvent, type SimOutcome, type SimState, type SimValue } from './simulation';
+import { SIM_START_TIME, UINT256_MAX, UINT64_MAX, ZERO_ADDRESS, deleteMapping, mockState, readAddressMapping, readMapping, readNestedMapping, wrappingAdd, wrappingSub, writeMapping, writeMockState, writeNestedMapping, type LessonSimulation, type SimAccount, type SimEvent, type SimOutcome, type SimState, type SimValue } from './simulation';
 
 /** Named accounts the student can call from. */
 export const SIM_ACCOUNTS: SimAccount[] = [
@@ -1021,6 +1021,72 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
         contract: 'Token',
         params: [{ name: 'enabled', type: 'uint256' }],
         run: (state, args) => ({ state: writeMockState(state, 'Token', { returns_false: (args.enabled as bigint) === 0n ? 0n : 1n }) }),
+      },
+    ],
+  },
+  18: {
+    contract: 'InkBudget',
+    note: 'The model runs at the default ink price, 10,000 ink per gas; a chain owner can change it. It converts and prices ink, but meters nothing.',
+    accounts: SIM_ACCOUNTS,
+    initialState: () => ({ ink_per_item: 0n }),
+    functions: [
+      {
+        name: 'ink_price',
+        abiName: 'inkPrice',
+        view: true,
+        params: [],
+        returns: 'uint32',
+        run: (_state, _args, _caller, context) => ({ returns: context.inkPrice }),
+      },
+      {
+        name: 'to_gas',
+        abiName: 'toGas',
+        view: true,
+        params: [{ name: 'ink', type: 'uint64' }],
+        returns: 'uint64',
+        run: (_state, args, _caller, context) => ({ returns: (args.ink as bigint) / context.inkPrice }),
+      },
+      {
+        name: 'to_ink',
+        abiName: 'toInk',
+        view: true,
+        params: [{ name: 'gas', type: 'uint64' }],
+        returns: 'uint64',
+        // gas_to_ink saturates at u64::MAX instead of wrapping around.
+        run: (_state, args, _caller, context) => {
+          const ink = (args.gas as bigint) * context.inkPrice;
+          return { returns: ink > UINT64_MAX ? UINT64_MAX : ink };
+        },
+      },
+      {
+        name: 'ink_per_item',
+        abiName: 'inkPerItem',
+        view: true,
+        params: [],
+        returns: 'uint256',
+        run: (state) => ({ returns: state.ink_per_item as bigint }),
+      },
+      {
+        name: 'set_ink_per_item',
+        abiName: 'setInkPerItem',
+        view: false,
+        params: [{ name: 'ink', type: 'uint256' }],
+        run: (state, args) => ({ state: { ...state, ink_per_item: args.ink } }),
+      },
+      {
+        name: 'gas_for',
+        abiName: 'gasFor',
+        view: true,
+        params: [{ name: 'items', type: 'uint256' }],
+        returns: 'uint256',
+        run: (state, args, _caller, context) => {
+          const items = args.items as bigint;
+          const inkPerItem = state.ink_per_item as bigint;
+          // checked_mul turns an overflow into BudgetOverflow instead of wrapping around.
+          const ink = items * inkPerItem;
+          if (ink > UINT256_MAX) return { revert: { error: 'BudgetOverflow', args: { items, ink_per_item: inkPerItem } } };
+          return { returns: ink / context.inkPrice };
+        },
       },
     ],
   },
