@@ -5558,6 +5558,59 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'fn mints_one_share_per_wei_on_the_first_deposit(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Shares",
+          question: "A vault holds 100 wei for 10 shares. How many shares does a deposit of 25 wei mint?",
+          options: ["2", "3", "25"],
+          answer: 0,
+          explanation: "25 × 10 ÷ 100 is 2.5, and integer division rounds down to 2. Rounding in favour of the vault is what ERC-4626 asks for.",
+        },
+        {
+          afterStep: "Measuring the assets",
+          question: "Why does deposit subtract the value sent from the balance of the vault?",
+          options: [
+            "To pay the gas of the deposit",
+            "Because the value is refunded at the end of the call",
+            "Because in a payable method, the balance already includes the value sent with the call",
+          ],
+          answer: 2,
+          explanation: "The value arrives before the method runs. The shares must be priced against the assets held before the deposit, so the balance minus the value.",
+        },
+        {
+          afterStep: "The donation attack",
+          question: "Why is refusing deposits that would mint zero shares not a full defence against the donation attack?",
+          options: [
+            "Donations are refused anyway, so there is nothing to defend against",
+            "A deposit that rounds down to fewer shares, but not to zero, still loses value to the attacker",
+            "The guard only runs on the first deposit",
+          ],
+          answer: 1,
+          explanation: "In the example, 15 ETH buys 1 share instead of 1.5: the guard lets it through, and the attacker withdraws 12.5 ETH for the 10 they sent. A contract that self-destructs can still send ETH to a vault without a receive function.",
+        },
+        {
+          afterStep: "The donation attack",
+          question: "How do the virtual shares and assets of OpenZeppelin's ERC-4626 blunt the attack?",
+          options: [
+            "They refuse ETH that does not come from a deposit",
+            "They round the shares of a deposit up instead of down",
+            "The vault computes as if it held extra shares and 1 extra wei, so the virtual shares take part of every donation and the attack stops paying",
+          ],
+          answer: 2,
+          explanation: "With an offset of 0, the attack of the example returns 6.25 ETH for 10. OpenZeppelin's analysis is that the default offset already makes the attack unprofitable, and a larger offset makes it far more expensive.",
+        },
+        {
+          afterStep: "Pausing and paying out",
+          question: "In a test, why does vault.deposit().unwrap() not compile?",
+          options: [
+            "The error type of deposit, an enum that derives SolidityError, does not implement Debug",
+            "deposit is payable, and payable methods cannot be called in tests",
+            "unwrap() is not available in Stylus contracts",
+          ],
+          answer: 0,
+          explanation: "unwrap() needs to print the error if there is one, so it requires Debug. Compare the result with ok() instead, or assert on the state it leaves.",
+        },
+      ],
     },
   },
 };
