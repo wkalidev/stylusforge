@@ -4496,6 +4496,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  19: {
+    slug: 'testing-in-rust',
+    difficulty: 'Advanced',
+    preview: 'A unit test for a time lock on the test VM of the SDK: caller, value, clock, errors and events.',
+    minutes: 25,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
