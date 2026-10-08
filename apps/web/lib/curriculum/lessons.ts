@@ -340,6 +340,43 @@ function flushedPayments(): string[] {
   ];
 }
 
+/** Lesson 21's overflow error, for products that do not fit in a U256. */
+const VAULT_OVERFLOW = 'VaultError::MathOverflow(MathOverflow {})';
+
+/**
+ * Snippets for lesson 21's shares in proportion: `assets` times `supply` (either order) with
+ * `checked_mul`, an overflow turned into MathOverflow with `ok_or` or `ok_or_else`, divided by the
+ * assets held before, kept in a local of any name.
+ */
+function proportionalShares(): string[] {
+  const products = ['assets.checked_mul(supply)', 'supply.checked_mul(assets)'];
+  return products.flatMap((product) => [`.ok_or(${VAULT_OVERFLOW})?`, `.ok_or_else(|| ${VAULT_OVERFLOW})?`].map((error) => `${product}${error} / $b`));
+}
+
+/** Snippets for lesson 21's minted shares: the account's shares plus `shares` (either order), written with `insert` or `setter`, directly or from a local. */
+function mintedShares(): string[] {
+  const sums = ['self.shares.get(account) + shares', 'shares + self.shares.get(account)'];
+  return sums.flatMap((sum) => [
+    `self.shares.insert(account, ${sum})`,
+    `let $x = ${sum}; self.shares.insert(account, $x)`,
+    `let $x = ${sum}; self.shares.setter(account).set($x)`,
+  ]);
+}
+
+/** Snippets for lesson 21's burn: the account's shares and the total lowered, in either order, right before `transfer_eth`. */
+function burnedShares(): string[] {
+  const account = ['self.shares.insert(account, available - shares);', 'self.shares.setter(account).set(available - shares);'];
+  const total = 'self.total_shares.set(supply - shares);';
+  const send = 'transfer_eth(self.vm(), account, assets)?';
+  return account.flatMap((burn) => [`${burn} ${total} ${send}`, `${total} ${burn} ${send}`]);
+}
+
+/** Snippets for lesson 21's test assertion: Alice's shares equal to 1,000, with `assert_eq!` either way round or `assert!` and `==`. */
+function vaultShareAssertions(): string[] {
+  const read = '$c.shares_of(ALICE)';
+  return ['U256::from(1000)', 'U256::from(1_000)'].flatMap((value) => [`assert_eq!(${read}, ${value})`, `assert_eq!(${value}, ${read})`, `assert!(${read} == ${value})`]);
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -5281,8 +5318,246 @@ const CONTENT: Record<number, LessonContent> = {
         '',
         'Stuck? Each objective has hints, from a nudge to the exact code.',
       ].join('\n'),
-      starterCode: '',
-      checks: [],
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use alloc::vec::Vec;',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{Address, U256},',
+        '    alloy_sol_types::sol,',
+        '    call::transfer::transfer_eth,',
+        '    prelude::*,',
+        '};',
+        '',
+        'sol! {',
+        '    event Deposited(address indexed account, uint256 assets, uint256 shares);',
+        '    event Withdrawn(address indexed account, uint256 assets, uint256 shares);',
+        '    event PausedSet(bool paused);',
+        '    error NotOwner(address caller);',
+        '    error VaultPaused();',
+        '    error ZeroShares(uint256 assets);',
+        '    error InsufficientShares(uint256 available, uint256 requested);',
+        '    error MathOverflow();',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum VaultError {',
+        '    NotOwner(NotOwner),',
+        '    VaultPaused(VaultPaused),',
+        '    ZeroShares(ZeroShares),',
+        '    InsufficientShares(InsufficientShares),',
+        '    MathOverflow(MathOverflow),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct MiniVault {',
+        '        address owner;',
+        '        bool paused;',
+        '        uint256 total_shares;',
+        '        mapping(address => uint256) shares;',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl MiniVault {',
+        '    #[constructor]',
+        '    pub fn constructor(&mut self, owner: Address) {',
+        '        // TODO: store the owner',
+        '    }',
+        '',
+        '    pub fn owner(&self) -> Address {',
+        '        self.owner.get()',
+        '    }',
+        '',
+        '    pub fn paused(&self) -> bool {',
+        '        self.paused.get()',
+        '    }',
+        '',
+        '    pub fn total_shares(&self) -> U256 {',
+        '        self.total_shares.get()',
+        '    }',
+        '',
+        '    pub fn shares_of(&self, account: Address) -> U256 {',
+        '        self.shares.get(account)',
+        '    }',
+        '',
+        '    pub fn total_assets(&self) -> U256 {',
+        '        self.vm().balance(self.vm().contract_address())',
+        '    }',
+        '',
+        '    pub fn set_paused(&mut self, paused: bool) -> Result<(), VaultError> {',
+        '        // TODO: only the owner may pause and unpause',
+        '        self.paused.set(paused);',
+        '        self.vm().log(PausedSet { paused });',
+        '        Ok(())',
+        '    }',
+        '',
+        '    #[payable]',
+        '    pub fn deposit(&mut self) -> Result<U256, VaultError> {',
+        '        // TODO: refuse deposits while the vault is paused',
+        '        let account = self.vm().msg_sender();',
+        '        let assets = self.vm().msg_value();',
+        '        let supply = self.total_shares.get();',
+        '        // TODO: measure the assets the vault held before this deposit',
+        '        // TODO: one share per wei for the first deposit, then in proportion to the assets before',
+        '        let shares = assets;',
+        '        // TODO: refuse a deposit that would mint no shares',
+        '        // TODO: mint the shares: the balance of the account and the total',
+        '        self.vm().log(Deposited { account, assets, shares });',
+        '        Ok(shares)',
+        '    }',
+        '',
+        '    pub fn withdraw(&mut self, shares: U256) -> Result<U256, Vec<u8>> {',
+        '        let account = self.vm().msg_sender();',
+        '        let available = self.shares.get(account);',
+        '        if shares.is_zero() {',
+        '            return Err(VaultError::ZeroShares(ZeroShares { assets: U256::ZERO }).into());',
+        '        }',
+        '        if available < shares {',
+        '            return Err(VaultError::InsufficientShares(InsufficientShares { available, requested: shares }).into());',
+        '        }',
+        '        let supply = self.total_shares.get();',
+        '        let assets = shares.checked_mul(self.total_assets()).ok_or(VaultError::MathOverflow(MathOverflow {}))? / supply;',
+        '        // TODO: burn the shares before the ETH leaves',
+        '        transfer_eth(self.vm(), account, assets)?;',
+        '        self.vm().log(Withdrawn { account, assets, shares });',
+        '        Ok(assets)',
+        '    }',
+        '}',
+        '',
+        'impl MiniVault {',
+        '    fn only_owner(&self) -> Result<(), VaultError> {',
+        '        let caller = self.vm().msg_sender();',
+        '        if caller != self.owner.get() {',
+        '            return Err(VaultError::NotOwner(NotOwner { caller }));',
+        '        }',
+        '        Ok(())',
+        '    }',
+        '}',
+        '',
+        '#[cfg(test)]',
+        'mod tests {',
+        '    use super::*;',
+        '    use stylus_sdk::alloy_primitives::address;',
+        '    use stylus_sdk::testing::*;',
+        '',
+        '    const OWNER: Address = address!("0000000000000000000000000000000000000001");',
+        '    const ALICE: Address = address!("00000000000000000000000000000000000a11ce");',
+        '',
+        '    #[test]',
+        '    fn mints_one_share_per_wei_on_the_first_deposit() {',
+        '        // TODO: deploy the vault on a test VM, deposit 1,000 wei as ALICE, and check her shares',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          anyOf: ['pub fn constructor(&mut self, owner: Address) { self.owner.set(owner);'],
+          objective: 'Store the owner when the vault is deployed',
+          hints: [
+            'The constructor runs once, at deployment: it is where the owner comes from.',
+            'Write the `owner` parameter to the `owner` field with `set`.',
+            'Write `pub fn constructor(&mut self, owner: Address) { self.owner.set(owner); }`.',
+          ],
+          anchor: 'pub fn constructor(',
+        },
+        {
+          anyOf: [
+            'pub fn set_paused(&mut self, paused: bool) -> Result<(), VaultError> { self.only_owner()?;',
+            // The owner check written inline instead of with the guard.
+            'pub fn set_paused(&mut self, paused: bool) -> Result<(), VaultError> { let $c = self.vm().msg_sender(); if $c != self.owner.get() {',
+          ],
+          objective: 'Let only the owner pause and unpause the vault',
+          hints: [
+            'Anyone can call `set_paused` for now: guard it first thing.',
+            'The plain `impl` block has an `only_owner` guard that returns `NotOwner`: call it and pass its error on with `?`.',
+            'Start `set_paused` with the guard: `pub fn set_paused(&mut self, paused: bool) -> Result<(), VaultError> { self.only_owner()?;`.',
+          ],
+          anchor: 'pub fn set_paused(',
+        },
+        {
+          anyOf: ['self.paused.get()', 'self.paused()'].map((paused) => `if ${paused} { return Err(VaultError::VaultPaused(VaultPaused {}));`),
+          objective: 'Refuse deposits while the vault is paused',
+          hints: [
+            'A paused vault takes no new deposits: check the flag before anything else.',
+            'Read `paused` from storage, and return the `VaultPaused` error, wrapped in `VaultError`, when it is set.',
+            'Start `deposit` with `if self.paused.get() { return Err(VaultError::VaultPaused(VaultPaused {})); }`.',
+          ],
+          anchor: 'pub fn deposit(',
+        },
+        {
+          anyOf: ['self.total_assets()', 'self.vm().balance(self.vm().contract_address())'].flatMap((balance) =>
+            ['assets', 'self.vm().msg_value()'].map((value) => `let $b = ${balance} - ${value};`),
+          ),
+          objective: 'Measure the assets the vault held before this deposit',
+          hints: [
+            'The balance of the vault already includes the value sent with this call.',
+            'Subtract `assets`, the value sent, from `total_assets()`, and keep the result in `assets_before`.',
+            'Write `let assets_before = self.total_assets() - assets;`.',
+          ],
+          anchor: 'pub fn deposit(',
+        },
+        {
+          anyOf: ['supply.is_zero()', 'supply == U256::ZERO', 'U256::ZERO == supply'].map((empty) => `let shares = if ${empty} { assets } else {`),
+          alsoAnyOf: [proportionalShares()],
+          objective: 'Mint one share per wei into an empty vault, and in proportion to the assets otherwise',
+          hints: [
+            'With no shares yet, there is no price: the first depositor gets one share per wei. After that, shares are in proportion to the assets already in the vault.',
+            'Branch on whether `supply` is zero. Otherwise multiply `assets` by `supply` with `checked_mul`, turn an overflow into `MathOverflow` with `ok_or` and `?`, then divide by `assets_before`.',
+            'Replace `let shares = assets;` with `let shares = if supply.is_zero() { assets } else { assets.checked_mul(supply).ok_or(VaultError::MathOverflow(MathOverflow {}))? / assets_before };`.',
+          ],
+          anchor: 'pub fn deposit(',
+        },
+        {
+          anyOf: ['shares.is_zero()', 'shares == U256::ZERO'].map((none) => `if ${none} { return Err(VaultError::ZeroShares(ZeroShares { assets }));`),
+          objective: 'Refuse a deposit that would mint no share',
+          hints: [
+            'Rounding down can mint zero shares: the depositor would hand over ETH for nothing.',
+            'Test whether `shares` is zero, and return `ZeroShares` with the assets, wrapped in `VaultError`.',
+            'Write `if shares.is_zero() { return Err(VaultError::ZeroShares(ZeroShares { assets })); }`.',
+          ],
+          anchor: 'pub fn deposit(',
+        },
+        {
+          anyOf: mintedShares(),
+          alsoAnyOf: [['self.total_shares.set(supply + shares)', 'self.total_shares.set(shares + supply)', 'let $t = supply + shares; self.total_shares.set($t)']],
+          objective: 'Add the new shares to the account and to the total',
+          hints: [
+            'Minting is two writes: the shares of the account, and the total supply.',
+            'Add `shares` to what `account` holds and write it back with `insert`, then set `total_shares` to `supply` plus `shares`.',
+            'Write `let balance = self.shares.get(account) + shares; self.shares.insert(account, balance); self.total_shares.set(supply + shares);`.',
+          ],
+          anchor: 'pub fn deposit(',
+        },
+        {
+          anyOf: burnedShares(),
+          objective: 'Burn the shares before the ETH leaves',
+          hints: [
+            'The ETH leaves last: until the call returns, the shares of the account must already be gone.',
+            'Write `available` minus `shares` to the shares of `account`, and `supply` minus `shares` to `total_shares`, right before sending the ETH.',
+            'Write `self.shares.insert(account, available - shares); self.total_shares.set(supply - shares); transfer_eth(self.vm(), account, assets)?;`.',
+          ],
+          anchor: 'pub fn withdraw(',
+        },
+        {
+          anyOf: ['let mut $c = MiniVault::from(&$v);'],
+          alsoAnyOf: [
+            ['.set_sender(ALICE);'],
+            ['.set_value(U256::from(1000));', '.set_value(U256::from(1_000));'],
+            ['.deposit()'],
+            vaultShareAssertions(),
+          ],
+          objective: 'Test that a first deposit mints one share per wei',
+          hints: [
+            'As in lesson 19: build a test VM, the vault on it, and deploy it, then act as Alice.',
+            'Set the sender and a value of 1,000 wei, deposit, then compare the shares of `ALICE` with 1,000. `deposit` returns a `Result` whose error has no `Debug`: compare it with `ok()` rather than unwrapping it.',
+            'Write `let vm = TestVM::default(); let mut vault = MiniVault::from(&vm); vault.constructor(OWNER); vm.set_sender(ALICE); vm.set_value(U256::from(1000)); assert_eq!(vault.deposit().ok(), Some(U256::from(1000))); assert_eq!(vault.shares_of(ALICE), U256::from(1000));`.',
+          ],
+          anchor: 'fn mints_one_share_per_wei_on_the_first_deposit(',
+        },
+      ],
     },
   },
 };
