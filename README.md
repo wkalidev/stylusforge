@@ -214,7 +214,7 @@ A per-IP limit slows scripted claims but does not stop a client that rotates IPs
 
 ## Continuous integration
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on every push to `main` and on demand: `pnpm install --frozen-lockfile` on Node 22, then `pnpm lint`, `pnpm test` (contracts, then vitest) and `pnpm build`. A second job, **Rust lesson checks**, runs `cargo check` on the reference solution, starter code and explanation snippets of every available lesson ([curriculum README](curriculum/README.md#checking-the-lesson-rust)); it caches the cargo registry and build output, saved from `main` only. The build uses a placeholder WalletConnect id unless the repository variable `NEXT_PUBLIC_WALLETCONNECT_ID` is set. A new push to a pull request cancels its running checks. Each push to `main` runs in its own concurrency group, so no merge's run is cancelled or replaced while queued.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on every push to `main` and on demand: `pnpm install --frozen-lockfile` on Node 22, then `pnpm lint`, `pnpm test` (contracts, then vitest) and `pnpm build`. A second job, **Rust lesson checks**, runs `cargo check` on the reference solution, starter code and explanation snippets of every available lesson, and `cargo test` on those that contain unit tests ([curriculum README](curriculum/README.md#checking-the-lesson-rust)); it caches the cargo registry and build output, saved from `main` only. The build uses a placeholder WalletConnect id unless the repository variable `NEXT_PUBLIC_WALLETCONNECT_ID` is set. A new push to a pull request cancels its running checks. Each push to `main` runs in its own concurrency group, so no merge's run is cancelled or replaced while queued.
 
 ## Roadmap
 
@@ -227,12 +227,13 @@ A per-IP limit slows scripted claims but does not stop a client that rotates IPs
 - Module 2, Contract logic: message and block context, access control, payable methods and sending ETH, view/pure and gas join Events and Errors (eleven lessons in all).
 - Module 3, Tokens: allowances, ERC-721 and OpenZeppelin for Stylus join the ERC-20 lesson (fourteen lessons in all).
 - Module 4, Interoperability: calling Solidity, being called through the ABI, and a token vault for DeFi interaction (seventeen lessons in all).
+- Module 5, Stylus specifics: WASM, ink and gas, unit tests on the stylus-sdk test VM, security pitfalls, and a final project, a mini vault (twenty-one lessons in all).
 - Local development stack, CI on pull requests and the Vercel configuration.
 - Arbitrum Sepolia deployment: the verified contract and the web app on Vercel.
 
 **Next**
 
-- Curriculum expansion: module 5 (Stylus specifics), registered on-chain with `addLesson` without redeploying.
+- Register the lessons of modules 4 and 5 on-chain with `addLesson` (`pnpm register:lessons`), without redeploying.
 
 **Later**
 
