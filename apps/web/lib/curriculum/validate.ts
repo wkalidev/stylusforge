@@ -14,6 +14,13 @@ export interface LessonCheck {
    * one snippet of every group ("grow the list" and "set the title" of the new element).
    */
   alsoAnyOf?: string[][];
+  /**
+   * Optional forbidden snippets: the check fails while the code contains any of them, matched like
+   * `anyOf` (comments and strings blanked, placeholders allowed). Use it for a planted bug that a
+   * fix written next to it would leave in place, such as an unguarded `init` kept beside a new
+   * `#[constructor]`.
+   */
+  noneOf?: string[];
   /** The goal of the check in plain words, never the expected code ("Increment the count by 1"). */
   objective: string;
   /**
@@ -179,14 +186,15 @@ function lineAt(code: string, index: number): number {
 
 /**
  * Runs every check against the code, with comments and string contents removed so a check
- * cannot be passed by writing the expected snippet in a comment or a string. Each result
- * carries the line of the check's anchor, for editor diagnostics.
+ * cannot be passed by writing the expected snippet in a comment or a string, nor failed by a
+ * forbidden snippet left in one. Each result carries the line of the check's anchor, for editor
+ * diagnostics.
  */
 export function evaluateChecks(code: string, checks: LessonCheck[]): CheckResult[] {
   const source = stripCommentsAndStrings(code);
   return checks.map((check) => {
     const matches = (snippets: string[]) => snippets.some((snippet) => snippetPattern(snippet).test(source));
-    const passed = [check.anyOf, ...(check.alsoAnyOf ?? [])].every(matches);
+    const passed = [check.anyOf, ...(check.alsoAnyOf ?? [])].every(matches) && !matches(check.noneOf ?? []);
     const anchor = check.anchor ? snippetPattern(check.anchor).exec(source) : null;
     return { check, passed, line: anchor ? lineAt(source, anchor.index) : null };
   });

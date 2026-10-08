@@ -8,7 +8,7 @@ import { LESSONS, getLesson } from "./lessons";
 import { containsSnippet, harnessPath, rustBlocks } from "./rust";
 import { SOLUTIONS } from "./solutions";
 import { splitSteps } from "./steps";
-import { evaluateChecks, snippetPattern, validateCode, type LessonCheck } from "./validate";
+import { evaluateChecks, snippetPattern, stripCommentsAndStrings, validateCode, type LessonCheck } from "./validate";
 
 /** Whether a text gives any expected snippet of a check, matched like the check itself. */
 function givesCode(text: string, check: LessonCheck): boolean {
@@ -58,6 +58,15 @@ describe.each(available)("lesson $id: $title", (lesson) => {
     }
   });
 
+  it("forbids only bugs that the starter code plants", () => {
+    // A check with forbidden snippets is about removing a bug: the starter must contain it.
+    const starter = stripCommentsAndStrings(starterCode);
+    for (const check of checks.filter((candidate) => candidate.noneOf)) {
+      expect(check.noneOf!.length, check.objective).toBeGreaterThan(0);
+      expect(check.noneOf!.some((snippet) => snippetPattern(snippet).test(starter)), `no forbidden snippet of "${check.objective}" in the starter`).toBe(true);
+    }
+  });
+
   it("passes every check with the reference solution", () => {
     expect(validateCode(solution, checks)).toEqual({ passed: true, objectives: [] });
   });
@@ -99,8 +108,8 @@ describe.each(available)("lesson $id: $title", (lesson) => {
 
   it("shows no snippet placeholder to students", () => {
     // Everything but the snippets themselves: title, preview, explanation, starter code, quizzes,
-    // objectives and hints. A placeholder such as $x only belongs in anyOf, alsoAnyOf and anchor.
-    const shown = JSON.stringify(lesson, (key, value) => (["anyOf", "alsoAnyOf", "anchor"].includes(key) ? undefined : value));
+    // objectives and hints. A placeholder such as $x only belongs in anyOf, alsoAnyOf, noneOf and anchor.
+    const shown = JSON.stringify(lesson, (key, value) => (["anyOf", "alsoAnyOf", "noneOf", "anchor"].includes(key) ? undefined : value));
     expect(shown).toContain(checks[0].objective);
     expect(shown.match(/\$[A-Za-z_][A-Za-z0-9_]*/g) ?? []).toEqual([]);
   });
