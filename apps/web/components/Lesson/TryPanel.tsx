@@ -9,26 +9,36 @@ import {
   functionSelector,
   holdsEth,
   namedAddresses,
+  sendEthDirectly,
   simTimestamp,
   type LessonSimulation,
   type SimMock,
   type SimAccount,
   type SimCallResult,
+  type SimDirectEth,
+  type SimDirectEthResult,
   type SimFunction,
   type SimState,
   type SimType,
   type SimValue,
 } from '@/lib/curriculum/simulation';
 
-interface LogEntry {
+/** A sent transaction: a method call, or ETH sent to the contract without one. */
+type LogEntry = {
   id: number;
   caller: SimAccount;
-  fn: SimFunction;
-  args: Record<string, string>;
-  /** Wei sent with the call, as typed. */
+  /** Wei sent, as typed. */
   value: string;
-  result: SimCallResult;
-}
+} & (
+  | { kind: 'call'; fn: SimFunction; args: Record<string, string>; result: SimCallResult }
+  | { kind: 'direct'; how: SimDirectEth; result: SimDirectEthResult }
+);
+
+/** How each way of sending ETH without a method call reads in the panel and the log. */
+const DIRECT_ETH: Record<SimDirectEth, { option: string; log: string }> = {
+  transfer: { option: 'Plain transfer, no calldata', log: 'plain transfer' },
+  selfdestruct: { option: 'Self-destruct of a contract', log: 'self-destruct' },
+};
 
 function formatArgs(record: Record<string, SimValue> | undefined, accounts: SimAccount[]): string {
   return Object.entries(record ?? {})
@@ -87,6 +97,62 @@ function FunctionForm({ fn, selector, onCall }: { fn: SimFunction; selector?: bo
         )}
         <button type='submit' className={buttonClasses(fn.view ? 'steel' : 'heat', 'md', 'h-9')}>
           {fn.view ? 'Read' : 'Send'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Sends ETH to the contract without calling a method, from the selected caller: a plain transfer,
+ * or the self-destruct of a contract that names it, as in a donation attack.
+ */
+function DirectEthForm({ contract, onSend }: { contract: string; onSend: (how: SimDirectEth, value: string) => void }) {
+  const id = useId();
+  const [how, setHow] = useState<SimDirectEth>('transfer');
+  const [value, setValue] = useState('');
+  return (
+    <form
+      aria-label={`Send ETH to ${contract}`}
+      className='rounded-[var(--radius-forge)] border border-steel-700 p-3'
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSend(how, value);
+      }}
+    >
+      <p className='text-sm font-semibold text-steel-100'>Send ETH without a method call</p>
+      <p className='mt-1 text-xs text-steel-400'>
+        A plain transfer, with no calldata, reverts: {contract} has no receive function. A contract that self-destructs
+        sends its whole balance to {contract} without running any of its code.
+      </p>
+      <div className='mt-2 flex flex-wrap items-end gap-2'>
+        <label className='flex min-w-0 flex-1 flex-col gap-1 text-xs text-steel-400'>
+          how
+          <select
+            id={`${id}-how`}
+            value={how}
+            onChange={(event) => setHow(event.target.value as SimDirectEth)}
+            className='h-9 min-w-24 rounded-[var(--radius-forge)] border border-steel-700 bg-steel-950 px-2 text-sm text-steel-100'
+          >
+            {(Object.keys(DIRECT_ETH) as SimDirectEth[]).map((kind) => (
+              <option key={kind} value={kind}>
+                {DIRECT_ETH[kind].option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className='flex min-w-0 flex-1 flex-col gap-1 text-xs text-amber-300'>
+          value (wei)
+          <input
+            id={`${id}-value`}
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder='0'
+            className='h-9 min-w-24 rounded-[var(--radius-forge)] border border-steel-700 bg-steel-950 px-2 font-mono text-sm text-steel-100'
+          />
+        </label>
+        <button type='submit' className={buttonClasses('heat', 'md', 'h-9')}>
+          Send ETH
         </button>
       </div>
     </form>
@@ -197,7 +263,13 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
     setSent(block);
     setState(result.state);
     setBalance(result.balance);
-    setLog((entries) => [{ id: (entries[0]?.id ?? 0) + 1, caller, fn, args, value, result }, ...entries].slice(0, 20));
+    setLog((entries) => [{ id: (entries[0]?.id ?? 0) + 1, caller, value, kind: 'call' as const, fn, args, result }, ...entries].slice(0, 20));
+  };
+  const sendEth = (how: SimDirectEth, value: string) => {
+    const result = sendEthDirectly(how, value, balance);
+    setSent(sent + 1);
+    setBalance(result.balance);
+    setLog((entries) => [{ id: (entries[0]?.id ?? 0) + 1, caller, value, kind: 'direct' as const, how, result }, ...entries].slice(0, 20));
   };
 
   return (
@@ -252,6 +324,7 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
           .map((fn) => (
             <FunctionForm key={fn.name} fn={fn} selector={simulation.selectors} onCall={(args, value) => call(fn, args, value)} />
           ))}
+        {simulation.directEth && <DirectEthForm contract={simulation.contract} onSend={sendEth} />}
       </div>
 
       {mocks.map((mock) => (
@@ -286,41 +359,55 @@ export function TryPanel({ simulation, passed }: { simulation: LessonSimulation 
             <p className='text-sm text-steel-600'>No calls yet.</p>
           ) : (
             <ol aria-live='polite' className='space-y-2 font-mono text-xs'>
-              {log.map((entry) => (
-                <li key={entry.id} className='border-b border-steel-800 pb-2 last:border-0'>
-                  <p className='text-steel-300'>
-                    {entry.caller.name}: {entry.fn.contract ? `${entry.fn.contract}.` : ''}
-                    {entry.fn.abiName}({Object.values(entry.args).join(', ')})
-                    {entry.value.trim() !== '' && <span className='text-amber-300'> with {entry.value.trim()} wei</span>}
-                  </p>
-                  {entry.result.ok ? (
-                    <>
-                      {entry.result.returns !== undefined && (
-                        <p className='text-quench-300'>returned {formatSimValue(entry.result.returns, named)}</p>
-                      )}
-                      {entry.result.events.map((event, index) => (
-                        <p key={index} className='text-amber-300'>
-                          event {event.contract ? `${event.contract}.` : ''}
-                          {event.name}({formatArgs(event.args, named)})
-                        </p>
-                      ))}
-                      {entry.result.transfers.map((transfer, index) => (
-                        <p key={index} className='text-amber-300'>
-                          sent {formatSimValue(transfer.amount, named)} wei to {formatSimValue(transfer.to, named)}
-                        </p>
-                      ))}
-                      {entry.result.returns === undefined && entry.result.events.length === 0 && entry.result.transfers.length === 0 && (
-                        <p className='text-steel-400'>ok</p>
-                      )}
-                    </>
-                  ) : (
-                    <p className='text-molten-300'>
-                      reverted: {entry.result.error?.error}
-                      {entry.result.error?.args ? `(${formatArgs(entry.result.error.args, named)})` : ''}
+              {log.map((entry) =>
+                entry.kind === 'direct' ? (
+                  <li key={entry.id} className='border-b border-steel-800 pb-2 last:border-0'>
+                    <p className='text-steel-300'>
+                      {entry.caller.name}: {DIRECT_ETH[entry.how].log} to {simulation.contract}
+                      {entry.value.trim() !== '' && <span className='text-amber-300'> with {entry.value.trim()} wei</span>}
                     </p>
-                  )}
-                </li>
-              ))}
+                    {entry.result.ok ? (
+                      <p className='text-amber-300'>balance now {formatSimValue(entry.result.balance, named)} wei, no code ran</p>
+                    ) : (
+                      <p className='text-molten-300'>reverted: {entry.result.error?.error}</p>
+                    )}
+                  </li>
+                ) : (
+                  <li key={entry.id} className='border-b border-steel-800 pb-2 last:border-0'>
+                    <p className='text-steel-300'>
+                      {entry.caller.name}: {entry.fn.contract ? `${entry.fn.contract}.` : ''}
+                      {entry.fn.abiName}({Object.values(entry.args).join(', ')})
+                      {entry.value.trim() !== '' && <span className='text-amber-300'> with {entry.value.trim()} wei</span>}
+                    </p>
+                    {entry.result.ok ? (
+                      <>
+                        {entry.result.returns !== undefined && (
+                          <p className='text-quench-300'>returned {formatSimValue(entry.result.returns, named)}</p>
+                        )}
+                        {entry.result.events.map((event, index) => (
+                          <p key={index} className='text-amber-300'>
+                            event {event.contract ? `${event.contract}.` : ''}
+                            {event.name}({formatArgs(event.args, named)})
+                          </p>
+                        ))}
+                        {entry.result.transfers.map((transfer, index) => (
+                          <p key={index} className='text-amber-300'>
+                            sent {formatSimValue(transfer.amount, named)} wei to {formatSimValue(transfer.to, named)}
+                          </p>
+                        ))}
+                        {entry.result.returns === undefined && entry.result.events.length === 0 && entry.result.transfers.length === 0 && (
+                          <p className='text-steel-400'>ok</p>
+                        )}
+                      </>
+                    ) : (
+                      <p className='text-molten-300'>
+                        reverted: {entry.result.error?.error}
+                        {entry.result.error?.args ? `(${formatArgs(entry.result.error.args, named)})` : ''}
+                      </p>
+                    )}
+                  </li>
+                ),
+              )}
             </ol>
           )}
         </section>
