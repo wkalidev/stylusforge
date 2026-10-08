@@ -5150,6 +5150,52 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn withdraw(',
         },
       ],
+      quizzes: [
+        {
+          afterStep: "Initializing once",
+          question: "A contract sets its owner in a public init(owner) method. What can an attacker do?",
+          options: [
+            "Nothing: only the deployer can call a method named init",
+            "Call it before the deployer does, or again later, and become the owner",
+            "Only read the owner",
+          ],
+          answer: 1,
+          explanation: "A public method is open to everyone, whatever its name. #[constructor] runs once, at deployment, and the SDK reverts a second call.",
+        },
+        {
+          afterStep: "Arithmetic and conversions",
+          question: "available is 5 and amount is 6, both U256. What is available - amount?",
+          options: [
+            "A revert with an underflow error",
+            "Zero",
+            "2^256 - 1: the subtraction wraps around",
+          ],
+          answer: 2,
+          explanation: "U256 subtraction wraps around below zero. checked_sub returns None instead, which ok_or turns into an error.",
+        },
+        {
+          afterStep: "Reentrancy and the storage cache",
+          question: "A method lowers a balance, then sends ETH with a RawCall, without flush_storage_cache(). The receiver calls back into the contract. Which balance does that call read?",
+          options: [
+            "The balance from before the write: the new value is still in the cache, not in storage",
+            "The lowered balance: storage writes are immediate",
+            "Zero: the cache is cleared before every call",
+          ],
+          answer: 0,
+          explanation: "A raw call does not flush the storage cache unless asked. flush_storage_cache() writes it to storage first; the calls of sol_interface! and transfer_eth do it for you.",
+        },
+        {
+          afterStep: "Panics and loops",
+          question: "A method sums the balances of every depositor in a vector. What happens as the vector grows?",
+          options: [
+            "The cost stays the same: storage reads are cached",
+            "Each call costs more ink, until it no longer fits in a transaction and always fails",
+            "The SDK splits the loop across transactions",
+          ],
+          answer: 1,
+          explanation: "Every iteration reads storage. Once a call needs more gas than a transaction can have, it runs out of ink every time. A running total, updated on each deposit, keeps the cost bounded.",
+        },
+      ],
     },
   },
 };
