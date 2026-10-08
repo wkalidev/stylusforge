@@ -298,6 +298,48 @@ function stillLockedAssertions(): string[] {
   });
 }
 
+/**
+ * Snippets for lesson 20's subtraction: `checked_sub` into a local of any name, its `None` turned
+ * into InsufficientBalance with `ok_or` or `ok_or_else`, the fields in either order (rustfmt may add
+ * a trailing comma), or the error built in a local right before.
+ */
+function checkedWithdrawals(): string[] {
+  const errors = ['available, requested: amount', 'requested: amount, available'].flatMap((fields) =>
+    [`InsufficientBalance { ${fields} }`, `InsufficientBalance { ${fields}, }`].map((error) => `TreasuryError::InsufficientBalance(${error})`),
+  );
+  return errors.flatMap((error) => [
+    `let $r = available.checked_sub(amount).ok_or(${error})?`,
+    `let $r = available.checked_sub(amount).ok_or_else(|| ${error})?`,
+    `let $e = ${error}; let $r = available.checked_sub(amount).ok_or($e)?`,
+  ]);
+}
+
+/** The ways lesson 20 sends the withdrawal: the raw call of the starter, or `transfer_eth`. */
+const TREASURY_PAYMENTS = ['unsafe { RawCall::new_with_value(self.vm(), amount)', 'transfer_eth(self.vm(), account, amount)?'];
+
+/** Snippets for lesson 20's effects before the interaction: the lowered balance written, then the ETH sent. */
+function lowerThenPay(): string[] {
+  const writes = ['self.balances.insert(account, $r);', 'self.balances.setter(account).set($r);'];
+  return writes.flatMap((write) => TREASURY_PAYMENTS.map((payment) => `${write} ${payment}`));
+}
+
+/**
+ * Snippets for lesson 20's payment that writes the storage cache first: the raw call with
+ * `flush_storage_cache()` or `clear_storage_cache()` (before or after `skip_return_data()`), or
+ * `transfer_eth`, which flushes the cache itself.
+ */
+function flushedPayments(): string[] {
+  const call = 'RawCall::new_with_value(self.vm(), amount)';
+  return [
+    ...['flush_storage_cache()', 'clear_storage_cache()'].flatMap((flush) => [
+      `${call}.${flush}.call(account, &[])`,
+      `${call}.${flush}.skip_return_data().call(account, &[])`,
+      `${call}.skip_return_data().${flush}.call(account, &[])`,
+    ]),
+    'transfer_eth(self.vm(), account, amount)?',
+  ];
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -4942,8 +4984,172 @@ const CONTENT: Record<number, LessonContent> = {
         '',
         'Stuck? Each objective has hints, from a nudge to the exact code.',
       ].join('\n'),
-      starterCode: '',
-      checks: [],
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use alloc::vec::Vec;',
+        'use stylus_sdk::{',
+        '    alloy_primitives::{Address, U256},',
+        '    alloy_sol_types::sol,',
+        '    call::RawCall,',
+        '    prelude::*,',
+        '};',
+        '',
+        'sol! {',
+        '    event Deposited(address indexed account, uint256 amount);',
+        '    event Withdrawn(address indexed account, uint256 amount);',
+        '    error NotOwner(address caller);',
+        '    error LimitExceeded(uint256 limit, uint256 requested);',
+        '    error InsufficientBalance(uint256 available, uint256 requested);',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum TreasuryError {',
+        '    NotOwner(NotOwner),',
+        '    LimitExceeded(LimitExceeded),',
+        '    InsufficientBalance(InsufficientBalance),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct Treasury {',
+        '        address owner;',
+        '        uint256 limit;',
+        '        mapping(address => uint256) balances;',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl Treasury {',
+        '    // TODO: anyone can call init, at any time: set the owner once, at deployment',
+        '    pub fn init(&mut self, owner: Address) {',
+        '        self.owner.set(owner);',
+        '    }',
+        '',
+        '    pub fn owner(&self) -> Address {',
+        '        self.owner.get()',
+        '    }',
+        '',
+        '    pub fn limit(&self) -> U256 {',
+        '        self.limit.get()',
+        '    }',
+        '',
+        '    pub fn set_limit(&mut self, limit: U256) -> Result<(), TreasuryError> {',
+        '        self.only_owner()?;',
+        '        self.limit.set(limit);',
+        '        Ok(())',
+        '    }',
+        '',
+        '    #[payable]',
+        '    pub fn deposit(&mut self) {',
+        '        let account = self.vm().msg_sender();',
+        '        let amount = self.vm().msg_value();',
+        '        let total = self.balances.get(account) + amount;',
+        '        self.balances.insert(account, total);',
+        '        self.vm().log(Deposited { account, amount });',
+        '    }',
+        '',
+        '    pub fn balance_of(&self, account: Address) -> U256 {',
+        '        self.balances.get(account)',
+        '    }',
+        '',
+        '    pub fn withdraw(&mut self, amount: U256) -> Result<(), Vec<u8>> {',
+        '        let account = self.vm().msg_sender();',
+        '        let limit = self.limit.get();',
+        '        if amount > limit {',
+        '            return Err(TreasuryError::LimitExceeded(LimitExceeded { limit, requested: amount }).into());',
+        '        }',
+        '        let available = self.balances.get(account);',
+        '        // TODO: this wraps around when amount is more than the balance',
+        '        let remaining = available - amount;',
+        '        // TODO: the ETH leaves before the balance is lowered, and the storage cache is not written first',
+        '        unsafe {',
+        '            RawCall::new_with_value(self.vm(), amount).call(account, &[])?;',
+        '        }',
+        '        self.balances.insert(account, remaining);',
+        '        self.vm().log(Withdrawn { account, amount });',
+        '        Ok(())',
+        '    }',
+        '}',
+        '',
+        'impl Treasury {',
+        '    fn only_owner(&self) -> Result<(), TreasuryError> {',
+        '        // TODO: tx_origin is the account that signed the transaction, not the caller',
+        '        let caller = self.vm().tx_origin();',
+        '        if caller != self.owner.get() {',
+        '            return Err(TreasuryError::NotOwner(NotOwner { caller }));',
+        '        }',
+        '        Ok(())',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          anyOf: ['', ', $l: U256'].map((more) => `#[constructor] pub fn $f(&mut self, $o: Address${more}) { self.owner.set($o);`),
+          // The planted bug: a method that anyone can call to set the owner (exported even without pub).
+          noneOf: ['fn init('],
+          objective: 'Set the owner once, when the contract is deployed',
+          hints: [
+            'A public `init` can be called by anyone: first, before the deployer does, or again later, to take the treasury over.',
+            'Replace `init` with a method marked `#[constructor]`: it runs once, at deployment, and the SDK reverts a second call.',
+            'Replace `init` with `#[constructor] pub fn constructor(&mut self, owner: Address) { self.owner.set(owner); }`.',
+          ],
+          anchor: 'impl Treasury {',
+        },
+        {
+          anyOf: [
+            'let $c = self.vm().msg_sender(); if $c != self.owner.get() {',
+            'let $c = self.vm().msg_sender(); if self.owner.get() != $c {',
+            'if self.vm().msg_sender() != self.owner.get() {',
+            'if self.owner.get() != self.vm().msg_sender() {',
+          ],
+          noneOf: ['tx_origin()'],
+          objective: 'Authorize the account that calls the treasury',
+          hints: [
+            'The signer of a transaction is not always the caller: a contract the owner calls can call the treasury in turn, and still pass a check on the signer.',
+            'Compare the owner with `msg_sender`, the account that called this contract, as lesson 9 recommends.',
+            'In `only_owner`, write `let caller = self.vm().msg_sender(); if caller != self.owner.get() {`.',
+          ],
+          anchor: 'fn only_owner(',
+        },
+        {
+          anyOf: checkedWithdrawals(),
+          // The planted bug: a subtraction that wraps around below zero.
+          noneOf: ['- amount', '-= amount'],
+          objective: 'Refuse a withdrawal above the balance instead of wrapping around',
+          hints: [
+            'Subtracting more than the balance wraps around to a huge number: the account would be left with a fortune instead of an error.',
+            'Use `checked_sub`, which returns `None` below zero, and turn the `None` into `InsufficientBalance` with `ok_or` and `?`.',
+            'Write `let remaining = available.checked_sub(amount).ok_or(TreasuryError::InsufficientBalance(InsufficientBalance { available, requested: amount }))?;`.',
+          ],
+          anchor: 'pub fn withdraw(',
+        },
+        {
+          anyOf: lowerThenPay(),
+          // The planted bug: the balance written after the ETH has left.
+          noneOf: ['.call(account, &[])?; } self.balances.', 'transfer_eth(self.vm(), account, amount)?; self.balances.'],
+          objective: 'Lower the balance before the ETH leaves',
+          hints: [
+            'Sending ETH runs code at `account` before `withdraw` lowers the balance: a contract there can withdraw again, and be paid again.',
+            'Checks, effects, interactions: write the new balance first, then make the call, and remove the write that comes after it.',
+            'Move the write above the call, `self.balances.insert(account, remaining); unsafe { RawCall::new_with_value(self.vm(), amount)`, and remove the one after it.',
+          ],
+          anchor: 'pub fn withdraw(',
+        },
+        {
+          anyOf: flushedPayments(),
+          // The planted bug: a raw call that leaves the storage cache unwritten.
+          noneOf: ['RawCall::new_with_value(self.vm(), amount).call(', 'RawCall::new_with_value(self.vm(), amount).skip_return_data().call('],
+          objective: 'Write the storage cache to storage before sending the ETH',
+          hints: [
+            'A raw call does not flush the storage cache: the contract it calls, and a call back into the treasury, read the balance from before your write.',
+            'Add `flush_storage_cache()` to the `RawCall` before `call`, or send the ETH with `transfer_eth`, which flushes the cache itself.',
+            'Write `RawCall::new_with_value(self.vm(), amount).flush_storage_cache().call(account, &[])`.',
+          ],
+          anchor: 'pub fn withdraw(',
+        },
+      ],
     },
   },
 };
