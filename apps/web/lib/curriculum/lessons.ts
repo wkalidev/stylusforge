@@ -90,16 +90,18 @@ function guardedReturns(conditions: string[], errors: string[]): string[] {
  * the read would borrow the mapping while the setter holds it, which does not compile.
  */
 function balanceUpdates(account: string, op: '+' | '-'): string[] {
+  // Placeholders bind across the groups of a check: each account gets its own locals.
+  const [read, written] = [`$${account}_read`, `$${account}_written`];
   const sums = (balance: string) =>
     ['U256::from(1)', 'U256::ONE'].flatMap((one) => [`${balance} ${op} ${one}`, ...(op === '+' ? [`${one} + ${balance}`] : [])]);
-  const fromLocal = sums('$x');
+  const fromLocal = sums(read);
   const inline = sums(`self.balances.get(${account})`);
   const insert = (value: string) => `self.balances.insert(${account}, ${value})`;
   const set = (value: string) => `self.balances.setter(${account}).set(${value})`;
   return [
     ...fromLocal.flatMap((value) => [insert(value), set(value)]),
     ...inline.map(insert),
-    ...[...fromLocal, ...inline].flatMap((value) => [`let $y = ${value}; ${insert('$y')}`, `let $y = ${value}; ${set('$y')}`]),
+    ...[...fromLocal, ...inline].flatMap((value) => [`let ${written} = ${value}; ${insert(written)}`, `let ${written} = ${value}; ${set(written)}`]),
   ];
 }
 
