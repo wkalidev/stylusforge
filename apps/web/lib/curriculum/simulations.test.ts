@@ -642,4 +642,31 @@ describe("lesson simulations", () => {
     // The largest product that fits does not revert.
     expect(callSimulation(simulation, { ink_per_item: 1n }, "gas_for", { items: MAX.toString() }, alice).returns).toBe(MAX / 10_000n);
   });
+
+  it("lesson 19 locks each deposit for the delay, on the simulated clock", () => {
+    const simulation = getSimulation(19)!;
+    let state = simulation.initialState();
+    let balance = 0n;
+    let sent = 0;
+    // Like the Try it panel: each sent transaction runs in the next block, views in the current one.
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, value = "") => {
+      if (!simulation.functions.find((candidate) => candidate.name === fn)!.view) sent += 1;
+      const result = callSimulation(simulation, state, fn, args, caller, { timestamp: simTimestamp(sent), value, balance });
+      state = result.state;
+      balance = result.balance;
+      return result;
+    };
+    expect(call("withdraw", {}, alice)).toMatchObject({ ok: false, error: { error: "NothingLocked", args: { account: alice.address } } });
+    const deposit = call("deposit", {}, alice, "100");
+    const unlockAt = simTimestamp(2) + 60n;
+    expect(deposit.events).toEqual([{ name: "Deposited", args: { account: alice.address, amount: 100n, unlock_at: unlockAt } }]);
+    expect(call("unlock_time", { account: "Alice" }, bob).returns).toBe(unlockAt);
+    expect(call("withdraw", {}, alice)).toMatchObject({ ok: false, error: { error: "StillLocked", args: { unlock_at: unlockAt, now: simTimestamp(3) } } });
+    // Each sent transaction moves the clock 12 seconds: the lock still holds 12 seconds before it opens.
+    for (let i = 0; i < 3; i += 1) expect(call("withdraw", {}, alice).error?.error).toBe("StillLocked");
+    expect(simTimestamp(sent + 1)).toBe(unlockAt);
+    const withdrawal = call("withdraw", {}, alice);
+    expect(withdrawal).toMatchObject({ ok: true, transfers: [{ to: alice.address, amount: 100n }], balance: 0n });
+    expect(call("deposit_of", { account: "Alice" }, alice).returns).toBe(0n);
+  });
 });

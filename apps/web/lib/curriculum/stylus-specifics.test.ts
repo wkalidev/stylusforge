@@ -78,3 +78,74 @@ describe("lesson 18: WASM, ink and gas", () => {
     expect(variant(18, divide, "let gas = ink / U256::from(self.vm().tx_ink_price());\n        Ok(gas)").passed).toBe(true);
   });
 });
+
+describe("lesson 19: Testing in Rust", () => {
+  const setup = "let vm = TestVM::default();\n        let mut contract = TimeLock::from(&vm);";
+  const deployed = "contract.constructor(U256::from(3600));";
+  const recorded = "assert_eq!(contract.deposit_of(ALICE), U256::from(100));";
+  const early =
+    "assert_eq!(\n            contract.withdraw(),\n            Err(LockError::StillLocked(StillLocked { unlock_at: U256::from(3600), now: U256::ZERO }).into())\n        );";
+  const opened = "vm.set_block_timestamp(3600);";
+  const succeeds = "assert!(contract.withdraw().is_ok());";
+  const cleared = "assert_eq!(contract.deposit_of(ALICE), U256::ZERO);";
+
+  it("accepts TestVM::new() and other names for the VM and the contract", () => {
+    const renamed = SOLUTIONS[19]
+      .replace(setup, "let host = TestVM::new();\n        let mut lock = TimeLock::from(&host);")
+      .replaceAll("contract.", "lock.")
+      .replaceAll("vm.", "host.");
+    expect(validateCode(renamed, LESSONS.find((lesson) => lesson.id === 19)!.exercise!.checks).passed).toBe(true);
+  });
+
+  it("accepts the delay written another way, and the assertions either way round", () => {
+    expect(variant(19, deployed, "contract.constructor(U256::from(3_600));").passed).toBe(true);
+    expect(variant(19, deployed, "contract.constructor(U256::from(60 * 60));").passed).toBe(true);
+    expect(variant(19, recorded, "assert_eq!(U256::from(100), contract.deposit_of(ALICE));").passed).toBe(true);
+    expect(variant(19, recorded, "assert!(contract.deposit_of(ALICE) == U256::from(100));").passed).toBe(true);
+    expect(variant(19, cleared, "assert!(contract.deposit_of(ALICE) == U256::from(0));").passed).toBe(true);
+  });
+
+  it("accepts the StillLocked assertion with the fields in any order, rustfmt style, or through locals", () => {
+    const error = "LockError::StillLocked(StillLocked { unlock_at: U256::from(3600), now: U256::ZERO })";
+    expect(variant(19, early, "assert_eq!(contract.withdraw(), Err(LockError::StillLocked(StillLocked { now: U256::from(0), unlock_at: U256::from(3_600) }).into()));").passed).toBe(true);
+    expect(
+      variant(
+        19,
+        early,
+        "assert_eq!(\n            contract.withdraw(),\n            Err(LockError::StillLocked(StillLocked {\n                unlock_at: U256::from(3600),\n                now: U256::ZERO,\n            })\n            .into()),\n        );",
+      ).passed,
+    ).toBe(true);
+    expect(variant(19, early, `let early = contract.withdraw();\n        assert_eq!(early, Err(${error}.into()));`).passed).toBe(true);
+    expect(variant(19, early, `let expected = ${error};\n        assert_eq!(contract.withdraw(), Err(expected.into()));`).passed).toBe(true);
+    expect(variant(19, early, `assert_eq!(Err(${error}.into()), contract.withdraw());`).passed).toBe(true);
+  });
+
+  it("refuses an early withdrawal checked against any error, or against the wrong fields", () => {
+    const objective = ["Check that an early withdrawal reverts with StillLocked, and its fields"];
+    expect(variant(19, early, "assert!(contract.withdraw().is_err());").objectives).toEqual(objective);
+    expect(
+      variant(19, early, "assert_eq!(contract.withdraw(), Err(LockError::StillLocked(StillLocked { unlock_at: U256::from(3599), now: U256::ZERO }).into()));").objectives,
+    ).toEqual(objective);
+    expect(
+      variant(19, early, "assert_eq!(contract.withdraw(), Err(LockError::NothingLocked(NothingLocked { account: ALICE }).into()));").objectives,
+    ).toEqual(objective);
+  });
+
+  it("accepts a successful withdrawal unwrapped or compared with Ok(())", () => {
+    expect(variant(19, succeeds, "contract.withdraw().unwrap();").passed).toBe(true);
+    expect(variant(19, succeeds, 'contract.withdraw().expect("the lock is open");').passed).toBe(true);
+    expect(variant(19, succeeds, "assert_eq!(contract.withdraw(), Ok(()));").passed).toBe(true);
+  });
+
+  it("refuses a withdrawal before the lock opens, or one whose success is not checked", () => {
+    const objective = ["When the lock opens, check that the withdrawal succeeds and clears her deposit"];
+    expect(variant(19, opened, "vm.set_block_timestamp(3599);").objectives).toEqual(objective);
+    expect(variant(19, succeeds, "let _ = contract.withdraw();").objectives).toEqual(objective);
+    expect(variant(19, cleared, "assert_eq!(contract.deposit_of(ALICE), U256::from(100));").objectives).toEqual(objective);
+  });
+
+  it("refuses a deposit sent without its value, or a log check that ignores the event", () => {
+    expect(variant(19, "vm.set_value(U256::from(100));", "").objectives).toEqual(["Deposit 100 wei as Alice"]);
+    expect(variant(19, "assert_eq!(logs[0].0[0], Deposited::SIGNATURE_HASH);", "").objectives).toEqual(["Check that the deposit was logged with a Deposited event"]);
+  });
+});
