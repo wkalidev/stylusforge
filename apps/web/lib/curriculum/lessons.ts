@@ -196,6 +196,25 @@ const CHECK_IN_TIME = 'let $t = U256::from(self.vm().block_timestamp());';
 /** Lesson 10's guard reading the caller into a local of any name. */
 const GUARD_CALLER = 'let $c = self.vm().msg_sender();';
 
+/**
+ * Lesson 11's new deposit, kept in a local of any name: the deposit of `account` plus the ETH sent,
+ * in either order, each read inline or into a local first, or a `let mut` updated in place.
+ */
+const DEPOSIT_TOTALS = [
+  'let $s = self.deposits.get(account) + self.vm().msg_value();',
+  'let $s = self.vm().msg_value() + self.deposits.get(account);',
+  'let $x = self.vm().msg_value(); let $s = self.deposits.get(account) + $x;',
+  'let $x = self.vm().msg_value(); let $s = $x + self.deposits.get(account);',
+  'let $x = self.deposits.get(account); let $s = $x + self.vm().msg_value();',
+  'let $x = self.deposits.get(account); let $s = self.vm().msg_value() + $x;',
+  'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let $s = $x + $y;',
+  'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let $s = $y + $x;',
+  'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let $s = $x + $y;',
+  'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let $s = $y + $x;',
+  'let mut $s = self.deposits.get(account); $s += self.vm().msg_value();',
+  'let mut $s = self.vm().msg_value(); $s += self.deposits.get(account);',
+];
+
 /** Receivers of lesson 5's token calls: the token kept in a local of any name, or built inline. */
 const VAULT_TOKENS = ['$t', 'IERC20::new(self.token.get())', 'IERC20::from(self.token.get())'];
 
@@ -2563,21 +2582,7 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn deposit(',
         },
         {
-          // The new deposit is still named total (#111); the deposit and the ETH sent may be read into locals first.
-          anyOf: [
-            'let total = self.deposits.get(account) + self.vm().msg_value();',
-            'let total = self.vm().msg_value() + self.deposits.get(account);',
-            'let $x = self.vm().msg_value(); let total = self.deposits.get(account) + $x;',
-            'let $x = self.vm().msg_value(); let total = $x + self.deposits.get(account);',
-            'let $x = self.deposits.get(account); let total = $x + self.vm().msg_value();',
-            'let $x = self.deposits.get(account); let total = self.vm().msg_value() + $x;',
-            'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let total = $x + $y;',
-            'let $x = self.deposits.get(account); let $y = self.vm().msg_value(); let total = $y + $x;',
-            'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let total = $x + $y;',
-            'let $y = self.vm().msg_value(); let $x = self.deposits.get(account); let total = $y + $x;',
-            'let mut total = self.deposits.get(account); total += self.vm().msg_value();',
-            'let mut total = self.vm().msg_value(); total += self.deposits.get(account);',
-          ],
+          anyOf: DEPOSIT_TOTALS,
           objective: "Add the ETH sent with the call to the caller's deposit",
           hints: [
             'The wei sent with the call comes from the host. Add it to what `account` already deposited.',
@@ -2587,7 +2592,8 @@ const CONTENT: Record<number, LessonContent> = {
           anchor: 'pub fn deposit(',
         },
         {
-          anyOf: ['self.deposits.insert(account, total)', 'self.deposits.setter(account).set(total)'],
+          given: [DEPOSIT_TOTALS],
+          anyOf: ['self.deposits.insert(account, $s)', 'self.deposits.setter(account).set($s)'],
           objective: "Save the caller's new deposit",
           hints: [
             'Computing the total is not enough: write it back to the entry of `account`.',

@@ -166,9 +166,27 @@ describe("lesson 11: Payable and sending ETH", () => {
     expect(variant(11, deposit, "let mut total = self.deposits.get(account);\n        total += self.vm().msg_value();").passed).toBe(true);
   });
 
-  it("refuses a local ETH amount that is never added", () => {
+  it("refuses a local ETH amount that is never added, and so the deposit saved", () => {
     const result = variant(11, deposit, "let sent = self.vm().msg_value();\n        let total = self.deposits.get(account) + U256::from(1);");
-    expect(result.objectives).toEqual(["Add the ETH sent with the call to the caller's deposit"]);
+    expect(result.objectives).toEqual(["Add the ETH sent with the call to the caller's deposit", "Save the caller's new deposit"]);
+  });
+
+  const save = `${deposit}\n        self.deposits.insert(account, total);`;
+
+  it("accepts the new deposit under any local name", () => {
+    expect(variant(11, save, "let balance = self.deposits.get(account) + self.vm().msg_value();\n        self.deposits.insert(account, balance);").passed).toBe(true);
+    expect(
+      variant(11, save, "let mut credited = self.deposits.get(account);\n        credited += self.vm().msg_value();\n        self.deposits.setter(account).set(credited);").passed,
+    ).toBe(true);
+    expect(
+      variant(11, save, "let sent = self.vm().msg_value();\n        let new_deposit = sent + self.deposits.get(account);\n        self.deposits.insert(account, new_deposit);").passed,
+    ).toBe(true);
+  });
+
+  it("refuses a deposit saved from another local than the new total", () => {
+    const fromSent = "let sent = self.vm().msg_value();\n        let sum = self.deposits.get(account) + sent;\n        self.deposits.insert(account, sent);";
+    expect(variant(11, save, fromSent).objectives).toEqual(["Save the caller's new deposit"]);
+    expect(variant(11, save, `${deposit}\n        self.deposits.insert(account, totals);`).objectives).toEqual(["Save the caller's new deposit"]);
   });
 
   it("accepts the lowered deposit computed in a local variable first", () => {
