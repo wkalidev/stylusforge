@@ -74,6 +74,13 @@ const OVERFLOW_CASES: Record<
       },
     },
   },
+  // The deposit wraps around past U256::MAX, and the unlock time past it too with a delay of MAX.
+  19: {
+    state: { delay: MAX, deposits: { [alice.address]: MAX }, unlock_at: {} },
+    call: ["deposit", {}, alice],
+    with: { value: "1" },
+    expected: { delay: MAX, deposits: { [alice.address]: 0n }, unlock_at: { [alice.address]: SIM_START_TIME - 1n } },
+  },
   // The round id is a U80: + 1 wraps around at 2^80.
   17: {
     state: { owner: alice.address, round_id: (1n << 80n) - 1n, answer: 0n, updated_at: 0n },

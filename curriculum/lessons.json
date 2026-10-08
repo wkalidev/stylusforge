@@ -17,5 +17,5 @@
   { "id": 17, "name": "Being called (export-abi)", "xp": 300, "available": true, "module": "interoperability" },
   { "id": 5, "name": "DeFi Interaction", "xp": 400, "available": true, "module": "interoperability" },
   { "id": 18, "name": "WASM, ink and gas", "xp": 300, "available": true, "module": "stylus-specifics" },
-  { "id": 19, "name": "Testing in Rust", "xp": 350, "available": false, "module": "stylus-specifics" }
+  { "id": 19, "name": "Testing in Rust", "xp": 350, "available": true, "module": "stylus-specifics" }
 ]
