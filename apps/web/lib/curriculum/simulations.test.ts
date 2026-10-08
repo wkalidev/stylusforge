@@ -675,4 +675,31 @@ describe("lesson simulations", () => {
     expect(withdrawal).toMatchObject({ ok: true, transfers: [{ to: alice.address, amount: 100n }], balance: 0n });
     expect(call("deposit_of", { account: "Alice" }, alice).returns).toBe(0n);
   });
+
+  it("lesson 20 lets only its owner set the limit, and pays out within the limit and the balance", () => {
+    const simulation = getSimulation(20)!;
+    let state = simulation.initialState();
+    let balance = 0n;
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, value = "") => {
+      const result = callSimulation(simulation, state, fn, args, caller, { value, balance });
+      state = result.state;
+      balance = result.balance;
+      return result;
+    };
+    expect(call("set_limit", { limit: "5000" }, bob)).toMatchObject({ ok: false, error: { error: "NotOwner", args: { caller: bob.address } } });
+    expect(call("deposit", {}, bob, "3000").events).toEqual([{ name: "Deposited", args: { account: bob.address, amount: 3000n } }]);
+    expect(call("withdraw", { amount: "2000" }, bob)).toMatchObject({ ok: false, error: { error: "LimitExceeded", args: { limit: 1000n, requested: 2000n } } });
+    // Above the balance, the withdrawal reverts instead of wrapping around.
+    expect(call("withdraw", { amount: "500" }, carol)).toMatchObject({ ok: false, error: { error: "InsufficientBalance", args: { available: 0n, requested: 500n } } });
+    expect(call("set_limit", { limit: "5000" }, alice).ok).toBe(true);
+    expect(call("withdraw", { amount: "2000" }, bob)).toMatchObject({
+      ok: true,
+      transfers: [{ to: bob.address, amount: 2000n }],
+      events: [{ name: "Withdrawn", args: { account: bob.address, amount: 2000n } }],
+      balance: 1000n,
+    });
+    expect(call("balance_of", { account: "Bob" }, alice).returns).toBe(1000n);
+    expect(call("limit", {}, alice).returns).toBe(5000n);
+    expect(call("owner", {}, bob).returns).toBe(alice.address);
+  });
 });

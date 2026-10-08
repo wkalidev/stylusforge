@@ -149,3 +149,107 @@ describe("lesson 19: Testing in Rust", () => {
     expect(variant(19, "assert_eq!(logs[0].0[0], Deposited::SIGNATURE_HASH);", "").objectives).toEqual(["Check that the deposit was logged with a Deposited event"]);
   });
 });
+
+describe("lesson 20: Security pitfalls", () => {
+  const lesson = () => LESSONS.find((candidate) => candidate.id === 20)!.exercise!;
+  const constructor = "#[constructor]\n    pub fn constructor(&mut self, owner: Address) {\n        self.owner.set(owner);\n    }";
+  const init = "pub fn init(&mut self, owner: Address) {\n        self.owner.set(owner);\n    }";
+  const authorized = "let caller = self.vm().msg_sender();\n        if caller != self.owner.get() {";
+  const subtraction =
+    "let remaining = available\n            .checked_sub(amount)\n            .ok_or(TreasuryError::InsufficientBalance(InsufficientBalance { available, requested: amount }))?;";
+  const lowered = "self.balances.insert(account, remaining);\n        unsafe {";
+  const payment = "RawCall::new_with_value(self.vm(), amount).flush_storage_cache().call(account, &[])?;";
+  const objectives = [
+    "Set the owner once, when the contract is deployed",
+    "Authorize the account that calls the treasury",
+    "Refuse a withdrawal above the balance instead of wrapping around",
+    "Lower the balance before the ETH leaves",
+    "Write the storage cache to storage before sending the ETH",
+  ];
+
+  it("fails all five objectives on the starter, one per planted bug", () => {
+    expect(validateCode(lesson().starterCode, lesson().checks).objectives).toEqual(objectives);
+  });
+
+  it("fails while a planted bug stays next to its fix", () => {
+    // 1: the constructor added, the open init kept (with or without pub: #[public] exports both).
+    expect(variant(20, constructor, `${constructor}\n\n    ${init}`).objectives).toEqual([objectives[0]]);
+    expect(variant(20, constructor, `${constructor}\n\n    fn init(&mut self, owner: Address) {\n        self.owner.set(owner);\n    }`).objectives).toEqual([objectives[0]]);
+    // 2: msg_sender checked, tx_origin still checked too.
+    expect(
+      variant(
+        20,
+        "            return Err(TreasuryError::NotOwner(NotOwner { caller }));\n        }\n        Ok(())",
+        "            return Err(TreasuryError::NotOwner(NotOwner { caller }));\n        }\n        if self.vm().tx_origin() != self.owner.get() {\n            return Err(TreasuryError::NotOwner(NotOwner { caller }));\n        }\n        Ok(())",
+      ).objectives,
+    ).toEqual([objectives[1]]);
+    // 3: checked_sub added, the wrapping subtraction kept.
+    expect(variant(20, subtraction, `${subtraction}\n        let remaining = available - amount;`).objectives).toEqual([objectives[2]]);
+    // 4: the balance written before the call, and again after it.
+    expect(
+      variant(20, "        }\n        self.vm().log(Withdrawn", "        }\n        self.balances.insert(account, remaining);\n        self.vm().log(Withdrawn").objectives,
+    ).toEqual([objectives[3]]);
+    // 5: transfer_eth added, the raw call without a flush kept.
+    expect(
+      variant(20, payment, "RawCall::new_with_value(self.vm(), amount).call(account, &[])?;\n        }\n        transfer_eth(self.vm(), account, amount)?;\n        unsafe {").objectives,
+    ).toEqual([objectives[4]]);
+  });
+
+  it("accepts the constructor under another name or with a limit, and the owner check either way round", () => {
+    expect(variant(20, constructor, "#[constructor]\n    pub fn new(&mut self, initial_owner: Address) {\n        self.owner.set(initial_owner);\n    }").passed).toBe(true);
+    expect(
+      variant(20, constructor, "#[constructor]\n    pub fn constructor(&mut self, owner: Address, limit: U256) {\n        self.owner.set(owner);\n        self.limit.set(limit);\n    }").passed,
+    ).toBe(true);
+    expect(variant(20, authorized, "let caller = self.vm().msg_sender();\n        if self.owner.get() != caller {").passed).toBe(true);
+    expect(variant(20, authorized, "let caller = self.vm().msg_sender();\n        let sender = caller;\n        if self.vm().msg_sender() != self.owner.get() {").passed).toBe(true);
+  });
+
+  it("refuses an owner set without #[constructor]", () => {
+    expect(variant(20, constructor, "pub fn constructor(&mut self, owner: Address) {\n        self.owner.set(owner);\n    }").objectives).toEqual([objectives[0]]);
+  });
+
+  it("accepts the checked subtraction with ok_or_else, the fields in any order, rustfmt style, or the error in a local", () => {
+    const error = "TreasuryError::InsufficientBalance(InsufficientBalance { available, requested: amount })";
+    expect(variant(20, subtraction, `let remaining = available.checked_sub(amount).ok_or_else(|| ${error})?;`).passed).toBe(true);
+    expect(
+      variant(20, subtraction, "let remaining = available.checked_sub(amount).ok_or(TreasuryError::InsufficientBalance(InsufficientBalance { requested: amount, available }))?;")
+        .passed,
+    ).toBe(true);
+    expect(
+      variant(
+        20,
+        subtraction,
+        "let remaining = available\n            .checked_sub(amount)\n            .ok_or(TreasuryError::InsufficientBalance(InsufficientBalance {\n                available,\n                requested: amount,\n            }))?;",
+      ).passed,
+    ).toBe(true);
+    expect(variant(20, subtraction, `let error = ${error};\n        let remaining = available.checked_sub(amount).ok_or(error)?;`).passed).toBe(true);
+  });
+
+  it("refuses a subtraction that saturates or is guarded by hand", () => {
+    expect(variant(20, subtraction, "let remaining = available.saturating_sub(amount);").objectives).toEqual([objectives[2]]);
+    const guarded =
+      "if available < amount {\n            return Err(TreasuryError::InsufficientBalance(InsufficientBalance { available, requested: amount }).into());\n        }\n        let remaining = available - amount;";
+    expect(variant(20, subtraction, guarded).objectives).toEqual([objectives[2]]);
+  });
+
+  it("accepts the balance written with setter, and the ETH sent with transfer_eth or a raw call that clears the cache", () => {
+    expect(variant(20, lowered, "self.balances.setter(account).set(remaining);\n        unsafe {").passed).toBe(true);
+    expect(variant(20, payment, "RawCall::new_with_value(self.vm(), amount).clear_storage_cache().call(account, &[])?;").passed).toBe(true);
+    expect(
+      variant(20, payment, "RawCall::new_with_value(self.vm(), amount)\n                .skip_return_data()\n                .flush_storage_cache()\n                .call(account, &[])?;").passed,
+    ).toBe(true);
+    const transfer = SOLUTIONS[20]
+      .replace("call::RawCall,", "call::transfer::transfer_eth,")
+      .replace(`unsafe {\n            ${payment}\n        }`, "transfer_eth(self.vm(), account, amount)?;");
+    expect(transfer).toContain("self.balances.insert(account, remaining);\n        transfer_eth(self.vm(), account, amount)?;");
+    expect(validateCode(transfer, lesson().checks)).toEqual({ passed: true, objectives: [] });
+  });
+
+  it("refuses the ETH sent before the balance is written, even with a flush", () => {
+    const sendFirst = SOLUTIONS[20].replace(
+      `self.balances.insert(account, remaining);\n        unsafe {\n            ${payment}\n        }`,
+      `unsafe {\n            ${payment}\n        }\n        self.balances.insert(account, remaining);`,
+    );
+    expect(validateCode(sendFirst, lesson().checks).objectives).toEqual([objectives[3]]);
+  });
+});
