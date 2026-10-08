@@ -992,4 +992,56 @@ impl TokenVault {
     }
 }
 `,
+  18: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use stylus_sdk::{alloy_primitives::U256, alloy_sol_types::sol, prelude::*};
+
+sol! {
+    error BudgetOverflow(uint256 items, uint256 ink_per_item);
+}
+
+#[derive(SolidityError)]
+pub enum BudgetError {
+    BudgetOverflow(BudgetOverflow),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct InkBudget {
+        uint256 ink_per_item;
+    }
+}
+
+#[public]
+impl InkBudget {
+    pub fn ink_price(&self) -> u32 {
+        self.vm().tx_ink_price()
+    }
+
+    pub fn to_gas(&self, ink: u64) -> u64 {
+        self.vm().ink_to_gas(ink)
+    }
+
+    pub fn to_ink(&self, gas: u64) -> u64 {
+        self.vm().gas_to_ink(gas)
+    }
+
+    pub fn ink_per_item(&self) -> U256 {
+        self.ink_per_item.get()
+    }
+
+    pub fn set_ink_per_item(&mut self, ink: U256) {
+        self.ink_per_item.set(ink);
+    }
+
+    pub fn gas_for(&self, items: U256) -> Result<U256, BudgetError> {
+        let ink_per_item = self.ink_per_item.get();
+        let ink = items
+            .checked_mul(ink_per_item)
+            .ok_or(BudgetError::BudgetOverflow(BudgetOverflow { items, ink_per_item }))?;
+        Ok(ink / U256::from(self.vm().tx_ink_price()))
+    }
+}
+`,
 };
