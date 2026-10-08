@@ -236,6 +236,36 @@ function lowerThenSend(): string[] {
   return lowers.flatMap((lower) => setups.flatMap((setup) => sends.map((send) => `${lower} ${setup} ${send}`)));
 }
 
+/**
+ * Snippets for a method whose body computes one of `values`: returned as the tail expression, with
+ * `return`, or from a local. Each snippet starts at the signature, so a value computed in another
+ * method does not count.
+ */
+function methodBodies(signature: string, values: string[]): string[] {
+  return values.flatMap((value) => {
+    // A value that starts with locals (`let $p = ...; ink / $p`) keeps them before its result.
+    const split = value.lastIndexOf(';');
+    const [locals, result] = split === -1 ? ['', value] : [value.slice(0, split + 1) + ' ', value.slice(split + 1).trim()];
+    return [`${signature} { ${locals}${result} }`, `${signature} { ${locals}return ${result}; }`, `${signature} { ${locals}let $r = ${result}; $r }`];
+  });
+}
+
+/**
+ * Snippets for lesson 18's overflow: the `None` of `checked_mul` turned into BudgetOverflow with
+ * `ok_or` or `ok_or_else`, the fields in either order (rustfmt may add a trailing comma), or the
+ * error built in a local right before the product.
+ */
+function budgetOverflows(): string[] {
+  const errors = ['items, ink_per_item', 'ink_per_item, items'].flatMap((fields) =>
+    [`BudgetOverflow { ${fields} }`, `BudgetOverflow { ${fields}, }`].map((error) => `BudgetError::BudgetOverflow(${error})`),
+  );
+  const products = ['items.checked_mul(ink_per_item)', 'ink_per_item.checked_mul(items)'];
+  return [
+    ...errors.flatMap((error) => [`.ok_or(${error})?`, `.ok_or_else(|| ${error})?`]),
+    ...errors.flatMap((error) => products.map((product) => `let $x = ${error}; let ink = ${product}.ok_or($x)?`)),
+  ];
+}
+
 /** Web-only lesson content, keyed by lesson id. Ids, names and XP live in curriculum/lessons.json. */
 const CONTENT: Record<number, LessonContent> = {
   1: {
@@ -4296,8 +4326,132 @@ const CONTENT: Record<number, LessonContent> = {
         '',
         'Stuck? Each objective has hints, from a nudge to the exact code.',
       ].join('\n'),
-      starterCode: '',
-      checks: [],
+      starterCode: [
+        '#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]',
+        'extern crate alloc;',
+        '',
+        'use stylus_sdk::{alloy_primitives::U256, alloy_sol_types::sol, prelude::*};',
+        '',
+        'sol! {',
+        '    error BudgetOverflow(uint256 items, uint256 ink_per_item);',
+        '}',
+        '',
+        '#[derive(SolidityError)]',
+        'pub enum BudgetError {',
+        '    BudgetOverflow(BudgetOverflow),',
+        '}',
+        '',
+        'sol_storage! {',
+        '    #[entrypoint]',
+        '    pub struct InkBudget {',
+        '        uint256 ink_per_item;',
+        '    }',
+        '}',
+        '',
+        '#[public]',
+        'impl InkBudget {',
+        '    pub fn ink_price(&self) -> u32 {',
+        '        // TODO: return the ink price of the chain, not the default',
+        '        10_000',
+        '    }',
+        '',
+        '    pub fn to_gas(&self, ink: u64) -> u64 {',
+        '        // TODO: convert with the ink price of the chain',
+        '        ink / 10_000',
+        '    }',
+        '',
+        '    pub fn to_ink(&self, gas: u64) -> u64 {',
+        '        // TODO: convert with the ink price of the chain, without overflowing',
+        '        gas * 10_000',
+        '    }',
+        '',
+        '    pub fn ink_per_item(&self) -> U256 {',
+        '        self.ink_per_item.get()',
+        '    }',
+        '',
+        '    pub fn set_ink_per_item(&mut self, ink: U256) {',
+        '        self.ink_per_item.set(ink);',
+        '    }',
+        '',
+        '    pub fn gas_for(&self, items: U256) -> Result<U256, BudgetError> {',
+        '        let ink_per_item = self.ink_per_item.get();',
+        '        // TODO: revert with BudgetOverflow instead of panicking',
+        '        let ink = items.checked_mul(ink_per_item).expect("budget overflow");',
+        '        // TODO: convert with the ink price of the chain',
+        '        Ok(ink / U256::from(10_000))',
+        '    }',
+        '}',
+      ].join('\n'),
+      checks: [
+        {
+          anyOf: methodBodies('pub fn ink_price(&self) -> u32', ['self.vm().tx_ink_price()']),
+          objective: 'Return the ink price that the chain sets',
+          hints: [
+            '10,000 ink per gas is only the default: the chain owner can change it, and the host knows the current price.',
+            'The metering methods of the host, `self.vm()`, include `tx_ink_price`, which returns the price as a `u32`.',
+            'Write `pub fn ink_price(&self) -> u32 { self.vm().tx_ink_price() }`.',
+          ],
+          anchor: 'pub fn ink_price(',
+        },
+        {
+          anyOf: methodBodies('pub fn to_gas(&self, ink: u64) -> u64', [
+            'self.vm().ink_to_gas(ink)',
+            // The division written out, the price read inline or into a local.
+            'ink / u64::from(self.vm().tx_ink_price())',
+            'ink / self.vm().tx_ink_price() as u64',
+            'let $p = u64::from(self.vm().tx_ink_price()); ink / $p',
+            'let $p = self.vm().tx_ink_price() as u64; ink / $p',
+          ]),
+          objective: 'Convert ink to gas at the ink price of the chain',
+          hints: [
+            'Gas is ink divided by the ink price, and the price comes from the host, not from a constant.',
+            'The host converts for you: `ink_to_gas` on `self.vm()` divides by the current ink price.',
+            'Write `pub fn to_gas(&self, ink: u64) -> u64 { self.vm().ink_to_gas(ink) }`.',
+          ],
+          anchor: 'pub fn to_gas(',
+        },
+        {
+          anyOf: methodBodies('pub fn to_ink(&self, gas: u64) -> u64', [
+            'self.vm().gas_to_ink(gas)',
+            // The saturating product written out.
+            'gas.saturating_mul(u64::from(self.vm().tx_ink_price()))',
+            'gas.saturating_mul(self.vm().tx_ink_price() as u64)',
+            'gas.saturating_mul(self.vm().tx_ink_price().into())',
+          ]),
+          objective: 'Convert gas to ink at the ink price of the chain, without overflowing',
+          hints: [
+            'Multiplying by 10,000 assumes the default price, and the product overflows a `u64` for a large amount of gas.',
+            'The host also converts the other way: `gas_to_ink` multiplies by the current price and saturates at `u64::MAX`.',
+            'Write `pub fn to_ink(&self, gas: u64) -> u64 { self.vm().gas_to_ink(gas) }`.',
+          ],
+          anchor: 'pub fn to_ink(',
+        },
+        {
+          anyOf: budgetOverflows(),
+          objective: 'Revert with BudgetOverflow instead of panicking when the batch is too large',
+          hints: [
+            '`expect` panics on `None`: the call then reverts with no data, and the panic message takes room in the binary.',
+            'Turn the `None` of `checked_mul` into the error with `ok_or`: a `BudgetOverflow { items, ink_per_item }` wrapped in `BudgetError::BudgetOverflow`, then `?`.',
+            'Replace `.expect("budget overflow")` with `.ok_or(BudgetError::BudgetOverflow(BudgetOverflow { items, ink_per_item }))?`.',
+          ],
+          anchor: 'pub fn gas_for(',
+        },
+        {
+          anyOf: [
+            'Ok(ink / U256::from(self.vm().tx_ink_price()))',
+            // The price, or the gas, kept in a local first.
+            'let $p = U256::from(self.vm().tx_ink_price()); Ok(ink / $p)',
+            'let $g = ink / U256::from(self.vm().tx_ink_price()); Ok($g)',
+          ],
+          objective: 'Convert the ink of the batch to gas at the ink price of the chain',
+          hints: [
+            'The ink of the batch is a `U256`, and `ink_to_gas` takes a `u64`: divide by the price yourself.',
+            'Read the price with `tx_ink_price` on `self.vm()`, and make it a `U256` with `U256::from` before dividing.',
+            'End `gas_for` with `Ok(ink / U256::from(self.vm().tx_ink_price()))`.',
+          ],
+          anchor: 'pub fn gas_for(',
+        },
+      ],
     },
   },
 };
