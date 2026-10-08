@@ -1154,4 +1154,102 @@ mod tests {
     }
 }
 `,
+  20: `#![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
+extern crate alloc;
+
+use alloc::vec::Vec;
+use stylus_sdk::{
+    alloy_primitives::{Address, U256},
+    alloy_sol_types::sol,
+    call::RawCall,
+    prelude::*,
+};
+
+sol! {
+    event Deposited(address indexed account, uint256 amount);
+    event Withdrawn(address indexed account, uint256 amount);
+    error NotOwner(address caller);
+    error LimitExceeded(uint256 limit, uint256 requested);
+    error InsufficientBalance(uint256 available, uint256 requested);
+}
+
+#[derive(SolidityError)]
+pub enum TreasuryError {
+    NotOwner(NotOwner),
+    LimitExceeded(LimitExceeded),
+    InsufficientBalance(InsufficientBalance),
+}
+
+sol_storage! {
+    #[entrypoint]
+    pub struct Treasury {
+        address owner;
+        uint256 limit;
+        mapping(address => uint256) balances;
+    }
+}
+
+#[public]
+impl Treasury {
+    #[constructor]
+    pub fn constructor(&mut self, owner: Address) {
+        self.owner.set(owner);
+    }
+
+    pub fn owner(&self) -> Address {
+        self.owner.get()
+    }
+
+    pub fn limit(&self) -> U256 {
+        self.limit.get()
+    }
+
+    pub fn set_limit(&mut self, limit: U256) -> Result<(), TreasuryError> {
+        self.only_owner()?;
+        self.limit.set(limit);
+        Ok(())
+    }
+
+    #[payable]
+    pub fn deposit(&mut self) {
+        let account = self.vm().msg_sender();
+        let amount = self.vm().msg_value();
+        let total = self.balances.get(account) + amount;
+        self.balances.insert(account, total);
+        self.vm().log(Deposited { account, amount });
+    }
+
+    pub fn balance_of(&self, account: Address) -> U256 {
+        self.balances.get(account)
+    }
+
+    pub fn withdraw(&mut self, amount: U256) -> Result<(), Vec<u8>> {
+        let account = self.vm().msg_sender();
+        let limit = self.limit.get();
+        if amount > limit {
+            return Err(TreasuryError::LimitExceeded(LimitExceeded { limit, requested: amount }).into());
+        }
+        let available = self.balances.get(account);
+        let remaining = available
+            .checked_sub(amount)
+            .ok_or(TreasuryError::InsufficientBalance(InsufficientBalance { available, requested: amount }))?;
+        self.balances.insert(account, remaining);
+        unsafe {
+            RawCall::new_with_value(self.vm(), amount).flush_storage_cache().call(account, &[])?;
+        }
+        self.vm().log(Withdrawn { account, amount });
+        Ok(())
+    }
+}
+
+impl Treasury {
+    fn only_owner(&self) -> Result<(), TreasuryError> {
+        let caller = self.vm().msg_sender();
+        if caller != self.owner.get() {
+            return Err(TreasuryError::NotOwner(NotOwner { caller }));
+        }
+        Ok(())
+    }
+}
+`,
 };
