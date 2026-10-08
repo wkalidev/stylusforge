@@ -709,4 +709,46 @@ describe("lesson simulations", () => {
     expect(call("limit", {}, alice).returns).toBe(5000n);
     expect(call("owner", {}, bob).returns).toBe(alice.address);
   });
+
+  it("lesson 21 mints shares in proportion, pauses deposits for its owner only, and pays withdrawals out", () => {
+    const simulation = getSimulation(21)!;
+    let state = simulation.initialState();
+    let balance = 0n;
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, value = "") => {
+      const result = callSimulation(simulation, state, fn, args, caller, { value, balance });
+      state = result.state;
+      balance = result.balance;
+      return result;
+    };
+    expect(call("deposit", {}, bob, "1000")).toMatchObject({ ok: true, returns: 1000n, events: [{ name: "Deposited", args: { account: bob.address, assets: 1000n, shares: 1000n } }] });
+    // 500 wei into a vault holding 1,000 wei for 1,000 shares: 500 shares.
+    expect(call("deposit", {}, carol, "500").returns).toBe(500n);
+    expect(call("total_assets", {}, alice).returns).toBe(1500n);
+    expect(call("set_paused", { paused: "true" }, bob)).toMatchObject({ ok: false, error: { error: "NotOwner", args: { caller: bob.address } } });
+    expect(call("set_paused", { paused: "true" }, alice).events).toEqual([{ name: "PausedSet", args: { paused: true } }]);
+    expect(call("paused", {}, bob).returns).toBe(true);
+    expect(call("deposit", {}, bob, "10")).toMatchObject({ ok: false, error: { error: "VaultPaused" }, balance: 1500n });
+    // Withdrawals stay open while the vault is paused.
+    expect(call("withdraw", { shares: "400" }, bob)).toMatchObject({ ok: true, returns: 400n, transfers: [{ to: bob.address, amount: 400n }], balance: 1100n });
+    expect(call("withdraw", { shares: "0" }, bob)).toMatchObject({ ok: false, error: { error: "ZeroShares", args: { assets: 0n } } });
+    expect(call("withdraw", { shares: "601" }, bob)).toMatchObject({ ok: false, error: { error: "InsufficientShares", args: { available: 600n, requested: 601n } } });
+    expect([call("shares_of", { account: "Bob" }, alice).returns, call("total_shares", {}, alice).returns]).toEqual([600n, 1100n]);
+  });
+
+  it("lesson 21 reproduces the donation attack of the lesson, and the zero-share guard", () => {
+    const simulation = getSimulation(21)!;
+    const ether = 10n ** 18n;
+    // The attacker (Alice) holds the only share, and 10 ETH were forced in: the vault holds 10 ETH + 1 wei.
+    const inflated = { owner: alice.address, paused: false, total_shares: 1n, shares: { [alice.address]: 1n } };
+    const held = 10n * ether + 1n;
+    expect(callSimulation(simulation, inflated, "deposit", {}, bob, { value: (5n * ether).toString(), balance: held })).toMatchObject({
+      ok: false,
+      error: { error: "ZeroShares", args: { assets: 5n * ether } },
+    });
+    const victim = callSimulation(simulation, inflated, "deposit", {}, bob, { value: (15n * ether).toString(), balance: held });
+    expect(victim.returns).toBe(1n);
+    // The attacker withdraws their share: half of the 25 ETH (and 1 wei) in the vault.
+    const attacker = callSimulation(simulation, victim.state, "withdraw", { shares: "1" }, alice, { balance: victim.balance });
+    expect(attacker.returns).toBe(12n * ether + ether / 2n);
+  });
 });

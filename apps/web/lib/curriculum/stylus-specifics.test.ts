@@ -253,3 +253,81 @@ describe("lesson 20: Security pitfalls", () => {
     expect(validateCode(sendFirst, lesson().checks).objectives).toEqual([objectives[3]]);
   });
 });
+
+describe("lesson 21: Final project, mini vault", () => {
+  const guard = "self.only_owner()?;\n        self.paused.set(paused);";
+  const before = "let assets_before = self.total_assets() - assets;";
+  const price = "assets.checked_mul(supply).ok_or(VaultError::MathOverflow(MathOverflow {}))? / assets_before";
+  const empty = "let shares = if supply.is_zero() {";
+  const zero = "if shares.is_zero() {\n            return Err(VaultError::ZeroShares(ZeroShares { assets }));";
+  const mint = "let balance = self.shares.get(account) + shares;\n        self.shares.insert(account, balance);\n        self.total_shares.set(supply + shares);";
+  const burn = "self.shares.insert(account, available - shares);\n        self.total_shares.set(supply - shares);\n        transfer_eth(self.vm(), account, assets)?;";
+  const test = "let vm = TestVM::default();\n        let mut vault = MiniVault::from(&vm);";
+  const shares = "assert_eq!(vault.shares_of(ALICE), U256::from(1000));";
+
+  it("accepts the owner checked inline, the paused view, and the balance read directly", () => {
+    expect(variant(21, "self.only_owner()?;\n        self.paused.set(paused);", "let caller = self.vm().msg_sender();\n        if caller != self.owner.get() {\n            return Err(VaultError::NotOwner(NotOwner { caller }));\n        }\n        self.paused.set(paused);").passed).toBe(true);
+    expect(variant(21, "if self.paused.get() {", "if self.paused() {").passed).toBe(true);
+    expect(variant(21, before, "let assets_before = self.vm().balance(self.vm().contract_address()) - self.vm().msg_value();").passed).toBe(true);
+  });
+
+  it("refuses the assets before measured without taking out the value", () => {
+    expect(variant(21, before, "let assets_before = self.total_assets();").objectives).toEqual(["Measure the assets the vault held before this deposit"]);
+  });
+
+  it("refuses set_paused without a guard, and deposits that ignore the pause", () => {
+    expect(variant(21, guard, "self.paused.set(paused);").objectives).toEqual(["Let only the owner pause and unpause the vault"]);
+    expect(variant(21, "if self.paused.get() {", "if !self.paused.get() {").objectives).toEqual(["Refuse deposits while the vault is paused"]);
+  });
+
+  it("accepts the share price with the factors and the empty test either way, ok_or_else, and another name for the assets before", () => {
+    expect(variant(21, empty, "let shares = if supply == U256::ZERO {").passed).toBe(true);
+    expect(variant(21, price, "supply.checked_mul(assets).ok_or_else(|| VaultError::MathOverflow(MathOverflow {}))? / assets_before").passed).toBe(true);
+    const renamed = SOLUTIONS[21].replace(before, "let held = self.total_assets() - assets;").replace(price, price.replace("assets_before", "held"));
+    expect(validateCode(renamed, LESSONS.find((lesson) => lesson.id === 21)!.exercise!.checks).passed).toBe(true);
+  });
+
+  it("refuses a share price that can overflow, or that divides by the balance after the deposit", () => {
+    const objective = ["Mint one share per wei into an empty vault, and in proportion to the assets otherwise"];
+    expect(variant(21, price, "assets * supply / assets_before").objectives).toEqual(objective);
+    expect(variant(21, price, "assets.checked_mul(supply).ok_or(VaultError::MathOverflow(MathOverflow {}))? / self.total_assets()").objectives).toEqual(objective);
+    expect(variant(21, empty, "let shares = if supply.is_zero() {\n            U256::ZERO\n        } else if false {").objectives).toEqual(objective);
+  });
+
+  it("requires the zero-share guard", () => {
+    expect(variant(21, zero, "if false {\n            return Err(VaultError::ZeroShares(ZeroShares { assets }));").objectives).toEqual(["Refuse a deposit that would mint no share"]);
+    expect(variant(21, zero, "if shares == U256::ZERO {\n            return Err(VaultError::ZeroShares(ZeroShares { assets }));").passed).toBe(true);
+  });
+
+  it("accepts the shares minted with setter, inline, or the total from a local; refuses half a mint", () => {
+    expect(variant(21, mint, "let balance = shares + self.shares.get(account);\n        self.shares.setter(account).set(balance);\n        let total = supply + shares;\n        self.total_shares.set(total);").passed).toBe(true);
+    expect(variant(21, mint, "self.shares.insert(account, self.shares.get(account) + shares);\n        self.total_shares.set(shares + supply);").passed).toBe(true);
+    expect(variant(21, mint, "let balance = self.shares.get(account) + shares;\n        self.shares.insert(account, balance);").objectives).toEqual(["Add the new shares to the account and to the total"]);
+  });
+
+  it("accepts the burn in either order or with setter, and refuses a burn after the ETH has left or a partial one", () => {
+    const objective = ["Burn the shares before the ETH leaves"];
+    expect(variant(21, burn, "self.total_shares.set(supply - shares);\n        self.shares.setter(account).set(available - shares);\n        transfer_eth(self.vm(), account, assets)?;").passed).toBe(true);
+    expect(variant(21, burn, "transfer_eth(self.vm(), account, assets)?;\n        self.shares.insert(account, available - shares);\n        self.total_shares.set(supply - shares);").objectives).toEqual(objective);
+    expect(variant(21, burn, "self.shares.insert(account, available - shares);\n        transfer_eth(self.vm(), account, assets)?;").objectives).toEqual(objective);
+  });
+
+  it("accepts the test with TestVM::new, other names and the assertion either way round", () => {
+    const renamed = SOLUTIONS[21]
+      .replace(test, "let host = TestVM::new();\n        let mut v = MiniVault::from(&host);")
+      .replace("vault.constructor(OWNER);", "v.constructor(OWNER);")
+      .replace("vm.set_sender(ALICE);", "host.set_sender(ALICE);")
+      .replace("vm.set_value(U256::from(1000));", "host.set_value(U256::from(1_000));")
+      .replace("vm.set_balance(vm.contract_address(), U256::from(1000));", "")
+      .replace("assert_eq!(vault.deposit().ok(), Some(U256::from(1000)));", "assert!(v.deposit().is_ok());")
+      .replace(shares, "assert_eq!(U256::from(1_000), v.shares_of(ALICE));");
+    expect(validateCode(renamed, LESSONS.find((lesson) => lesson.id === 21)!.exercise!.checks).passed).toBe(true);
+  });
+
+  it("refuses a test that sends no value or checks the wrong number of shares", () => {
+    const objective = ["Test that a first deposit mints one share per wei"];
+    expect(variant(21, "vm.set_value(U256::from(1000));", "").objectives).toEqual(objective);
+    expect(variant(21, shares, "assert_eq!(vault.shares_of(ALICE), U256::from(100));").objectives).toEqual(objective);
+    expect(variant(21, "        assert_eq!(vault.deposit().ok(), Some(U256::from(1000)));\n", "").objectives).toEqual(objective);
+  });
+});
