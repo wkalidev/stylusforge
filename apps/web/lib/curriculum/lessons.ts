@@ -4196,6 +4196,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  18: {
+    slug: 'wasm-ink-gas',
+    difficulty: 'Intermediate',
+    preview: 'A gas estimator that prices ink with the ink price of the chain, and reverts instead of panicking.',
+    minutes: 20,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
