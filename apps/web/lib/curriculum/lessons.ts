@@ -5198,6 +5198,12 @@ const CONTENT: Record<number, LessonContent> = {
       ],
     },
   },
+  21: {
+    slug: 'mini-vault',
+    difficulty: 'Advanced',
+    preview: 'The final project: an ETH vault that mints shares, pauses, pays out safely, and is tested on the test VM.',
+    minutes: 45,
+  },
 };
 
 /** Every lesson of curriculum/lessons.json, in curriculum order, merged with its web content. */
