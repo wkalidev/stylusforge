@@ -7,11 +7,11 @@ import { toFunctionSelector } from 'viem';
 
 /**
  * Argument types; a `bytes4` (such as an ERC-165 interface id) is kept as lowercase hex, an `int256`
- * is a bigint that may be negative, and a `uint64` (a Rust `u64`, such as an amount of ink) is a
- * bigint below 2^64.
+ * is a bigint that may be negative, a `uint64` (a Rust `u64`, such as an amount of ink) is a bigint
+ * below 2^64, and a `bool` is typed as `true` or `false`.
  */
-export type SimType = 'uint256' | 'uint64' | 'int256' | 'address' | 'string' | 'bytes4';
-export type SimValue = bigint | string;
+export type SimType = 'uint256' | 'uint64' | 'int256' | 'address' | 'string' | 'bytes4' | 'bool';
+export type SimValue = bigint | string | boolean;
 
 /**
  * A stored value: a scalar, a vector (an array) or a record, either a mapping keyed by address or
@@ -119,7 +119,7 @@ export interface SimFunction {
    * Return type, as shown in the panel; an array for a tuple, such as `(string, bool)`. A `uint8`,
    * `uint32` or `uint80` is returned as a bigint.
    */
-  returns?: SimType | 'bool' | 'uint8' | 'uint32' | (SimType | 'bool' | 'uint80')[];
+  returns?: SimType | 'uint8' | 'uint32' | (SimType | 'uint80')[];
   /** The mock contract the function belongs to; absent for the lesson's contract. */
   contract?: string;
   /**
@@ -186,6 +186,10 @@ export class SimArgumentError extends Error {}
 export function parseArgument(type: SimType, raw: string, accounts: SimAccount[]): SimValue {
   const text = raw.trim();
   if (type === 'string') return raw;
+  if (type === 'bool') {
+    if (!/^(true|false)$/i.test(text)) throw new SimArgumentError(`"${raw}" is not a bool (true or false)`);
+    return text.toLowerCase() === 'true';
+  }
   if (type === 'uint256' || type === 'uint64') {
     if (!/^\d+$/.test(text)) throw new SimArgumentError(`"${raw}" is not an unsigned integer`);
     const value = BigInt(text);

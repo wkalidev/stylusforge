@@ -76,6 +76,14 @@ describe("parseArgument", () => {
     expect(() => parseArgument("uint64", "-1", [])).toThrow(/unsigned/);
   });
 
+  it("parses bool values as true or false, in any case", () => {
+    expect(parseArgument("bool", " true ", [])).toBe(true);
+    expect(parseArgument("bool", "False", [])).toBe(false);
+    expect(() => parseArgument("bool", "1", [])).toThrow(/bool/);
+    expect(() => parseArgument("bool", "", [])).toThrow(/bool/);
+    expect(formatSimValue(false, [])).toBe("false");
+  });
+
   it("parses int256 values within range, negative ones included", () => {
     expect(parseArgument("int256", " -42 ", [])).toBe(-42n);
     expect(parseArgument("int256", (2n ** 255n - 1n).toString(), [])).toBe(2n ** 255n - 1n);
@@ -238,6 +246,7 @@ describe("function selectors", () => {
   it("builds the Solidity signature from the ABI name and the parameter types", () => {
     expect(functionSignature(fn("transfer", ["address", "uint256"]))).toBe("transfer(address,uint256)");
     expect(functionSignature(fn("latestRoundData", []))).toBe("latestRoundData()");
+    expect(functionSignature(fn("setPaused", ["bool"]))).toBe("setPaused(bool)");
   });
 
   it("hashes the signature into the selector callers use", () => {
