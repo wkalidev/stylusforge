@@ -54,6 +54,25 @@ describe("glossaryAt", () => {
     expect(idAt("let unwrap = 1;", 5)).toBeNull();
   });
 
+  it("explains the test module, the test VM and what it records", () => {
+    expect(glossaryAt("#[cfg(test)]", 3)).toMatchObject({ entry: { id: "cfg_test" }, startColumn: 1, endColumn: 13 });
+    expect(idAt("    #[test]", 7)).toBe("test");
+    const vm = "        let vm = TestVM::default();";
+    expect(idAt(vm, vm.indexOf("TestVM") + 1)).toBe("test_vm");
+    expect(idAt("let vm = TestVMBuilder::new().build();", 12)).toBe("test_vm");
+    const sender = "        vm.set_sender(ALICE);";
+    expect(idAt(sender, sender.indexOf("set_sender") + 1)).toBe("test_vm_setters");
+    const clock = "        vm.set_block_timestamp(3600);";
+    expect(idAt(clock, clock.indexOf("set_block_timestamp") + 1)).toBe("test_vm_setters");
+    expect(idAt("    pub fn set_value(&mut self) {", 12)).toBeNull();
+    const logs = "        let logs = vm.get_emitted_logs();";
+    expect(idAt(logs, logs.indexOf("get_emitted_logs") + 1)).toBe("emitted_logs");
+    const mock = "        vm.mock_call(token, calldata, U256::ZERO, Ok(vec![]));";
+    expect(idAt(mock, mock.indexOf("mock_call") + 1)).toBe("mock_call");
+    const hash = "        assert_eq!(logs[0].0[0], Deposited::SIGNATURE_HASH);";
+    expect(idAt(hash, hash.indexOf("SIGNATURE_HASH") + 1)).toBe("signature_hash");
+  });
+
   it("explains U256::MAX apart from U256", () => {
     const guard = "        if allowed != U256::MAX {";
     expect(glossaryAt(guard, guard.indexOf("MAX") + 1)).toMatchObject({ entry: { id: "u256_max" }, startColumn: guard.indexOf("U256") + 1 });

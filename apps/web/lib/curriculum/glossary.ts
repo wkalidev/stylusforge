@@ -157,6 +157,53 @@ export const GLOSSARY: readonly GlossaryEntry[] = [
       'Convert between ink and gas at the ink price of the chain: `ink_to_gas` divides by the price, `gas_to_ink` multiplies by it and saturates at `u64::MAX`. Both take and return a `u64`.',
   },
   {
+    id: 'cfg_test',
+    pattern: /#\[cfg\(test\)\]/,
+    title: '#[cfg(test)]',
+    description: 'Compiles the item only for `cargo test`. Test modules stay out of the WebAssembly you deploy.',
+  },
+  {
+    id: 'test',
+    pattern: /#\[test\]/,
+    title: '#[test]',
+    description: 'Marks a function that `cargo test` runs. It passes unless it panics, so a failed `assert!` or `assert_eq!` fails it.',
+  },
+  {
+    id: 'test_vm',
+    pattern: /\bTestVM(?:Builder)?\b/,
+    title: 'TestVM',
+    description:
+      'The test VM of the SDK (`stylus_sdk::testing`, with the `stylus-test` feature): it stands in for the chain in unit tests. `TestVM::default()` starts from defaults; `TestVMBuilder` sets the sender, the value or the contract address up front. Build the contract on it with `Contract::from(&vm)`.',
+  },
+  {
+    id: 'test_vm_setters',
+    pattern: /(?<=\.)set_(?:sender|value|block_timestamp|block_number|balance|tx_origin|chain_id|contract_address)\(/,
+    title: 'TestVM setters',
+    description:
+      'Set what the next calls see: `set_sender`, `set_value`, `set_block_timestamp`, `set_block_number`, `set_balance` (balances never move on their own in the test VM), `set_tx_origin`, `set_chain_id` and `set_contract_address`.',
+  },
+  {
+    id: 'emitted_logs',
+    pattern: /(?<=\.)get_emitted_logs\(\)/,
+    title: 'get_emitted_logs()',
+    description:
+      'Every log the contract emitted on the test VM, in order, as `(topics, data)`. The first topic of an event is the hash of its signature.',
+  },
+  {
+    id: 'mock_call',
+    pattern: /(?<=\.)mock_(?:call|static_call|delegate_call)\(/,
+    title: 'mock_call()',
+    description:
+      'Gives the test VM the answer of a call to another contract: `Ok(return data)` or `Err(revert data)`. It answers only the exact address and calldata (and value, for `mock_call`); calls that are not mocked succeed with empty return data.',
+  },
+  {
+    id: 'signature_hash',
+    pattern: /\bSIGNATURE_HASH\b/,
+    title: 'SIGNATURE_HASH',
+    description:
+      'The keccak-256 hash of an event signature, from the `SolEvent` trait of `alloy_sol_types`: the first topic of every log of that event.',
+  },
+  {
     id: 'panic',
     pattern: /(?<=\.)(?:unwrap\(\)|expect\()/,
     title: 'unwrap() / expect()',
