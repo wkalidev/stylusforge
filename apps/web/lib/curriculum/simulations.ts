@@ -1222,8 +1222,9 @@ export const SIMULATIONS: Record<number, LessonSimulation> = {
   },
   21: {
     contract: 'MiniVault',
-    note: 'The model is deployed with Alice as the owner, as if the constructor received her address. Send ETH with deposit using its value field. The panel sends ETH only through deposit, so the donation attack of the lesson cannot be played here.',
+    note: "The model is deployed with Alice as the owner, as if the constructor received her address. Send ETH with deposit using its value field. To play the donation attack, deposit 1 wei as Alice, self-destruct 10 ETH (10000000000000000000 wei) into the vault, deposit 15 ETH as Bob, then withdraw Alice's share.",
     accounts: SIM_ACCOUNTS,
+    directEth: true,
     initialState: () => ({ owner: SIM_ACCOUNTS[0].address, paused: false, total_shares: 0n, shares: {} }),
     functions: [
       {

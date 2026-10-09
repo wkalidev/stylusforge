@@ -144,6 +144,11 @@ export interface LessonSimulation {
   mocks?: SimMock[];
   /** Whether the panel shows the 4-byte selector of each function, for lessons about the ABI. */
   selectors?: boolean;
+  /**
+   * Whether the panel can send ETH to the contract without calling a method: a plain transfer,
+   * which reverts since no model has a receive function, or a self-destruct, which always lands.
+   */
+  directEth?: boolean;
 }
 
 /** The Solidity signature of a function, such as `transfer(address,uint256)`: what its selector hashes. */
@@ -311,6 +316,38 @@ export interface SimCallResult {
 /** Whether a simulation has payable functions, so the panel shows the contract's ETH balance. */
 export function holdsEth(simulation: LessonSimulation): boolean {
   return simulation.functions.some((fn) => fn.payable);
+}
+
+/**
+ * How ETH reaches a contract without a method call: a plain transfer, with no calldata, or the
+ * self-destruct of a contract that names it, which runs none of its code.
+ */
+export type SimDirectEth = 'transfer' | 'selfdestruct';
+
+/** The result of sending ETH to the contract directly: no storage changes, only its balance. */
+export interface SimDirectEthResult {
+  ok: boolean;
+  /** The contract's ETH balance afterwards: unchanged when the transfer reverted. */
+  balance: bigint;
+  error?: { error: string };
+}
+
+/**
+ * Sends ETH to a simulation's contract without calling a method. A plain transfer reverts, like a
+ * call with no calldata to a Stylus contract without a receive or fallback function. A self-destruct
+ * credits the balance without running any code (EIP-6780 keeps that on Arbitrum since ArbOS 20).
+ */
+export function sendEthDirectly(kind: SimDirectEth, rawValue: string, balance: bigint): SimDirectEthResult {
+  const failed = (error: string): SimDirectEthResult => ({ ok: false, balance, error: { error } });
+  try {
+    const value = rawValue.trim() ? (parseArgument('uint256', rawValue, []) as bigint) : 0n;
+    if (kind === 'transfer') return failed('no receive function: a transfer with no calldata reverts');
+    if (balance + value > UINT256_MAX) return failed('the balance would not fit in a uint256');
+    return { ok: true, balance: balance + value };
+  } catch (error) {
+    if (error instanceof SimArgumentError) return failed(error.message);
+    throw error;
+  }
 }
 
 /**

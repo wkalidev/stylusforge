@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { LESSONS } from "./lessons";
-import { SIM_CONTRACT_ADDRESS, SIM_START_TIME, UINT256_MAX, UINT64_MAX, callSimulation, functionSelector, readMapping, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
+import { SIM_CONTRACT_ADDRESS, SIM_START_TIME, UINT256_MAX, UINT64_MAX, callSimulation, functionSelector, readMapping, sendEthDirectly, simTimestamp, type LessonSimulation, type SimCall, type SimState } from "./simulation";
 import { PRICE_FEED_ADDRESS, SIM_ACCOUNTS, TOKEN_ADDRESS, ZERO_ADDRESS, getSimulation } from "./simulations";
 import { SOLUTIONS } from "./solutions";
 
@@ -735,20 +735,34 @@ describe("lesson simulations", () => {
     expect([call("shares_of", { account: "Bob" }, alice).returns, call("total_shares", {}, alice).returns]).toEqual([600n, 1100n]);
   });
 
-  it("lesson 21 reproduces the donation attack of the lesson, and the zero-share guard", () => {
+  it("lesson 21 plays the donation attack of the lesson step by step, and the zero-share guard", () => {
     const simulation = getSimulation(21)!;
     const ether = 10n ** 18n;
-    // The attacker (Alice) holds the only share, and 10 ETH were forced in: the vault holds 10 ETH + 1 wei.
-    const inflated = { owner: alice.address, paused: false, total_shares: 1n, shares: { [alice.address]: 1n } };
-    const held = 10n * ether + 1n;
-    expect(callSimulation(simulation, inflated, "deposit", {}, bob, { value: (5n * ether).toString(), balance: held })).toMatchObject({
-      ok: false,
-      error: { error: "ZeroShares", args: { assets: 5n * ether } },
-    });
-    const victim = callSimulation(simulation, inflated, "deposit", {}, bob, { value: (15n * ether).toString(), balance: held });
-    expect(victim.returns).toBe(1n);
-    // The attacker withdraws their share: half of the 25 ETH (and 1 wei) in the vault.
-    const attacker = callSimulation(simulation, victim.state, "withdraw", { shares: "1" }, alice, { balance: victim.balance });
-    expect(attacker.returns).toBe(12n * ether + ether / 2n);
+    let state = simulation.initialState();
+    let balance = 0n;
+    const call = (fn: string, args: Record<string, string>, caller: typeof alice, value = "") => {
+      const result = callSimulation(simulation, state, fn, args, caller, { value, balance });
+      state = result.state;
+      balance = result.balance;
+      return result;
+    };
+    expect(simulation.directEth).toBe(true);
+    // 1. The attacker (Alice) deposits 1 wei into the empty vault, and gets 1 share.
+    expect(call("deposit", {}, alice, "1").returns).toBe(1n);
+    // The vault has no receive function: a plain transfer reverts and leaves the balance as it was.
+    expect(sendEthDirectly("transfer", (10n * ether).toString(), balance)).toMatchObject({ ok: false, balance: 1n });
+    // 2. A contract that self-destructs forces 10 ETH in: no storage changes, and 1 share is worth 10 ETH and 1 wei.
+    const donation = sendEthDirectly("selfdestruct", (10n * ether).toString(), balance);
+    expect(donation).toEqual({ ok: true, balance: 10n * ether + 1n });
+    balance = donation.balance;
+    expect(call("total_assets", {}, bob).returns).toBe(10n * ether + 1n);
+    expect(call("total_shares", {}, bob).returns).toBe(1n);
+    // The zero-share guard refuses a deposit that would round down to no share, and refunds it.
+    expect(call("deposit", {}, bob, (5n * ether).toString())).toMatchObject({ ok: false, error: { error: "ZeroShares", args: { assets: 5n * ether } }, balance: 10n * ether + 1n });
+    // 3. The victim (Bob) deposits 15 ETH: 15 divided by 10 rounds down to 1 share.
+    expect(call("deposit", {}, bob, (15n * ether).toString()).returns).toBe(1n);
+    // 4. The attacker withdraws their share: half of the 25 ETH (and 1 wei) in the vault.
+    expect(call("withdraw", { shares: "1" }, alice)).toMatchObject({ ok: true, returns: 12n * ether + ether / 2n, transfers: [{ to: alice.address, amount: 12n * ether + ether / 2n }] });
+    expect(balance).toBe(12n * ether + ether / 2n + 1n);
   });
 });
