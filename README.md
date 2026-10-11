@@ -169,7 +169,7 @@ Deployment and verification steps: [contracts/README.md](contracts/README.md#dep
 The web app runs on Vercel at <https://stylusforge.wkalidev.com>, built with the settings in [`apps/web/vercel.json`](apps/web/vercel.json). To deploy it to a Vercel project:
 
 1. Import the repository in Vercel and set **Root Directory** to `apps/web`. Keep **Include files outside the Root Directory** enabled: the app reads `curriculum/lessons.json`.
-2. Set **Node.js version** to 24.x (Project Settings → Build and Deployment), the version CI and `engines` use.
+2. Leave **Node.js version** (Project Settings → Build and Deployment) on 24.x: `engines.node` in `apps/web/package.json` pins Node 24.x and overrides that setting, matching the root `package.json` and CI.
 3. Define the environment variables below, then deploy.
 
 `vercel.json` installs only the web package and its dependencies from the pnpm workspace (`pnpm install --frozen-lockfile --filter web...`, so Hardhat is not installed) and runs `pnpm build`. Changes under `curriculum/` are outside the workspace packages, so Vercel treats them as global and redeploys.
