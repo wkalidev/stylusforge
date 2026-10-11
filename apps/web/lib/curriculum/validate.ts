@@ -246,7 +246,11 @@ export function stripCommentsAndStrings(code: string): string {
   return scan(code).stripped;
 }
 
-/** The stripped code with its string literals put back: comments blanked, strings kept. */
+/**
+ * The stripped code with its string literals put back: comments blanked, strings kept, the code
+ * that `literals` snippets match. Built from the same scan as the stripped code, so both agree on
+ * where each literal starts and ends, and positions are preserved the same way.
+ */
 function restoreLiterals(code: string, { stripped, literals }: ScannedCode): string {
   let out = "";
   let at = 0;
@@ -255,15 +259,6 @@ function restoreLiterals(code: string, { stripped, literals }: ScannedCode): str
     at = end;
   }
   return out + stripped.slice(at);
-}
-
-/**
- * Removes line and (nested) block comments only, keeping string literals as written: the code
- * that `literals` snippets match. It shares the scanner of stripCommentsAndStrings, so both agree
- * on where each literal starts and ends, and positions are preserved the same way.
- */
-export function stripComments(code: string): string {
-  return restoreLiterals(code, scan(code));
 }
 
 /**

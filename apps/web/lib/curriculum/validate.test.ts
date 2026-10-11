@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluateChecks, snippetPattern, stripComments, stripCommentsAndStrings, validateCode } from "./validate";
+import { evaluateChecks, snippetPattern, stripCommentsAndStrings, validateCode } from "./validate";
 
 describe("snippetPattern", () => {
   it("ignores whitespace around punctuation", () => {
@@ -120,15 +120,6 @@ describe("stripCommentsAndStrings", () => {
   it("keeps every line where it was", () => {
     const code = 'a /* one\ntwo */ b\n// three\n"four\nfive" c';
     expect(strip(code).split("\n")).toHaveLength(code.split("\n").length);
-  });
-});
-
-describe("stripComments", () => {
-  it("blanks comments in place and keeps every string literal as written", () => {
-    const code = 'a /* "x" */ let s = r#"say "hi" // no"#; // "y"\nlet t = "\\" // z";';
-    const out = stripComments(code);
-    expect(out).toHaveLength(code.length);
-    expect(out).toBe(`a ${" ".repeat(9)} let s = r#"say "hi" // no"#; ${" ".repeat(6)}\nlet t = "\\" // z";`);
   });
 });
 
