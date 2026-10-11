@@ -128,8 +128,9 @@ Names are listed in [`apps/web/.env.example`](apps/web/.env.example) and [`contr
 | `NEXT_PUBLIC_CHAIN_ID` | browser | `31337` for the local node, `421614` for Arbitrum Sepolia (default) |
 | `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` | browser | `StylusForgeNFT` address on that chain |
 | `CLAIM_SIGNER_PRIVATE_KEY` | server only | Key of the contract's claim `signer` |
+| `SITE_URL` | server only | Optional canonical origin for certificate metadata links: `https://stylusforge.wkalidev.com` by default, `http://localhost:3000` under `next dev` |
 
-For local development `pnpm deploy:local` writes the last three to `apps/web/.env.development.local`.
+For local development `pnpm deploy:local` writes `NEXT_PUBLIC_CHAIN_ID`, `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` and `CLAIM_SIGNER_PRIVATE_KEY` to `apps/web/.env.development.local`.
 
 **Contracts** (Hardhat configuration variables: environment or encrypted keystore, never `.env`):
 
