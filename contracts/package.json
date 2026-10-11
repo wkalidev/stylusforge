@@ -21,7 +21,7 @@
     "forge-std": "github:foundry-rs/forge-std#v1.16.2",
     "hardhat": "^3.18.0",
     "typescript": "~6.0.3",
-    "viem": "^2.56.9"
+    "viem": "^2.57.3"
   },
   "type": "module"
 }
