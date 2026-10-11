@@ -1,0 +1,41 @@
+# Dependency updates and security alerts for the pnpm workspace, the lesson check crates and
+# the CI workflows. Minor and patch updates are grouped per ecosystem to keep the PRs few; major
+# updates and security fixes come one by one. CI must pass before any of them is merged.
+version: 2
+updates:
+  # The pnpm workspace: one root lockfile for apps/web and contracts. Overrides in
+  # pnpm-workspace.yaml (@coinbase/cdp-sdk, its axios, cuer's qr) are kept by hand.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  # Lessons other than 15 target this stylus-sdk: a bump changes what the lessons teach, so its
+  # PR also needs the lesson content and the curriculum README updated.
+  - package-ecosystem: cargo
+    directory: /curriculum/rust/stylus
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+
+  # Lesson 15 targets openzeppelin-stylus, which pins stylus-sdk, alloy and (through its
+  # lockfile) ruint exactly: only openzeppelin-stylus itself is worth updating here (#123).
+  - package-ecosystem: cargo
+    directory: /curriculum/rust/openzeppelin
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    allow:
+      - dependency-name: openzeppelin-stylus
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
