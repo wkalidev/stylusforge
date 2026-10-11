@@ -2,9 +2,6 @@ import Link from 'next/link';
 import { ForgeLogo } from '@/components/brand/ForgeMark';
 import { NavLinks } from './NavLinks';
 
-/** Height of the header, used by full-height pages (the lesson workspace). */
-export const HEADER_HEIGHT = '3.5rem';
-
 /** Shared header on every page: logo, navigation and, on the right, the player's controls. */
 export function SiteHeader({ actions }: { actions?: React.ReactNode }) {
   return (
