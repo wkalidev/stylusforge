@@ -12,7 +12,7 @@
     "register:lessons": "pnpm --filter contracts register:lessons"
   },
   "engines": {
-    "node": ">=20",
+    "node": "24.x",
     "pnpm": ">=10"
   }
 }
