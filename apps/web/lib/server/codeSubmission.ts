@@ -1,12 +1,9 @@
 import type { ClaimErrorResponse } from '@/lib/claim';
 import type { SolutionErrorResponse } from '@/lib/curriculum/reference';
+import { MAX_CODE_LENGTH } from '@/lib/curriculum/codeLimit';
 
-/**
- * Longest code /api/claim and /api/solution accept, in UTF-16 units: about twice the longest
- * reference solution or starter (4,572 characters, lesson 21), so every real attempt fits and the
- * server never validates more code than that (#138).
- */
-export const MAX_CODE_LENGTH = 10_000;
+/** Longest code both routes accept; the lesson page warns before sending longer code. */
+export { MAX_CODE_LENGTH };
 
 /**
  * Body size limit of both routes, checked before parsing. Room for the longest accepted code once
