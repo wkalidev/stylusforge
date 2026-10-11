@@ -13,6 +13,16 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    # Majors that cannot be adopted yet (#152). Minor and patch updates still come; remove a rule
+    # once its blocker is gone.
+    ignore:
+      # @rainbow-me/rainbowkit 2 declares a wagmi ^2 peer dependency, so wagmi 3 breaks the wallet
+      # connection (#150). Lift this when a RainbowKit release officially supports wagmi 3.
+      - dependency-name: wagmi
+        update-types: [version-update:semver-major]
+      # TypeScript 7 breaks the build (#146). Lift this once Next.js and the toolchain support it.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
 
   # Lessons other than 15 target this stylus-sdk: a bump changes what the lessons teach, so its
   # PR also needs the lesson content and the curriculum README updated.
