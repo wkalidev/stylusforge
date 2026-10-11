@@ -8,6 +8,9 @@ import { getClaimSigner } from '@/lib/server/claimSigner';
 import { errorResponse as error, MAX_BODY_BYTES, MAX_CODE_LENGTH } from '@/lib/server/codeSubmission';
 import { readJsonBody } from '@/lib/server/jsonBody';
 
+/** Validating and signing take milliseconds; a longer run is cut off instead of billed (#138). */
+export const maxDuration = 10;
+
 /** Every answer is specific to one request, and a voucher must never be served from a cache. */
 const NO_STORE = { 'cache-control': 'no-store' };
 

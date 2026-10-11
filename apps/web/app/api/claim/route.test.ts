@@ -6,7 +6,7 @@ import { CLAIM_TYPES, claimDomain } from "@/lib/claim";
 import { LESSONS } from "@/lib/curriculum/lessons";
 import { SOLUTIONS } from "@/lib/curriculum/solutions";
 import { MAX_BODY_BYTES, MAX_CODE_LENGTH } from "@/lib/server/codeSubmission";
-import { POST } from "./route";
+import { maxDuration, POST } from "./route";
 import { UNAVAILABLE_LESSON } from "@/test/unavailableLesson";
 
 vi.mock("@/lib/curriculum/lessons", async (importOriginal) =>
@@ -155,5 +155,10 @@ describe("POST /api/claim", () => {
     const response = await POST(post({ address: STUDENT, lessonId: 1, code: SOLUTIONS[1] }));
     expect(response.status).toBe(503);
     expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("is cut off after at most 10 seconds", () => {
+    expect(maxDuration).toBeGreaterThan(0);
+    expect(maxDuration).toBeLessThanOrEqual(10);
   });
 });

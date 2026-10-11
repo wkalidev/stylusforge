@@ -5,6 +5,9 @@ import { validateCode } from '@/lib/curriculum/validate';
 import { errorResponse as error, MAX_BODY_BYTES, MAX_CODE_LENGTH } from '@/lib/server/codeSubmission';
 import { readJsonBody } from '@/lib/server/jsonBody';
 
+/** Validation takes milliseconds; a longer run is cut off instead of billed (#138). */
+export const maxDuration = 10;
+
 /**
  * Returns a lesson's reference solution to a student who has passed it. The server cannot see
  * the browser's progress, so the request proves the pass: the submitted code must pass the
