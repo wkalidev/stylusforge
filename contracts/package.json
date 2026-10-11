@@ -20,7 +20,7 @@
     "@types/node": "^22.20.4",
     "forge-std": "github:foundry-rs/forge-std#v1.17.0",
     "hardhat": "^3.18.0",
-    "typescript": "~6.0.3",
+    "typescript": "~7.0.2",
     "viem": "^2.57.3"
   },
   "type": "module"
