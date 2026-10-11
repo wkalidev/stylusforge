@@ -24,7 +24,7 @@
     "remark-gfm": "^4.0.1",
     "server-only": "^0.0.1",
     "three": "^0.186.1",
-    "viem": "^2.57.3",
+    "viem": "^2.57.4",
     "wagmi": "^2.19.5"
   },
   "devDependencies": {
