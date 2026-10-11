@@ -242,7 +242,7 @@ With a wallet connected, a bar under the header lists the lessons passed in this
 | 422 | `{ error, objectives }` | Code fails the lesson checks; `objectives` lists the unmet objectives, never the expected code |
 | 503 | `{ error }` | Contract address or signer key not configured |
 
-Every answer carries `cache-control: no-store`. Requests over the rate limit get a 429 from the Vercel Firewall before the function runs (see [Rate limiting](../../README.md#rate-limiting)); the app itself keeps no counters.
+Every answer carries `cache-control: no-store`. The route sets `maxDuration` to 10 seconds, as does `/api/solution`: validating and signing take milliseconds, so a longer run is cut off instead of billed. Requests over the rate limit get a 429 from the Vercel Firewall before the function runs (see [Rate limiting](../../README.md#rate-limiting)); the app itself keeps no counters.
 
 `CLAIM_SIGNER_PRIVATE_KEY` is only read in `lib/server/claimSigner.ts`, which imports `server-only`: importing it from a Client Component fails the build. The reference solutions (`lib/curriculum/solutions.ts`) are guarded the same way; vitest maps `server-only` to an empty module (`test/server-only.ts`). Its address must be the contract's `signer`; `pnpm deploy:local` sets both for the local chain.
 
