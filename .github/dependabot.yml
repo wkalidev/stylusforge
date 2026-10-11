@@ -23,6 +23,10 @@ updates:
       # TypeScript 7 breaks the build (#146). Lift this once Next.js and the toolchain support it.
       - dependency-name: typescript
         update-types: [version-update:semver-major]
+      # @types/node follows the Node runtime (24.x: engines, CI and Vercel), not the newest Node
+      # (#155, #158). Raise this bound together with the runtime.
+      - dependency-name: "@types/node"
+        versions: [">=25"]
 
   # Lessons other than 15 target this stylus-sdk: a bump changes what the lessons teach, so its
   # PR also needs the lesson content and the curriculum README updated.

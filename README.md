@@ -60,7 +60,7 @@ Workspace packages are declared in `pnpm-workspace.yaml` (`apps/*` and `contract
 
 ## Getting started
 
-Requirements: Node.js 20 or later and pnpm 10 or later.
+Requirements: Node.js 24 and pnpm 10 or later.
 
 ```bash
 pnpm install   # installs every workspace package from the root
@@ -169,7 +169,7 @@ Deployment and verification steps: [contracts/README.md](contracts/README.md#dep
 The web app runs on Vercel at <https://stylusforge.wkalidev.com>, built with the settings in [`apps/web/vercel.json`](apps/web/vercel.json). To deploy it to a Vercel project:
 
 1. Import the repository in Vercel and set **Root Directory** to `apps/web`. Keep **Include files outside the Root Directory** enabled: the app reads `curriculum/lessons.json`.
-2. Set **Node.js version** to 22.x (Project Settings → Build and Deployment).
+2. Set **Node.js version** to 24.x (Project Settings → Build and Deployment), the version CI and `engines` use.
 3. Define the environment variables below, then deploy.
 
 `vercel.json` installs only the web package and its dependencies from the pnpm workspace (`pnpm install --frozen-lockfile --filter web...`, so Hardhat is not installed) and runs `pnpm build`. Changes under `curriculum/` are outside the workspace packages, so Vercel treats them as global and redeploys.
@@ -216,7 +216,7 @@ A per-IP limit slows scripted claims but does not stop a client that rotates IPs
 
 ## Continuous integration
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on every push to `main` and on demand: `pnpm install --frozen-lockfile` on Node 22, then `pnpm lint`, `pnpm test` (contracts, then vitest) and `pnpm build`. A second job, **Rust lesson checks**, runs `cargo check` on the reference solution, starter code and explanation snippets of every available lesson, and `cargo test` on those that contain unit tests ([curriculum README](curriculum/README.md#checking-the-lesson-rust)); it caches the cargo registry and build output, saved from `main` only. The build uses a placeholder WalletConnect id unless the repository variable `NEXT_PUBLIC_WALLETCONNECT_ID` is set. A new push to a pull request cancels its running checks. Each push to `main` runs in its own concurrency group, so no merge's run is cancelled or replaced while queued.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on every push to `main` and on demand: `pnpm install --frozen-lockfile` on Node 24, then `pnpm lint`, `pnpm test` (contracts, then vitest) and `pnpm build`. A second job, **Rust lesson checks**, runs `cargo check` on the reference solution, starter code and explanation snippets of every available lesson, and `cargo test` on those that contain unit tests ([curriculum README](curriculum/README.md#checking-the-lesson-rust)); it caches the cargo registry and build output, saved from `main` only. The build uses a placeholder WalletConnect id unless the repository variable `NEXT_PUBLIC_WALLETCONNECT_ID` is set. A new push to a pull request cancels its running checks. Each push to `main` runs in its own concurrency group, so no merge's run is cancelled or replaced while queued.
 
 [`.github/dependabot.yml`](.github/dependabot.yml) opens weekly update PRs for the pnpm workspace, the two lesson check crates and the workflows, with minor and patch updates grouped per ecosystem. In lesson 15's crate only `openzeppelin-stylus` is updated: it fixes the versions of the others. The overrides in `pnpm-workspace.yaml` (`@coinbase/cdp-sdk` and its `axios`, `cuer`'s `qr`) are maintained by hand, each with the reason next to it.
 
