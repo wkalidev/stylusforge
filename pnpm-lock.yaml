@@ -35,7 +35,7 @@ importers:
         version: 0.57.0
       next:
         specifier: 16.4.0
-        version: 16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@26.6.4)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react:
         specifier: 19.3.0
         version: 19.3.0
@@ -65,8 +65,8 @@ importers:
         specifier: ^4
         version: 4.3.3
       '@types/node':
-        specifier: ^22.20.5
-        version: 22.20.5
+        specifier: ^26.6.4
+        version: 26.6.4
       '@types/react':
         specifier: ^19
         version: 19.3.0
@@ -93,7 +93,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^5.0.3
-        version: 5.0.3(@types/node@22.20.5)(vite@8.3.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+        version: 5.0.3(@types/node@26.6.4)(vite@8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
   contracts:
     devDependencies:
@@ -107,8 +107,8 @@ importers:
         specifier: ^5.6.1
         version: 5.6.1
       '@types/node':
-        specifier: ^22.20.4
-        version: 22.20.5
+        specifier: ^26.6.4
+        version: 26.6.4
       forge-std:
         specifier: github:foundry-rs/forge-std#v1.17.0
         version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/f3dae6e6ee381f25eb6a246f7da9b85c91a68219
@@ -1900,11 +1900,11 @@ packages:
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
 
-  '@types/node@22.20.5':
-    resolution: {integrity: sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==}
-
   '@types/node@22.7.5':
     resolution: {integrity: sha512-jML7s2NAzMWc//QSJ1a3prpk78cOPchGvXJsC3C6R6PSMoooztvRVQEz89gmBTBY1SPMaqo5teB4uNHPdetShQ==}
+
+  '@types/node@26.6.4':
+    resolution: {integrity: sha512-ldVPDCzj7fsaGZrLB0NuHuTvJcsNasysBAqMolr/cgxrLd1xbqxIr3XJiPnHHJUCxj5sNF1vnRj9aWnrVh5Jcg==}
 
   '@types/offscreencanvas@2019.7.3':
     resolution: {integrity: sha512-ieXiYmgSRXUDeOntE1InxjWyvEelZGP63M+cGuquuRLuIKKT1osnkXjxev9B7d1nXSug5vpunx+gNlbVxMlC9A==}
@@ -4904,11 +4904,11 @@ packages:
   undici-types@6.19.8:
     resolution: {integrity: sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw==}
 
-  undici-types@6.21.0:
-    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
-
   undici-types@7.30.0:
     resolution: {integrity: sha512-7QjA5O+GhM27do7Id6hQZpnYEd7WzHbs7/XIS9A1k+Gat/ZVF7Jmpzt68zL/205f65FYwDNLSjQemHPS8ReM/A==}
+
+  undici-types@8.9.0:
+    resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
 
   undici@6.29.0:
     resolution: {integrity: sha512-R+RODBqp6i2pPflGdq+xIOUkl+RNfGgHwoinecKu/JCuf2uO06cOKoDbI2P7Dn6KcswdKwrczbU6IYJ6K8X+wg==}
@@ -7535,13 +7535,13 @@ snapshots:
 
   '@types/ms@2.1.0': {}
 
-  '@types/node@22.20.5':
-    dependencies:
-      undici-types: 6.21.0
-
   '@types/node@22.7.5':
     dependencies:
       undici-types: 6.19.8
+
+  '@types/node@26.6.4':
+    dependencies:
+      undici-types: 8.9.0
 
   '@types/offscreencanvas@2019.7.3': {}
 
@@ -7772,14 +7772,14 @@ snapshots:
     dependencies:
       '@vanilla-extract/css': 1.20.1
 
-  '@vitest/mocker@5.0.3(vite@8.3.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))':
+  '@vitest/mocker@5.0.3(vite@8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.3
       estree-walker: 3.0.3
       magic-string: 1.4.2
     optionalDependencies:
-      vite: 8.3.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)
+      vite: 8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)
 
   '@vitest/spy@5.0.3': {}
 
@@ -10500,7 +10500,7 @@ snapshots:
       split2: 3.2.2
       through2: 4.0.2
 
-  next@16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  next@16.4.0(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@26.6.4)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       '@next/env': 16.4.0
       '@swc/helpers': 0.5.23
@@ -10519,7 +10519,7 @@ snapshots:
       '@next/swc-linux-x64-musl': 16.4.0
       '@next/swc-win32-arm64-msvc': 16.4.0
       '@next/swc-win32-x64-msvc': 16.4.0
-      sharp: 0.35.5(@types/node@22.20.5)
+      sharp: 0.35.5(@types/node@26.6.4)
     transitivePeerDependencies:
       - '@babel/core'
       - '@types/node'
@@ -11163,7 +11163,7 @@ snapshots:
       safe-buffer: 5.2.1
       to-buffer: 1.2.2
 
-  sharp@0.35.5(@types/node@22.20.5):
+  sharp@0.35.5(@types/node@26.6.4):
     dependencies:
       '@img/colour': 1.1.0
       detect-libc: 2.1.2
@@ -11194,7 +11194,7 @@ snapshots:
       '@img/sharp-win32-arm64': 0.35.5
       '@img/sharp-win32-ia32': 0.35.5
       '@img/sharp-win32-x64': 0.35.5
-      '@types/node': 22.20.5
+      '@types/node': 26.6.4
     optional: true
 
   shebang-command@2.0.0:
@@ -11568,9 +11568,9 @@ snapshots:
 
   undici-types@6.19.8: {}
 
-  undici-types@6.21.0: {}
-
   undici-types@7.30.0: {}
+
+  undici-types@8.9.0: {}
 
   undici@6.29.0: {}
 
@@ -11806,7 +11806,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  vite@8.3.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15):
+  vite@8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -11814,16 +11814,16 @@ snapshots:
       rolldown: 1.2.12
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@types/node': 22.20.5
+      '@types/node': 26.6.4
       esbuild: 0.28.2
       fsevents: 2.3.3
       jiti: 2.7.0
       tsx: 4.23.15
 
-  vitest@5.0.3(@types/node@22.20.5)(vite@8.3.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)):
+  vitest@5.0.3(@types/node@26.6.4)(vite@8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.3(vite@8.3.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+      '@vitest/mocker': 5.0.3(vite@8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -11834,10 +11834,10 @@ snapshots:
       tinybench: 6.2.0
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 8.3.2(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)
+      vite: 8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)
       why-is-node-running: 3.2.1
     optionalDependencies:
-      '@types/node': 22.20.5
+      '@types/node': 26.6.4
     transitivePeerDependencies:
       - msw
 
