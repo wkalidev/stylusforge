@@ -293,14 +293,23 @@ function matchesWithLiterals(snippet: string, uncommented: string, literals: Ran
 }
 
 /**
+ * Most distinct bindings collected for one snippet. groupsMatch tries every binding of a group
+ * against every binding of the next one, rescanning the code each time, so code that repeats a
+ * snippet under many names would multiply the work (H1, #138). A solution binds a snippet once or
+ * twice; only code with more than this many copies of one snippet loses the later ones.
+ */
+export const MAX_SNIPPET_BINDINGS = 32;
+
+/**
  * Every way a snippet matches the code, as the bindings of its placeholders added to `bindings`:
  * one per distinct set of identifiers, so `let $x = self.count.get();` written twice under two
- * names gives both. Every start position is tried, so overlapping matches are found too.
+ * names gives both. Every start position is tried, so overlapping matches are found too. Stops
+ * after the first MAX_SNIPPET_BINDINGS distinct bindings, in code order.
  */
 function snippetBindings(snippet: string, source: string, bindings: Bindings): Bindings[] {
   const search = new RegExp(snippetPattern(snippet, { bindings }).source, "g");
   const found = new Map<string, Bindings>();
-  for (let match = search.exec(source); match; match = search.exec(source)) {
+  for (let match = search.exec(source); match && found.size < MAX_SNIPPET_BINDINGS; match = search.exec(source)) {
     const next: Record<string, string> = { ...bindings };
     for (const [group, name] of Object.entries(match.groups ?? {})) {
       if (group.startsWith(PLACEHOLDER_GROUP)) next[group.slice(PLACEHOLDER_GROUP.length)] = name;
