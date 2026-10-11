@@ -2,16 +2,8 @@ import { LESSONS } from '@/lib/curriculum/lessons';
 import type { SolutionResponse } from '@/lib/curriculum/reference';
 import { SOLUTIONS } from '@/lib/curriculum/solutions';
 import { validateCode } from '@/lib/curriculum/validate';
+import { errorResponse as error, MAX_BODY_BYTES, MAX_CODE_LENGTH } from '@/lib/server/codeSubmission';
 import { readJsonBody } from '@/lib/server/jsonBody';
-
-const MAX_CODE_LENGTH = 50_000;
-
-/** Body size limit, checked before parsing; as for /api/claim, room for the longest code as JSON. */
-const MAX_BODY_BYTES = 4 * MAX_CODE_LENGTH;
-
-function error(status: number, message: string, objectives?: string[]) {
-  return Response.json({ error: message, ...(objectives ? { objectives } : {}) }, { status, headers: { 'cache-control': 'no-store' } });
-}
 
 /**
  * Returns a lesson's reference solution to a student who has passed it. The server cannot see

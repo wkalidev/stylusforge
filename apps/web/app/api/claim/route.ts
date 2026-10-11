@@ -1,30 +1,15 @@
 import { getAddress, isAddress } from 'viem';
-import { CLAIM_VOUCHER_TTL_SECONDS, signClaimVoucher, type ClaimErrorResponse, type ClaimResponse } from '@/lib/claim';
+import { CLAIM_VOUCHER_TTL_SECONDS, signClaimVoucher, type ClaimResponse } from '@/lib/claim';
 import { chain } from '@/lib/chain';
 import { nftContractAddress } from '@/lib/contract';
 import { LESSONS } from '@/lib/curriculum/lessons';
 import { validateCode } from '@/lib/curriculum/validate';
 import { getClaimSigner } from '@/lib/server/claimSigner';
+import { errorResponse as error, MAX_BODY_BYTES, MAX_CODE_LENGTH } from '@/lib/server/codeSubmission';
 import { readJsonBody } from '@/lib/server/jsonBody';
-
-/** Larger than any lesson solution by far; rejects abusive payloads before validation. */
-const MAX_CODE_LENGTH = 50_000;
-
-/**
- * Body size limit, checked before parsing. Room for the longest accepted code once encoded as
- * JSON: a UTF-16 unit takes at most 3 bytes in UTF-8, and an escaped quote or newline 2.
- */
-const MAX_BODY_BYTES = 4 * MAX_CODE_LENGTH;
 
 /** Every answer is specific to one request, and a voucher must never be served from a cache. */
 const NO_STORE = { 'cache-control': 'no-store' };
-
-function error(status: number, message: string, objectives?: string[]) {
-  return Response.json({ error: message, ...(objectives ? { objectives } : {}) } satisfies ClaimErrorResponse, {
-    status,
-    headers: NO_STORE,
-  });
-}
 
 /**
  * Issues a claim voucher: { address, lessonId, code } → { lessonId, deadline, signature }.
