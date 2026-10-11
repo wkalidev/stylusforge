@@ -4,12 +4,12 @@ Lesson metadata for StylusForge, plus the rules every lesson exercise follows.
 
 ## lessons.json
 
-[`lessons.json`](lessons.json) is the single source of truth for each lesson's identity, shared by the contracts and the web app:
+[`lessons.json`](lessons.json) is the single source of truth for each lesson's identity, shared by the contracts and the web app. Every lesson of the current curriculum is available; the second entry below shows how a lesson not written yet would look:
 
 ```json
 [
   { "id": 1, "name": "Hello World Stylus", "xp": 100, "available": true, "module": "foundations" },
-  { "id": 5, "name": "DeFi Interaction", "xp": 400, "available": false, "module": "interoperability" }
+  { "id": 22, "name": "Upgradeable contracts", "xp": 400, "available": false, "module": "stylus-specifics" }
 ]
 ```
 
