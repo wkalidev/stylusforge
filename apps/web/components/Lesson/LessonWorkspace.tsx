@@ -344,7 +344,8 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
                 {completed ? `Forged: +${lesson.xp} XP` : 'Passed'}
               </p>
               <div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
-                <ClaimCertificate lessonId={lesson.id} code={code} />
+                {/* The notice under the editor already explains code over the limit. */}
+                <ClaimCertificate lessonId={lesson.id} code={code} explainTooLong={false} />
                 <button type='button' onClick={() => setTab('try')} className={buttonClasses('steel', 'md')}>
                   Try it
                 </button>

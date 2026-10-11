@@ -30,9 +30,18 @@ function shortHash(hash: Hash) {
  * The claim action of a passed lesson, compact enough to sit in the lesson's result bar: the
  * server re-validates the code and signs a voucher, then the student sends claim() from their
  * wallet and pays the gas. Renders the action (or the owned badge) and, below it, any error.
- * Code over the server's length limit is never sent: the button is disabled and says why.
+ * Code over the server's length limit is never sent: the button is disabled and, unless the page
+ * already explains it (`explainTooLong={false}`), says why.
  */
-export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: string }) {
+export function ClaimCertificate({
+  lessonId,
+  code,
+  explainTooLong = true,
+}: {
+  lessonId: number;
+  code: string;
+  explainTooLong?: boolean;
+}) {
   const { address, isConnected, chainId } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { switchChain, isPending: switching } = useSwitchChain();
@@ -163,7 +172,7 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
         type='button'
         onClick={claim}
         disabled={busy || owned.isLoading || tooLong}
-        aria-describedby={tooLong ? `claim-too-long-${lessonId}` : undefined}
+        aria-describedby={tooLong && explainTooLong ? `claim-too-long-${lessonId}` : undefined}
         className={buttonClasses('quench', 'md')}
       >
         {busy ? PHASE_LABEL[phase as Exclude<Phase, 'idle'>] : 'Claim certificate'}
@@ -174,7 +183,7 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
   return (
     <>
       {action}
-      {tooLong && (
+      {tooLong && explainTooLong && (
         <p id={`claim-too-long-${lessonId}`} className='basis-full text-sm text-molten-300'>
           {codeTooLongMessage(code.length)}
         </p>
