@@ -7,6 +7,7 @@ import { ClaimCertificate } from '@/components/claim/ClaimCertificate';
 import { SparkBurst } from '@/components/feedback/SparkBurst';
 import { LessonXpBar } from '@/components/progress/LessonXpBar';
 import { buttonClasses } from '@/components/ui/button';
+import { codeLengthLabel, codeLengthLevel, MAX_CODE_LENGTH, type CodeLengthLevel } from '@/lib/curriculum/codeLimit';
 import { LESSONS, type Lesson } from '@/lib/curriculum/lessons';
 import { fetchReferenceSolution } from '@/lib/curriculum/reference';
 import { getSimulation } from '@/lib/curriculum/simulations';
@@ -44,6 +45,13 @@ const beforeEditorMount: BeforeMount = (monaco) => {
 
 export type AvailableLesson = Extract<Lesson, { available: true }>;
 
+/** Colour of the editor's character counter: quiet, amber near the limit, molten over it. */
+const COUNTER_CLASS: Record<CodeLengthLevel, string> = {
+  ok: 'text-steel-400',
+  near: 'text-amber-300',
+  over: 'font-semibold text-molten-300',
+};
+
 /** The workspace of an available lesson: explanation, editor, checks and the claim. */
 export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const { exercise } = lesson;
@@ -60,6 +68,7 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
   const liveResults = useMemo(() => evaluateChecks(debouncedCode, exercise.checks), [debouncedCode, exercise.checks]);
   const metCount = liveResults.filter((result) => result.passed).length;
   const simulation = useMemo(() => getSimulation(lesson.id), [lesson.id]);
+  const lengthLevel = codeLengthLevel(code.length);
 
   useEffect(() => rememberLesson(lesson.id), [lesson.id]);
 
@@ -252,7 +261,16 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
               ) : (
                 <>
                   <span className='font-mono text-xs text-steel-300'>src/lib.rs</span>
-                  <span className='text-xs text-steel-400'>{savedCode === null ? 'Starter code' : 'Saved in this browser'}</span>
+                  <span className='flex items-center gap-3 text-xs text-steel-400'>
+                    <span>{savedCode === null ? 'Starter code' : 'Saved in this browser'}</span>
+                    <span
+                      className={`font-mono tabular-nums ${COUNTER_CLASS[lengthLevel]}`}
+                      title={`Claiming and comparing accept up to ${MAX_CODE_LENGTH.toLocaleString('en-US')} characters`}
+                    >
+                      <span className='sr-only'>Characters: </span>
+                      {codeLengthLabel(code.length)}
+                    </span>
+                  </span>
                 </>
               )}
             </div>
