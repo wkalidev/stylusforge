@@ -7,7 +7,14 @@ import { ClaimCertificate } from '@/components/claim/ClaimCertificate';
 import { SparkBurst } from '@/components/feedback/SparkBurst';
 import { LessonXpBar } from '@/components/progress/LessonXpBar';
 import { buttonClasses } from '@/components/ui/button';
-import { codeLengthLabel, codeLengthLevel, MAX_CODE_LENGTH, type CodeLengthLevel } from '@/lib/curriculum/codeLimit';
+import {
+  codeLengthLabel,
+  codeLengthLevel,
+  codeTooLongMessage,
+  isCodeTooLong,
+  MAX_CODE_LENGTH,
+  type CodeLengthLevel,
+} from '@/lib/curriculum/codeLimit';
 import { LESSONS, type Lesson } from '@/lib/curriculum/lessons';
 import { fetchReferenceSolution } from '@/lib/curriculum/reference';
 import { getSimulation } from '@/lib/curriculum/simulations';
@@ -167,6 +174,11 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
       setCompare((current) => ({ ...current, open: true }));
       return;
     }
+    // The server refuses code over the limit: say why instead of sending it.
+    if (isCodeTooLong(code)) {
+      setCompare({ open: true, status: 'error', message: codeTooLongMessage(code.length) });
+      return;
+    }
     setCompare({ open: true, status: 'loading' });
     try {
       const solution = await fetchReferenceSolution(lesson.id, code);
@@ -308,6 +320,13 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
             </div>
           </div>
 
+          {lengthLevel === 'over' && (
+            <div role='status' className='steel-surface ember-edge p-4'>
+              <p className='mb-1 font-semibold text-molten-300'>Code too long to send</p>
+              <p className='text-sm text-steel-300'>{codeTooLongMessage(code.length)}</p>
+              <p className='mt-2 text-xs text-steel-400'>Check my code still works: it runs in your browser.</p>
+            </div>
+          )}
           {missing.length > 0 && (
             <div role='status' className='steel-surface ember-edge p-4'>
               <p className='mb-2 font-semibold text-amber-300'>Not there yet</p>
@@ -329,7 +348,12 @@ export function LessonWorkspace({ lesson }: { lesson: AvailableLesson }) {
                 <button type='button' onClick={() => setTab('try')} className={buttonClasses('steel', 'md')}>
                   Try it
                 </button>
-                <button type='button' onClick={openCompare} className={buttonClasses('steel', 'md')}>
+                <button
+                  type='button'
+                  onClick={openCompare}
+                  disabled={lengthLevel === 'over' && compare.status !== 'ready'}
+                  className={buttonClasses('steel', 'md')}
+                >
                   Compare with reference
                 </button>
                 {next?.available && (
