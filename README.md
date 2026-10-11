@@ -128,8 +128,9 @@ Names are listed in [`apps/web/.env.example`](apps/web/.env.example) and [`contr
 | `NEXT_PUBLIC_CHAIN_ID` | browser | `31337` for the local node, `421614` for Arbitrum Sepolia (default) |
 | `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` | browser | `StylusForgeNFT` address on that chain |
 | `CLAIM_SIGNER_PRIVATE_KEY` | server only | Key of the contract's claim `signer` |
+| `SITE_URL` | server only | Optional canonical origin for certificate metadata links: `https://stylusforge.wkalidev.com` by default, `http://localhost:3000` under `next dev` |
 
-For local development `pnpm deploy:local` writes the last three to `apps/web/.env.development.local`.
+For local development `pnpm deploy:local` writes `NEXT_PUBLIC_CHAIN_ID`, `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` and `CLAIM_SIGNER_PRIVATE_KEY` to `apps/web/.env.development.local`.
 
 **Contracts** (Hardhat configuration variables: environment or encrypted keystore, never `.env`):
 
@@ -165,7 +166,7 @@ Deployment and verification steps: [contracts/README.md](contracts/README.md#dep
 
 ## Deployment (Vercel)
 
-The web app is ready for Vercel; nothing is deployed yet. [`apps/web/vercel.json`](apps/web/vercel.json) holds the build settings.
+The web app runs on Vercel at <https://stylusforge.wkalidev.com>, built with the settings in [`apps/web/vercel.json`](apps/web/vercel.json). To deploy it to a Vercel project:
 
 1. Import the repository in Vercel and set **Root Directory** to `apps/web`. Keep **Include files outside the Root Directory** enabled: the app reads `curriculum/lessons.json`.
 2. Set **Node.js version** to 22.x (Project Settings → Build and Deployment).
@@ -179,6 +180,7 @@ The web app is ready for Vercel; nothing is deployed yet. [`apps/web/vercel.json
 | `NEXT_PUBLIC_CHAIN_ID` | Production, Preview | `421614` (Arbitrum Sepolia; also the default when unset) |
 | `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` | Production, Preview | Address of `StylusForgeNFT` on Arbitrum Sepolia, printed by `scripts/deploy.ts` |
 | `CLAIM_SIGNER_PRIVATE_KEY` | Production (and Preview if previews may sign) | Private key of the contract's `signer`. Mark it **Sensitive**; it is only read by the server. |
+| `SITE_URL` | Production, Preview (optional) | Canonical origin for the links in certificate metadata. Defaults to `https://stylusforge.wkalidev.com`; set it only when the app is served from another domain. |
 
 Never set the local values written to `apps/web/.env.development.local` (chain 31337, Hardhat keys) on Vercel.
 
@@ -231,11 +233,11 @@ A per-IP limit slows scripted claims but does not stop a client that rotates IPs
 - Module 4, Interoperability: calling Solidity, being called through the ABI, and a token vault for DeFi interaction (seventeen lessons in all).
 - Module 5, Stylus specifics: WASM, ink and gas, unit tests on the stylus-sdk test VM, security pitfalls, and a final project, a mini vault (twenty-one lessons in all).
 - Local development stack, CI on pull requests and the Vercel configuration.
-- Arbitrum Sepolia deployment: the verified contract and the web app on Vercel.
+- Arbitrum Sepolia deployment: the verified contract and the web app on Vercel, with all twenty-one lessons registered on-chain.
 
 **Next**
 
-- Register the lessons of modules 4 and 5 on-chain with `addLesson` (`pnpm register:lessons`), without redeploying.
+- Move lesson 15 to stylus-sdk 0.10 once openzeppelin-stylus releases a version that supports it ([#123](https://github.com/wkalidev/stylusforge/issues/123)).
 
 **Later**
 

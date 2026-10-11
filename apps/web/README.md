@@ -182,6 +182,7 @@ Variable names are listed in [`.env.example`](.env.example). Two files hold the 
 | `NEXT_PUBLIC_CHAIN_ID` | browser | `31337` for the local Hardhat node, `421614` for Arbitrum Sepolia (default when unset). Any other value fails at startup. |
 | `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` | browser | Address of `StylusForgeNFT` on that chain |
 | `CLAIM_SIGNER_PRIVATE_KEY` | server only | Key that signs claim vouchers. Never import it from a client component. |
+| `SITE_URL` | server only | Canonical origin of the app, for the links in certificate metadata (`lib/site.ts`). Optional: `https://stylusforge.wkalidev.com` by default, `http://localhost:3000` under `next dev`. Must be an origin: https (http on localhost), no path; anything else fails at startup. |
 
 See the [root README](../../README.md#local-development) to run the app against a local chain.
 
@@ -207,7 +208,7 @@ Progress is local first, so the reward is immediate and needs no wallet:
 | Master Forger | 4800 XP | Interoperability plus two Stylus specifics lessons (4850 XP) |
 | Forgemaster | 6000 XP | every lesson of the full curriculum |
 
-The thresholds are set for the full 21-lesson curriculum (6000 XP), so the upper ranks unlock as the modules ship. The lesson bar and the profile show progress within the current rank.
+The thresholds are set for the full 21-lesson curriculum (6000 XP): Forgemaster takes every lesson. The lesson bar and the profile show progress within the current rank.
 
 The store (`lib/progress/storage.ts`) is read through `useSyncExternalStore`: empty during server rendering and hydration (no mismatch), synced across tabs through the `storage` event, and kept in memory for the page when `localStorage` is blocked. On-chain XP and certificates are shown on the profile page.
 
@@ -272,7 +273,7 @@ The contract's metadata URI is `<app origin>/api/metadata/{id}` (`pnpm deploy:lo
 | `GET /api/metadata/[id]` | ERC-1155 JSON: `name`, `description`, `image`, `external_url`, `attributes` (lesson, XP, difficulty, module, zone, transferable) |
 | `GET /api/metadata/[id]/image` | The SVG certificate (`image/svg+xml`), 1000×1000 |
 
-`[id]` is the decimal id or the 64-hex-digit form clients substitute for `{id}`. Unknown and unavailable lessons return 404. Both responses are cacheable for an hour.
+`[id]` is the decimal id or the 64-hex-digit form clients substitute for `{id}`. Unknown and unavailable lessons return 404. Both responses are cacheable for an hour. `image` and `external_url` are built from the canonical site URL (`SITE_URL`), never from the request's host, so metadata fetched through a deployment or preview URL still points at the app's own domain.
 
 The SVG certificate (`lib/certificate/svg.ts`) takes the look of its module's forge zone: accent, plate gradient, background motif and badge glyph, all defined in `lib/certificate/zones.ts`.
 - **Content:** the zone badge; "Certificate of completion" over the lesson title, in the largest type; the module; three plates (lesson number, difficulty as one to three pips, XP); the soul-bound line naming the configured chain.
