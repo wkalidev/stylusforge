@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CLAIM_TYPES, claimDomain } from "@/lib/claim";
 import { LESSONS } from "@/lib/curriculum/lessons";
 import { SOLUTIONS } from "@/lib/curriculum/solutions";
+import { MAX_BODY_BYTES, MAX_CODE_LENGTH } from "@/lib/server/codeSubmission";
 import { POST } from "./route";
 import { UNAVAILABLE_LESSON } from "@/test/unavailableLesson";
 
@@ -88,7 +89,7 @@ describe("POST /api/claim", () => {
     ["invalid JSON", "{", 400],
     ["a bad address", { address: "0x123", lessonId: 1, code: "" }, 400],
     ["a non-integer lesson id", { address: STUDENT, lessonId: "1", code: "" }, 400],
-    ["oversized code", { address: STUDENT, lessonId: 1, code: "x".repeat(50_001) }, 400],
+    ["oversized code", { address: STUDENT, lessonId: 1, code: "x".repeat(MAX_CODE_LENGTH + 1) }, 400],
     ["an unknown lesson", { address: STUDENT, lessonId: 99, code: "" }, 404],
     ["an unavailable lesson", { address: STUDENT, lessonId: UNAVAILABLE_LESSON, code: "" }, 404],
   ])("rejects %s", async (_label, body, status) => {
@@ -98,7 +99,7 @@ describe("POST /api/claim", () => {
     expect((await response.json()).error).toBeTypeOf("string");
   });
 
-  it("answers 413 to a declared body over 200,000 bytes, before reading it", async () => {
+  it(`answers 413 to a declared body over ${MAX_BODY_BYTES} bytes, before reading it`, async () => {
     let pulled = false;
     const body = new ReadableStream(
       {
@@ -111,7 +112,7 @@ describe("POST /api/claim", () => {
     );
     const request = new Request("http://localhost/api/claim", {
       method: "POST",
-      headers: { "content-type": "application/json", "content-length": "200001" },
+      headers: { "content-type": "application/json", "content-length": String(MAX_BODY_BYTES + 1) },
       body,
       duplex: "half",
     } as RequestInit);
@@ -122,8 +123,8 @@ describe("POST /api/claim", () => {
     expect(pulled).toBe(false);
   });
 
-  it("answers 413 to a chunked body that grows past 200,000 bytes", async () => {
-    const chunk = new TextEncoder().encode("x".repeat(64 * 1024));
+  it(`answers 413 to a chunked body that grows past ${MAX_BODY_BYTES} bytes`, async () => {
+    const chunk = new TextEncoder().encode("x".repeat(4 * 1024));
     let sent = 0;
     const body = new ReadableStream({
       pull(controller) {
@@ -134,13 +135,13 @@ describe("POST /api/claim", () => {
     const request = new Request("http://localhost/api/claim", { method: "POST", body, duplex: "half" } as RequestInit);
     const response = await POST(request);
     expect(response.status).toBe(413);
-    expect(sent).toBeLessThan(400_000);
+    expect(sent).toBeLessThan(2 * MAX_BODY_BYTES);
   });
 
   it("still signs a voucher for code of the maximum length, mostly escaped quotes", async () => {
-    // 50,000 characters, about 49,000 of them quotes that JSON escapes to 2 bytes: ~100 kB.
-    const code = `${SOLUTIONS[1]}${'"'.repeat(50_000)}`.slice(0, 50_000);
-    expect(code).toHaveLength(50_000);
+    // MAX_CODE_LENGTH characters, mostly quotes that JSON escapes to 2 bytes each.
+    const code = `${SOLUTIONS[1]}${'"'.repeat(MAX_CODE_LENGTH)}`.slice(0, MAX_CODE_LENGTH);
+    expect(code).toHaveLength(MAX_CODE_LENGTH);
     const response = await POST(post({ address: STUDENT, lessonId: 1, code }));
     expect(response.status).toBe(200);
   });
