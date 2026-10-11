@@ -216,6 +216,8 @@ A per-IP limit slows scripted claims but does not stop a client that rotates IPs
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on every push to `main` and on demand: `pnpm install --frozen-lockfile` on Node 22, then `pnpm lint`, `pnpm test` (contracts, then vitest) and `pnpm build`. A second job, **Rust lesson checks**, runs `cargo check` on the reference solution, starter code and explanation snippets of every available lesson, and `cargo test` on those that contain unit tests ([curriculum README](curriculum/README.md#checking-the-lesson-rust)); it caches the cargo registry and build output, saved from `main` only. The build uses a placeholder WalletConnect id unless the repository variable `NEXT_PUBLIC_WALLETCONNECT_ID` is set. A new push to a pull request cancels its running checks. Each push to `main` runs in its own concurrency group, so no merge's run is cancelled or replaced while queued.
 
+[`.github/dependabot.yml`](.github/dependabot.yml) opens weekly update PRs for the pnpm workspace, the two lesson check crates and the workflows, with minor and patch updates grouped per ecosystem. In lesson 15's crate only `openzeppelin-stylus` is updated: it fixes the versions of the others. The overrides in `pnpm-workspace.yaml` (`@coinbase/cdp-sdk` and its `axios`, `cuer`'s `qr`) are maintained by hand, each with the reason next to it.
+
 ## Roadmap
 
 **Done**
