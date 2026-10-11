@@ -27,3 +27,10 @@ target/
 
 # Local task notes (never commit)
 TASK-stylusforge-mvp.md
+
+# Agent instruction files written by framework tooling (`next dev`, `hardhat --init`): kept
+# locally, never committed
+CLAUDE.md
+AGENTS.md
+.claude/
+.agents/
