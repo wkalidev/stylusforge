@@ -10,6 +10,7 @@ import { chain } from '@/lib/chain';
 import type { ClaimErrorResponse, ClaimResponse } from '@/lib/claim';
 import { describeClaimError, VoucherRequestError } from '@/lib/claimErrors';
 import { suggestClaimFees } from '@/lib/claimFees';
+import { codeTooLongMessage, isCodeTooLong } from '@/lib/curriculum/codeLimit';
 import { nftContractAddress, stylusForgeNftAbi } from '@/lib/contract';
 import { explorerName, transactionUrl } from '@/lib/explorer';
 
@@ -29,8 +30,18 @@ function shortHash(hash: Hash) {
  * The claim action of a passed lesson, compact enough to sit in the lesson's result bar: the
  * server re-validates the code and signs a voucher, then the student sends claim() from their
  * wallet and pays the gas. Renders the action (or the owned badge) and, below it, any error.
+ * Code over the server's length limit is never sent: the button is disabled and, unless the page
+ * already explains it (`explainTooLong={false}`), says why.
  */
-export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: string }) {
+export function ClaimCertificate({
+  lessonId,
+  code,
+  explainTooLong = true,
+}: {
+  lessonId: number;
+  code: string;
+  explainTooLong?: boolean;
+}) {
   const { address, isConnected, chainId } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { switchChain, isPending: switching } = useSwitchChain();
@@ -75,8 +86,10 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
     );
   }
 
+  const tooLong = isCodeTooLong(code);
+
   async function claim() {
-    if (!address || !nftContractAddress || !publicClient) {
+    if (!address || !nftContractAddress || !publicClient || tooLong) {
       return;
     }
     setError(null);
@@ -155,7 +168,13 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
     );
   } else {
     action = (
-      <button type='button' onClick={claim} disabled={busy || owned.isLoading} className={buttonClasses('quench', 'md')}>
+      <button
+        type='button'
+        onClick={claim}
+        disabled={busy || owned.isLoading || tooLong}
+        aria-describedby={tooLong && explainTooLong ? `claim-too-long-${lessonId}` : undefined}
+        className={buttonClasses('quench', 'md')}
+      >
         {busy ? PHASE_LABEL[phase as Exclude<Phase, 'idle'>] : 'Claim certificate'}
       </button>
     );
@@ -164,6 +183,11 @@ export function ClaimCertificate({ lessonId, code }: { lessonId: number; code: s
   return (
     <>
       {action}
+      {tooLong && explainTooLong && (
+        <p id={`claim-too-long-${lessonId}`} className='basis-full text-sm text-molten-300'>
+          {codeTooLongMessage(code.length)}
+        </p>
+      )}
       {error && (
         <div role='alert' className='basis-full text-sm'>
           <p className='text-molten-300'>{error.message}</p>
